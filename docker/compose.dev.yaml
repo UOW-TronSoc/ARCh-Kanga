@@ -1,0 +1,18 @@
+services:
+  kanga-dev:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    image: kanga-dev:humble
+    container_name: kanga-dev
+    network_mode: host
+    ipc: host
+    privileged: true
+    stdin_open: true
+    tty: true
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}

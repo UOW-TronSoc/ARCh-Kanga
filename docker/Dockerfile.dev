@@ -1,0 +1,47 @@
+FROM ros:humble-ros-base-jammy
+
+# Initial Kanga ROS 2 development/build image.
+# Docker handles the ROS 2 software/build environment only.
+# The host is responsible for hardware and OS-level setup (drivers, CAN interfaces, etc.).
+
+ENV ROS_DISTRO=humble
+ENV WORKSPACE=/workspace
+ENV DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-c"]
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    curl \
+    wget \
+    nano \
+    vim \
+    iproute2 \
+    net-tools \
+    can-utils \
+    python3-pip \
+    python3-colcon-common-extensions \
+    python3-rosdep \
+    python3-vcstool \
+    ros-humble-ament-cmake \
+    ros-humble-rclcpp \
+    ros-humble-rclpy \
+    ros-humble-std-msgs \
+    ros-humble-geometry-msgs \
+    ros-humble-sensor-msgs \
+    ros-humble-nav-msgs \
+    ros-humble-tf2 \
+    ros-humble-tf2-ros \
+    && rm -rf /var/lib/apt/lists/*
+
+# Initialise/update rosdep safely (the base image may already have it initialised).
+RUN rosdep init 2>/dev/null || true \
+    && rosdep update || true
+
+# Source ROS and the workspace overlay (if built) for interactive root shells.
+RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /root/.bashrc \
+    && echo "if [ -f ${WORKSPACE}/install/setup.bash ]; then source ${WORKSPACE}/install/setup.bash; fi" >> /root/.bashrc
+
+WORKDIR /workspace
+
+CMD ["bash"]

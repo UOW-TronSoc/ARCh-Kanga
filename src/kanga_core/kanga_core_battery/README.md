@@ -1,4 +1,4 @@
-# kanga_battery
+# kanga_core_battery
 
 Communication with the Kanga Daly battery management system.
 
@@ -10,5 +10,3 @@ Communication with the Kanga Daly battery management system.
 ## Boundary
 
 Keep battery policy and mission responses outside this low-level package.
-
-This is an architecture placeholder; no 2026 implementation has been migrated yet.

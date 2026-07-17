@@ -1,14 +1,15 @@
 # kanga_science_microcontroller
 
-Microcontroller communication for the Kanga science.
+Firmware and communication protocol for the Kanga science payload microcontroller.
 
 ## Owns
 
-- Science microcontroller protocol
-- Science microcontroller command and status translation
+- The `.ino` firmware that runs on the science payload microcontroller
+- Its command, status, and CAN protocol
+- Host-side protocol translation where required
 
 ## Boundary
 
-Embedded firmware may be stored alongside this domain later, but generated firmware build output must not be committed.
+Generated Arduino build output must not be committed.
 
 This is an architecture placeholder; no 2026 implementation has been migrated yet.

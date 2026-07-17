@@ -1,14 +1,15 @@
 # kanga_excavator_microcontroller
 
-Microcontroller communication for the Kanga excavator.
+Firmware and communication protocol for the Kanga excavator microcontroller.
 
 ## Owns
 
-- Excavator microcontroller protocol
-- Excavator microcontroller command and status translation
+- The `.ino` firmware that runs on the excavator microcontroller
+- Its command, status, and CAN protocol
+- Host-side protocol translation where required
 
 ## Boundary
 
-Embedded firmware may be stored alongside this domain later, but generated firmware build output must not be committed.
+Generated Arduino build output must not be committed.
 
 This is an architecture placeholder; no 2026 implementation has been migrated yet.

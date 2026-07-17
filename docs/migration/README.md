@@ -30,16 +30,21 @@ Do not merge the old branch wholesale. Do not migrate generated files such as
 ## Initial migration order
 
 1. Inventory custom interfaces used by the drive and ODrive stacks.
-2. Establish the required definitions in `kanga_interfaces`.
-3. Import and document the modified ODrive implementation in
-   `kanga_hardware/kanga_odrive`.
-4. Migrate wheel mapping into `kanga_drive`, separating pure kinematics from
-   ROS and ODrive glue.
-5. Migrate the canonical core rover model into `kanga_description`, then
+2. Establish Kanga-wide definitions in `kanga_interfaces` and identify generic
+   ODrive interfaces that must remain independent of Kanga.
+3. Establish the reusable ODrive implementation in its own repository, record
+   its provenance, and pin it beneath `src/vendor` through a `.repos` manifest.
+4. Establish the Jetson GPIO motion-stop input and manual competition override,
+   then define their software contract through `kanga_whs` and
+   `kanga_interfaces`.
+5. Migrate wheel mapping into `kanga_core_drive`, separating pure kinematics
+   from ROS and ODrive glue.
+6. Migrate the canonical rover-base model into `kanga_core_description`, then
    migrate each payload model into its payload description package.
-6. Add minimal real-rover composition in `kanga_bringup`.
-7. Migrate hardware, utilities, autonomy, manipulator, excavator, science, and
-   simulation in independently reviewed package slices.
+7. Compose the complete model in `kanga_description` and add minimal core-only
+   and whole-rover bringup.
+8. Migrate utilities, autonomy, manipulator, excavator, science, and simulation
+   in independently reviewed package slices.
 
 Manipulator and excavator code must be inventoried as separate current
 systems. Do not preserve their old shared control or launch structure unless a
@@ -55,5 +60,5 @@ Every imported subsystem README should record:
 - intentional changes made during migration;
 - outstanding validation or refactoring work.
 
-The ODrive README must additionally document its upstream origin, why it was
-forked, and why it must not be casually replaced with upstream.
+The external ODrive repository must additionally document its upstream origin,
+why it was forked, how it differs from upstream, and its compatibility policy.

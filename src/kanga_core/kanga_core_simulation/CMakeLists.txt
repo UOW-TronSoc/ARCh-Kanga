@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(kanga_battery)
+project(kanga_core_simulation)
 
 find_package(ament_cmake REQUIRED)
 

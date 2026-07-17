@@ -1,20 +1,20 @@
 # kanga_sim
 
-Simulation-specific integration for Kanga.
+Whole-rover simulation composition for Kanga.
 
 ## Owns
 
-- Simulator bridges and adapters
-- Simulation worlds and assets not part of the canonical robot description
-- Simulated hardware configuration
-- Simulation-only launch files
+- Simulation worlds and shared assets not part of canonical descriptions
+- Spawning and composition of core and selected payload simulations
+- Whole-rover simulation launch entry points
 
 ## Does not own
 
 - Canonical URDF, xacro, or meshes
 - Real hardware drivers
-- Control logic that can be shared with the rover
+- Subsystem-specific simulated hardware and adapters
+- Control logic shared with physical hardware
 - RViz layouts
 
-The old `feat/arm-simulation` Raisim bridge is a future migration candidate,
-not part of this architecture-only change.
+Each subsystem simulation remains independently launchable. The old
+`feat/arm-simulation` Raisim bridge is a future migration candidate.

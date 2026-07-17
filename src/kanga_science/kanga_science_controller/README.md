@@ -11,4 +11,7 @@ Control system for the Kanga science.
 
 Hardware transport, description assets, launch composition, and simulation bridges remain outside this package.
 
+Motor commands must be rejected while the shared `kanga_whs`
+motion-inhibit state is active or unavailable.
+
 This is an architecture placeholder; no 2026 implementation has been migrated yet.

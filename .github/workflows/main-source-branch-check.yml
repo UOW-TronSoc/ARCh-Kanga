@@ -2,19 +2,28 @@ name: main-source-branch-check
 
 on:
   pull_request:
-    branches:
-      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - edited
 
 jobs:
   check-source-branch:
+    if: github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Only allow develop to merge into main
+        env:
+          BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+          SOURCE_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
-          echo "Base branch: ${{ github.base_ref }}"
-          echo "Source branch: ${{ github.head_ref }}"
+          echo "Base branch: $BASE_BRANCH"
+          echo "Source branch: $SOURCE_BRANCH"
 
-          if [ "${{ github.head_ref }}" != "develop" ]; then
+          if [ "$SOURCE_BRANCH" != "develop" ]; then
             echo "Pull requests into main must come from develop."
             exit 1
           fi

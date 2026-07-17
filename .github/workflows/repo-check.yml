@@ -27,9 +27,11 @@ jobs:
 
           for file in \
             README.md \
-            CONTRIBUTING.md \
-            docs/00_start_here.md \
-            docs/architecture.md
+            src/README.md \
+            docs/architecture/README.md \
+            docs/migration/README.md \
+            docs/install/docker.md \
+            docs/install/can.md
           do
             if [ ! -f "$file" ]; then
               echo "Missing required file: $file"
@@ -38,6 +40,34 @@ jobs:
           done
 
           exit $missing
+
+      - name: Check shell script syntax
+        shell: bash
+        run: |
+          find scripts -type f -name '*.bash' -print0 \
+            | xargs -0 -r -n1 bash -n
+
+      - name: Validate Docker Compose files
+        shell: bash
+        run: |
+          docker compose -f docker/compose.dev.yaml config --quiet
+          docker compose -f docker/compose.can-test.yaml config --quiet
+
+      - name: Check ROS packages have READMEs
+        shell: bash
+        run: |
+          missing=0
+
+          while IFS= read -r package_file; do
+            package_dir="${package_file%/package.xml}"
+
+            if [ ! -f "${package_dir}/README.md" ]; then
+              echo "ROS package is missing README.md: ${package_dir}"
+              missing=1
+            fi
+          done < <(find src -type f -name package.xml -print | sort)
+
+          exit "$missing"
 
       - name: Check for bad permanent filenames
         shell: bash

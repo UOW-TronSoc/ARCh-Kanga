@@ -18,7 +18,7 @@ if [ -d "src" ]; then
 
     # 3. Build the workspace.
     echo "Building workspace with colcon..."
-    colcon build --symlink-install --event-handlers console_direct+
+    colcon build --symlink-install
 
     echo
     echo "Build complete. Source the overlay with:"

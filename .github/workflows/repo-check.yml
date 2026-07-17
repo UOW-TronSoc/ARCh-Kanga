@@ -1,0 +1,56 @@
+name: repo-check
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  push:
+    branches:
+      - develop
+      - main
+
+jobs:
+  basic-repo-check:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check required files exist
+        shell: bash
+        run: |
+          missing=0
+
+          for file in \
+            README.md \
+            CONTRIBUTING.md \
+            docs/00_start_here.md \
+            docs/architecture.md
+          do
+            if [ ! -f "$file" ]; then
+              echo "Missing required file: $file"
+              missing=1
+            fi
+          done
+
+          exit $missing
+
+      - name: Check for bad permanent filenames
+        shell: bash
+        run: |
+          BAD_FILES=$(find . -type f \( \
+            -iname '*_new.*' -o \
+            -iname '*_old.*' -o \
+            -iname '*_final.*' -o \
+            -iname '*_working.*' \
+          \) -not -path './.git/*' || true)
+
+          if [ -n "$BAD_FILES" ]; then
+            echo "Bad permanent filenames found:"
+            echo "$BAD_FILES"
+            exit 1
+          fi

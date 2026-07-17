@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(kanga_drive)
+project(kanga_core_bringup)
 
 find_package(ament_cmake REQUIRED)
 

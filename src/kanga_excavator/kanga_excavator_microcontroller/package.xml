@@ -3,7 +3,7 @@
 <package format="3">
   <name>kanga_excavator_microcontroller</name>
   <version>0.0.0</version>
-  <description>Microcontroller communication for the Kanga excavator</description>
+  <description>Firmware and communication protocol for the Kanga excavator microcontroller</description>
   <maintainer email="uow-tronsoc@users.noreply.github.com">UOW TronSoc</maintainer>
   <license>Apache-2.0</license>
 

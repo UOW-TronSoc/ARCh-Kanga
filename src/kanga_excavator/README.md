@@ -12,8 +12,8 @@ a ROS package.
 - `kanga_excavator_bringup`: excavator-specific launch composition and
   configuration selection.
 - `kanga_excavator_simulation`: excavator simulation bridges and launch files.
-- `kanga_excavator_microcontroller`: communication with the excavator
-  microcontroller.
+- `kanga_excavator_microcontroller`: `.ino` firmware and protocol for the
+  excavator microcontroller.
 
 `kanga_excavator_utils` is reserved as an empty structure folder for future
 excavator utility packages. Do not put miscellaneous code there without a clear

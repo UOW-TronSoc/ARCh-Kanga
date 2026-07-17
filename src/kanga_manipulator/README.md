@@ -13,8 +13,8 @@ a ROS package.
   configuration selection.
 - `kanga_manipulator_simulation`: manipulator simulation bridges and launch
   files.
-- `kanga_manipulator_microcontroller`: communication with the manipulator
-  microcontroller.
+- `kanga_manipulator_microcontroller`: `.ino` firmware and protocol for the
+  manipulator microcontroller.
 
 `kanga_manipulator_utils` is reserved as an empty structure folder for future
 manipulator utility packages. Do not put miscellaneous code there without a

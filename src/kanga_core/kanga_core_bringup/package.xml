@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>kanga_core</name>
+  <name>kanga_core_bringup</name>
   <version>0.0.0</version>
-  <description>Control and status for Kanga core internal mechanisms</description>
+  <description>Standalone bringup for the physical Kanga rover base</description>
   <maintainer email="uow-tronsoc@users.noreply.github.com">UOW TronSoc</maintainer>
   <license>Apache-2.0</license>
 

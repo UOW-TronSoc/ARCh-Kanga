@@ -11,8 +11,8 @@ itself a ROS package.
 - `kanga_science_bringup`: science-specific launch composition and
   configuration selection.
 - `kanga_science_simulation`: science payload simulation and launch files.
-- `kanga_science_microcontroller`: communication with the science payload
-  microcontroller.
+- `kanga_science_microcontroller`: `.ino` firmware and protocol for the science
+  payload microcontroller.
 
 `kanga_science_utils` is reserved as an empty structure folder for future
 science utility packages. Do not put miscellaneous code there without a clear

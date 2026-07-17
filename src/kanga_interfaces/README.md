@@ -16,3 +16,7 @@ Shared ROS 2 messages, services, and actions for Kanga.
 Add an interface only when standard ROS interfaces cannot express the contract
 clearly. Keep definitions transport-neutral and document units in field
 comments. Interface migration from the 2026 repository has not started yet.
+
+The whole-robot WHS contract may require transport-neutral motion-inhibit state
+and explicit override interfaces here. Their fields and override semantics must
+be documented before implementation.

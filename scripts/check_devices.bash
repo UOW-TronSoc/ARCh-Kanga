@@ -28,6 +28,21 @@ echo "==================== CAN interfaces ===================="
 ip -details link show type can || true
 
 echo
+echo "==================== CAN adapter identity ===================="
+for sysfs_iface in /sys/class/net/can*; do
+    if [ ! -e "${sysfs_iface}" ]; then
+        echo "No can* interfaces found"
+        break
+    fi
+
+    iface="${sysfs_iface##*/}"
+    echo "=== ${iface} ==="
+    udevadm info -q property -p "${sysfs_iface}" 2>/dev/null \
+        | grep -E '^(ID_SERIAL|ID_SERIAL_SHORT|ID_MODEL|ID_VENDOR|ID_PATH)=' \
+        || echo "No USB identity properties found for ${iface}"
+done
+
+echo
 echo "==================== Video devices ===================="
 ls -l /dev/video* 2>/dev/null || echo "No /dev/video devices found"
 

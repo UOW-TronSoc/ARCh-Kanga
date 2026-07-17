@@ -6,4 +6,9 @@
 #
 set -euo pipefail
 
-docker compose -f docker/compose.dev.yaml run --rm kanga-dev
+# Pass the host identity into image builds so bind-mounted workspace artifacts
+# remain editable by the host user. Defaults in Compose still cover UID/GID 1000.
+export KANGA_UID="${KANGA_UID:-$(id -u)}"
+export KANGA_GID="${KANGA_GID:-$(id -g)}"
+
+docker compose -f docker/compose.dev.yaml run --rm --build kanga-dev

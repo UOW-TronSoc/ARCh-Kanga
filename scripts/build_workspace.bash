@@ -5,10 +5,11 @@
 # Intended to be run INSIDE the dev container (where ROS 2 Humble is installed),
 # from the workspace root (/workspace).
 #
-set -euo pipefail
+set -eo pipefail
 
 # 1. Source the ROS 2 environment.
 source /opt/ros/humble/setup.bash
+set -u
 
 if [ -d "src" ]; then
     # 2. Resolve dependencies for packages under src/.
@@ -17,7 +18,7 @@ if [ -d "src" ]; then
 
     # 3. Build the workspace.
     echo "Building workspace with colcon..."
-    colcon build --event-handlers console_direct+
+    colcon build --symlink-install --event-handlers console_direct+
 
     echo
     echo "Build complete. Source the overlay with:"

@@ -22,7 +22,7 @@ before we move on to hardware bring-up.
 - JetPack / NVIDIA drivers
 - Docker itself (engine + compose plugin)
 - USB-CAN adapter detection
-- CAN interface setup (`can0` / `can1` creation + bitrate)
+- stable CAN interface naming (`can_core` / `can_payload`) and bitrate setup
 - udev rules
 - Networking and SSH
 - ZED SDK (initially, until added to the image later)
@@ -38,8 +38,10 @@ Run from the repo root **on the host**:
 
 ```bash
 ./scripts/check_devices.bash
-./scripts/setup_can.bash can0 500000
-./scripts/check_can.bash can0
+./scripts/setup_can.bash can_core 500000
+./scripts/setup_can.bash can_payload 500000
+./scripts/check_can.bash can_core
+./scripts/check_can.bash can_payload
 
 docker compose -f docker/compose.can-test.yaml build
 docker compose -f docker/compose.can-test.yaml run --rm can-test
@@ -49,7 +51,8 @@ Inside the container:
 
 ```bash
 ip -details link show type can
-candump can0 -n 10
+candump can_core -n 10
+candump can_payload -n 10
 ```
 
 Then build the workspace (inside the container):
@@ -63,8 +66,26 @@ Then build the workspace (inside the container):
 ```bash
 ./scripts/docker_shell.bash
 # equivalent to:
-# docker compose -f docker/compose.dev.yaml run --rm kanga-dev
+# docker compose -f docker/compose.dev.yaml run --rm --build kanga-dev
 ```
+
+The shell helper checks the image build before starting. Docker reuses cached
+layers when `Dockerfile.dev` and `apt-packages.txt` have not changed.
+
+The image uses a non-root `kanga` user whose UID and GID are matched to the host
+by `docker_shell.bash`. This prevents colcon's bind-mounted `build/`, `install/`,
+and `log/` directories from becoming root-owned. When building the image
+directly on a host whose UID/GID are not `1000`, pass them explicitly:
+
+```bash
+KANGA_UID="$(id -u)" KANGA_GID="$(id -g)" \
+  docker compose -f docker/compose.dev.yaml build
+```
+
+Reusable operating-system dependencies are listed in
+`docker/apt-packages.txt`. Add a package there and rebuild the image. Declare
+ROS package dependencies in the relevant `package.xml` so rosdep can resolve
+them.
 
 ## Important
 

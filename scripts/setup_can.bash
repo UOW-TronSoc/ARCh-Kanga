@@ -2,16 +2,16 @@
 #
 # Host-side CAN interface setup for the Kanga rover.
 #
-# The HOST is responsible for creating/configuring CAN interfaces (can0/can1).
+# The HOST is responsible for creating and stably naming CAN interfaces.
 # Docker later talks to these interfaces via host networking + SocketCAN.
 #
 # Usage:
 #   ./scripts/setup_can.bash [interface] [bitrate]
-#   ./scripts/setup_can.bash can0 500000
+#   ./scripts/setup_can.bash can_core 500000
 #
 set -euo pipefail
 
-INTERFACE="${1:-can0}"
+INTERFACE="${1:-can_core}"
 BITRATE="${2:-500000}"
 
 echo "Setting up CAN interface '${INTERFACE}' at bitrate ${BITRATE}..."

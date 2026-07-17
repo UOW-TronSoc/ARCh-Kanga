@@ -3,6 +3,9 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.dev
+      args:
+        USER_UID: ${KANGA_UID:-1000}
+        USER_GID: ${KANGA_GID:-1000}
     image: kanga-dev:humble
     container_name: kanga-dev
     network_mode: host

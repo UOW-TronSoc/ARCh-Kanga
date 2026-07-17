@@ -9,38 +9,33 @@ ENV WORKSPACE=/workspace
 ENV DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    git \
-    curl \
-    wget \
-    nano \
-    vim \
-    iproute2 \
-    net-tools \
-    can-utils \
-    python3-pip \
-    python3-colcon-common-extensions \
-    python3-rosdep \
-    python3-vcstool \
-    ros-humble-ament-cmake \
-    ros-humble-rclcpp \
-    ros-humble-rclpy \
-    ros-humble-std-msgs \
-    ros-humble-geometry-msgs \
-    ros-humble-sensor-msgs \
-    ros-humble-nav-msgs \
-    ros-humble-tf2 \
-    ros-humble-tf2-ros \
+ARG USER_NAME=kanga
+ARG USER_UID=1000
+ARG USER_GID=1000
+
+COPY docker/apt-packages.txt /tmp/apt-packages.txt
+
+RUN apt-get update \
+    && xargs -r apt-get install -y --no-install-recommends < /tmp/apt-packages.txt \
+    && rm -f /tmp/apt-packages.txt \
     && rm -rf /var/lib/apt/lists/*
 
-# Initialise/update rosdep safely (the base image may already have it initialised).
-RUN rosdep init 2>/dev/null || true \
-    && rosdep update || true
+# Match the development user to the host so bind-mounted build files are not
+# owned by root. sudo is retained for rosdep to install declared dependencies.
+RUN groupadd --gid "${USER_GID}" "${USER_NAME}" \
+    && useradd --uid "${USER_UID}" --gid "${USER_GID}" --create-home \
+        --shell /bin/bash "${USER_NAME}" \
+    && echo "${USER_NAME} ALL=(root) NOPASSWD:ALL" \
+        > "/etc/sudoers.d/${USER_NAME}" \
+    && chmod 0440 "/etc/sudoers.d/${USER_NAME}" \
+    && (rosdep init 2>/dev/null || true)
 
-# Source ROS and the workspace overlay (if built) for interactive root shells.
-RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /root/.bashrc \
-    && echo "if [ -f ${WORKSPACE}/install/setup.bash ]; then source ${WORKSPACE}/install/setup.bash; fi" >> /root/.bashrc
+ENV HOME=/home/${USER_NAME}
+USER ${USER_NAME}
+
+RUN rosdep update \
+    && echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> "${HOME}/.bashrc" \
+    && echo "if [ -f ${WORKSPACE}/install/setup.bash ]; then source ${WORKSPACE}/install/setup.bash; fi" >> "${HOME}/.bashrc"
 
 WORKDIR /workspace
 

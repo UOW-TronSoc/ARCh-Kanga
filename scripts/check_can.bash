@@ -7,11 +7,11 @@
 #
 # Usage:
 #   ./scripts/check_can.bash [interface]
-#   ./scripts/check_can.bash can0
+#   ./scripts/check_can.bash can_core
 #
 set -euo pipefail
 
-INTERFACE="${1:-can0}"
+INTERFACE="${1:-can_core}"
 
 # 1. Print all CAN interfaces.
 echo "=== All CAN interfaces ==="

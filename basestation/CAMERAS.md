@@ -4,6 +4,13 @@ Status: **not started** — investigation notes and agreed direction, written 20
 Context: robot code and basestation now run on the same computer (currently a
 Jetson Orin NX 16GB, possible future switch to Orin Nano 8GB).
 
+Repository pointers and the full topic contract are in
+[REDESIGN_PLAN.md](REDESIGN_PLAN.md) ("Context needed to work on this from any
+machine"). Legacy code cited below (`views.py`, `VideoFeedCard.jsx`,
+`camera_publisher_node.cpp`) lives in the legacy basestation repo
+(`UOW-TronSoc/ARCh2026-BaseStation`) and the legacy robot workspace
+(`kanga_cameras` package) respectively.
+
 ## How cameras work today (legacy basestation)
 
 Three supposed paths, but only two are real:

@@ -5,9 +5,87 @@ Status: **not started** — plan agreed 2026-07-18. Camera details expanded in
 
 Phase 1: replace the four-service basestation stack (Django + two FastAPI apps
 + Vite dev server) with a single FastAPI backend embedding one rclpy node,
-WebSocket teleop/telemetry, a statically built frontend, and one systemd
-bringup chain. Phase 2: replace the JPEG-polling camera pipeline with MediaMTX
-+ hardware H.264 + WebRTC, with exactly one owner per video device.
+WebSocket teleop/telemetry with dead-man stop, a statically built frontend,
+and one bringup path that is the same in dev and on the rover. Phase 2:
+replace the JPEG-polling camera pipeline with MediaMTX + hardware H.264 +
+WebRTC, with exactly one owner per video device.
+
+## Use cases this is built around
+
+Operators (competition / field):
+
+- Open one browser on a laptop and drive/control the rover over Wi-Fi.
+- See live robot state (battery, arm, science) without juggling refreshes.
+- Keep the competition UI (drive, arm + 3D, science, cameras, checklist, logs,
+  PIN) — rebuild plumbing, keep the product.
+- Video that stays usable at range (less lag / freezing on a bad link).
+- If the laptop, tab, or link drops mid-drive, the rover must stop — not keep
+  rolling.
+
+Developers (club members):
+
+- Work on robot software with a simple Docker setup (minimal host install
+  pain).
+- Optionally start the operator UI against that same robot software to test
+  control end-to-end.
+- Same story on a laptop in dev and on the rover in prod.
+- No messy multi-app stack just to try something.
+
+Team / product:
+
+- One ongoing codebase for rover + operator UI; migrate carefully — keep
+  known-good behaviour first, replace pieces when validated.
+- The operator UI uses the ROS interfaces and topic contracts defined on the
+  robot (`src/`) side — one source of truth, never a parallel copy of
+  message/topic definitions.
+
+## Context needed to work on this from any machine
+
+Source repositories:
+
+- **This repo (target):** https://github.com/UOW-TronSoc/ARCh-Kanga
+- **Legacy basestation (porting reference for UI + REST endpoints):**
+  https://github.com/UOW-TronSoc/ARCh2026-BaseStation — running live on the
+  rover at `/home/kanga/kanga/basestation`.
+- **Legacy robot code (topic-contract reference):** `ARCH2026-Kanga` at the
+  commit pinned in the repo root README; the live (possibly diverged) copy is
+  the rover's workspace at `/home/kanga/kanga/kanga`.
+
+**Sequencing: rover code merges in first.** The old rover code (including
+`kanga_interfaces` — `BatteryInfo`, `BmsStatus`, `ScienceControl`,
+`ScienceFeedback`, `ControlMessage`, `ControllerStatus`, `ODriveStatus`,
+`AxisState.srv`, currently only in the rover's live workspace) is being
+migrated into this repo's `src/` **before** basestation development starts.
+This plan assumes that migration is done: Phase 1 begins with the interfaces
+and robot packages already building via Path A.
+
+### Topic contract (as implemented on the 2026 rover)
+
+| Topic | Type | Direction |
+|---|---|---|
+| `/cmd_vel` | `geometry_msgs/Twist` | UI -> drive |
+| `/kanga_arm/joint_control` | `sensor_msgs/JointState` | UI -> arm |
+| `kanga_arm/ee_state_control` | `geometry_msgs/Twist` | UI -> arm |
+| `kanga_arm/control_mode_joint` | `std_msgs/Bool` | UI -> arm |
+| `/joint_states` | `sensor_msgs/JointState` | robot -> UI |
+| `kanga_science/heating` | `std_msgs/Bool` | UI -> robot |
+| `kanga_science/cooling` | `std_msgs/Bool` | UI -> robot |
+| `kanga_science/linear_actuator_speed` | `std_msgs/Int32` | UI -> robot |
+| `kanga_science/temperatures` | `std_msgs/Float32MultiArray` | robot -> UI |
+| `kanga_science/ultrasonic_cm` | `std_msgs/Float32` | robot -> UI |
+| `kanga_science/current_amps` | `std_msgs/Float32` | robot -> UI |
+| `kanga_science/spectrophotometer` | `std_msgs/Float32MultiArray` | robot -> UI |
+| `/battery/battery_info` | `kanga_interfaces/BatteryInfo` | robot -> UI |
+| `/battery/bms_status` | `kanga_interfaces/BmsStatus` | robot -> UI |
+
+This table is a snapshot for bootstrapping on a fresh machine; once the
+interfaces and robot packages are migrated into `src/`, the code there is the
+source of truth and this table should not be maintained separately.
+
+Rover-only items (everything else can be developed and tested on a laptop via
+Path A + Path C): NIR servo GPIO (Jetson.GPIO), real cameras (IP cams at
+`10.0.0.5`/`10.0.0.6`, `/dev/video*`), CAN hardware, and final parity
+verification against the legacy stack.
 
 ## What stays the same
 
@@ -23,17 +101,19 @@ flowchart LR
     Browser["Operator browser (laptop over Wi-Fi)"]
     Browser -->|"HTTP + WebSocket, single port :8000"| Server
 
-    subgraph rover [Rover computer]
-        Server["basestation server (one FastAPI app)"]
+    subgraph rover [Rover computer or dev machine]
+        Server["basestation-server container (one FastAPI app)"]
         Server --- Static["Built React frontend (static files)"]
         Server --- Node["Single rclpy node"]
-        Node <-->|DDS| Robot["Robot stack: kanga_drive, kanga_arm, kanga_science, kanga_battery"]
-        DjangoCam["Django (cameras only, temporary)"]
+        Node <-->|"DDS (host networking, shared ROS_DOMAIN_ID)"| Robot["Robot stack from src/ (Path A container or native)"]
     end
-
-    Browser -->|"MJPEG :8010 (moved off :8000)"| DjangoCam
-    IPCams["IP cams 10.0.0.5/6"] -->|RTSP| DjangoCam
 ```
+
+The legacy four-service stack on the current rover
+(`/home/kanga/kanga/basestation`: Django :8000, drive FastAPI :8080, arm
+FastAPI :8001, Vite :3000) stays untouched and running as the fallback until
+this stack reaches parity — cameras included. Nothing needs to be carved out
+of it mid-migration.
 
 ### 1. One backend service instead of three
 
@@ -49,14 +129,15 @@ background executor thread with all publishers/subscribers:
   after a newer "stop". Browser still polls the gamepad (~50 Hz — the Gamepad
   API is polling-only, that part is fine and universal) but sends at a fixed
   20-30 Hz with change-detection and a keepalive over one ordered WebSocket.
-  The server publishes a zero Twist if no message arrives within ~300-500 ms.
-- **Robot-side `/cmd_vel` watchdog in `kanga_drive`** — `wheel_command_mapper`
-  currently has **no command timeout** and the ODrives hold their last
-  commanded velocity, so a frozen tab / dropped Wi-Fi / dead basestation
-  process mid-drive leaves the rover moving indefinitely. Add a wall timer
-  that zeroes wheel commands if no `/cmd_vel` arrives within a configurable
-  timeout. Small standalone change in `kanga_drive`; worth doing first,
-  independent of the rest of this plan.
+  **Dead-man stop:** the server publishes a zero Twist if no message arrives
+  within ~300-500 ms, covering frozen tabs, dropped Wi-Fi, and closed laptops.
+- **Requirement to carry into the drive/ODrive rebuild** (not a task here —
+  that stack is being rebuilt from the ground up separately): the drive layer
+  must have its own `/cmd_vel` timeout that zeroes the wheels. The legacy
+  `wheel_command_mapper` has no command timeout and the ODrives hold their
+  last commanded velocity, so today a dead basestation process mid-drive
+  leaves the rover moving indefinitely. The new drive stack should never trust
+  the command source to keep talking.
 - **WebSocket `/ws/telemetry`** — pushes battery (`/battery/battery_info`,
   `/battery/bms_status`), `/joint_states`, and `kanga_science/*` at a fixed
   rate. Replaces frontend REST polling and removes the need for Redis caching
@@ -65,9 +146,15 @@ background executor thread with all publishers/subscribers:
   checklist, logs, PIN, NIR servo GPIO.
 
 **Cameras: handled in Phase 2 (see [CAMERAS.md](CAMERAS.md)).** During Phase 1
-the existing Django camera endpoints keep running as-is — Django is reduced to
-cameras-only and moved to `:8010` so the new server can own `:8000`. It is
-deleted at the end of Phase 2.
+camera feeds keep coming from the legacy stack on the rover; the new server
+does not touch video. In Phase 2 MediaMTX takes over feed by feed.
+
+**Topic contracts come from `src/`.** The server imports `kanga_interfaces`
+(and topic names) from the bind-mounted workspace `install/` — the same
+overlay the robot nodes use — via the existing container entrypoint that
+sources `/opt/ros/humble` then `/workspace/install/setup.bash`
+([docker-entrypoint.bash](docker-entrypoint.bash)). No message or topic
+definitions are ever duplicated on the basestation side.
 
 **Why rclpy and not rclcpp:** the rover-side packages are rclcpp, but ROS 2 is
 language-agnostic over DDS (`kanga_interfaces` generates both bindings), so
@@ -80,32 +167,51 @@ just that piece into a small rclcpp node.
 
 ### 2. Frontend built, not dev-served
 
-`vite build` output served as static files by the same FastAPI app. Everything
-is same-origin on one port, so `config.js`'s per-port URL builders and Django's
-CORS/`ALLOWED_HOSTS` (`10.0.0.1`/`10.0.0.2` hardcoding) disappear. No
-`npm run dev` systemd service.
+React frontend built with `vite build` in a multi-stage Docker build (node
+stage builds, output copied into the Python image) and served as static files
+by the same FastAPI app. Everything is same-origin on one port, so the legacy
+`config.js` per-port URL builders and CORS/`ALLOWED_HOSTS` IP hardcoding
+(`10.0.0.1`/`10.0.0.2`) disappear. For frontend iteration, `vite dev` on the
+host with a proxy to `:8000` still works — it just isn't the deployed shape.
 
-### 3. One bringup chain
+### 3. Docker-first bringup — same shape in dev and prod
 
-- Single ROS env script (reuse `/home/kanga/kanga/onboard_ros_env.sh`) sourcing
-  `/opt/ros/humble` + `/home/kanga/kanga/kanga/install/setup.bash` — fixes the
-  dead `KANGA_ROS2_WS=/home/kanga/kanga/ARCH2026-Kanga` path in the current
-  units.
-- systemd: `onboard_drive.service` (robot stack) + one `basestation.service`
-  with `After=`/`Wants=` on it. Replaces the four `basestation-*` units.
-- Keep `ROS_DOMAIN_ID=0`, `ROS_LOCALHOST_ONLY=0` so Foxglove/`ros2` CLI on the
-  laptop still see the graph (needed for the AutoMap embed).
+The existing dev workflows stay exactly as documented in the repo README; the
+operator stack just collapses from four compose services to one.
 
-### 4. Deleted outright
+- **Path A (robot / ROS work)** — unchanged:
+  `docker compose -f docker/compose.dev.yaml build`, `./scripts/docker_shell.bash`,
+  then `./scripts/build_workspace.bash` + `source install/setup.bash` inside.
+- **Path B (operator UI)** — `./scripts/basestation_up.bash` /
+  `basestation_down.bash`, unchanged commands, but
+  [docker/compose.basestation.yaml](../docker/compose.basestation.yaml) shrinks
+  to a single `basestation-server` service (plus MediaMTX in Phase 2). Same
+  guard (refuses to start until `install/setup.bash` exists), same host
+  networking / `ipc: host` / `ROS_DOMAIN_ID` env, same bind-mounted
+  `/workspace`, same entrypoint sourcing pattern. UI moves from :3000 to
+  `http://localhost:8000/`. The `Dockerfile.basestation-frontend` nginx
+  scaffold and the three uvicorn stub services retire.
+- **Path C (end-to-end control test)** — unchanged story: run Path A with
+  robot nodes up, run Path B beside it; both are host-network DDS participants
+  on the same `ROS_DOMAIN_ID`, so the UI drives the real nodes with no extra
+  wiring. This works identically on a dev laptop and on the rover.
+- **Rover (prod)**: the same compose file with `restart: unless-stopped` (or a
+  thin systemd unit that runs `docker compose -f docker/compose.basestation.yaml up`),
+  after the robot bringup. No separate prod stack to maintain — dev and prod
+  differ only in what starts it.
+- Keep `ROS_LOCALHOST_ONLY=0` so Foxglove/`ros2` CLI on the operator laptop
+  still see the graph.
 
-- Django REST/telemetry/arm code, django-redis, Redis dependency (Django itself
-  stays temporarily, serving only the camera endpoints until the camera rework)
-- Duplicate arm bridge (Django `/api/arm-*` vs FastAPI :8001 — collapse to one
-  implementation)
-- Docker compose stack, `supervisord.conf`, `startup.sh` (two-computer/legacy
-  artifacts)
-- `robot_controller/` mocks + `process_manager` (:8081) — or keep as an
-  optional dev tool, decoupled from the main stack
+### 4. Not migrated from the legacy basestation
+
+- Django project, django-redis, Redis dependency
+- The duplicate arm bridge (legacy had Django `/api/arm-*` *and* FastAPI
+  :8001 — one implementation in the new server)
+- `supervisord.conf`, `startup.sh`, and the legacy repo's own docker-compose
+  (two-computer artifacts; `kanga_wip/docker/` is the replacement)
+- `robot_controller/` mocks + `process_manager` (:8081) — if mock publishers
+  are wanted for UI dev without hardware, that becomes a small script run
+  inside the Path A container instead
 
 ### Considered and rejected
 
@@ -144,46 +250,59 @@ flowchart LR
 
 ## Migration approach
 
-- Phase 1: build the new server alongside the existing stack (different port),
-  reach feature parity page by page, then swap systemd units and delete the old
-  services. The React components mostly survive — only the API/WS client layer
-  (`config.js` and axios calls) changes.
-- Phase 2: bring up MediaMTX beside the existing Django camera service and
-  migrate camera by camera, keeping the old MJPEG endpoints as fallback until
-  every feed is verified on WebRTC.
+- Phase 1: build the new server in this repo while the legacy stack keeps
+  running on the rover, reach feature parity page by page (validated via
+  Path C on a dev machine), then deploy the compose stack to the rover and
+  retire the legacy services. The React components mostly survive — only the
+  API/WS client layer (`config.js` and axios calls) changes.
+- Phase 2: bring up MediaMTX beside the legacy camera endpoints and migrate
+  camera by camera, keeping the old MJPEG feeds as fallback until every feed
+  is verified on WebRTC.
+- Migration principle from the repo README applies throughout: preserve
+  known-working behaviour first, validate it, only then remove the old path.
 
 ## Task list
 
-### Phase 0 (safety, do first, standalone)
+### Prerequisite (separate work, in progress)
 
-1. Add a `/cmd_vel` timeout watchdog to `wheel_command_mapper` in
-   `kanga_drive`: zero the wheels if no command arrives within a configurable
-   timeout (e.g. 500 ms). Protects against frozen browser tabs, Wi-Fi drops,
-   and basestation process death regardless of any other work.
+Merge the old rover code into this repo's `src/` — including
+`kanga_interfaces`. Everything below assumes the interfaces and robot packages
+build via Path A.
 
 ### Phase 1
 
 1. Scaffold `basestation/server/` FastAPI app with a single rclpy node on an
-   executor thread, plus static file serving.
-2. Implement `/ws/control`: gamepad drive to `/cmd_vel` with dead-man
-   zero-Twist, arm command topics.
-3. Implement `/ws/telemetry`: battery, joint_states, science topics pushed at a
-   fixed rate.
-4. Port remaining Django REST endpoints: science controls, checklist, logs,
-   PIN, NIR servo GPIO.
-5. Switch frontend to a same-origin API/WS client, `vite build`, serve
-   statically.
-6. New env sourcing + single `basestation.service` chained after
-   `onboard_drive.service`; remove the four old units and the stale
-   `KANGA_ROS2_WS` path.
-7. After parity: strip Django down to cameras-only (moved to :8010), remove
-   Redis, the duplicate arm FastAPI, and the Docker/supervisord/startup.sh
-   legacy.
+   executor thread, plus static file serving. Reuse the existing entrypoint
+   sourcing pattern so `kanga_interfaces` and topic contracts come from the
+   bind-mounted `install/`.
+2. Collapse `docker/compose.basestation.yaml` to one `basestation-server`
+   service (multi-stage Dockerfile: node stage runs `vite build`, Python stage
+   serves it); retire the nginx frontend scaffold and the three uvicorn stubs;
+   keep `basestation_up.bash` / `basestation_down.bash` working unchanged
+   (Path B), including the `install/` guard.
+3. Implement `/ws/control`: gamepad input sent at fixed 20-30 Hz with
+   change-detection and keepalive; server-side dead-man publishes zero Twist
+   on ~300-500 ms silence; arm command topics.
+4. Implement `/ws/telemetry`: battery, joint_states, science topics pushed at
+   a fixed rate.
+5. Port the operator REST actions from the legacy Django app: science
+   controls, checklist, logs, PIN, NIR servo GPIO.
+6. Migrate the React UI (drive, arm + 3D URDF, science, checklist, logs, PIN)
+   onto the same-origin API/WS client; verify Path C end-to-end (Path A robot
+   nodes + Path B UI on one machine).
+7. Rover deployment: same compose file started on boot (restart policy or a
+   thin systemd wrapper), brought up after robot bringup; legacy stack retired
+   from the rover once parity is verified.
+
+Carried requirement (not a task here): the ground-up drive/ODrive rebuild must
+include its own `/cmd_vel` timeout that zeroes the wheels — never trust the
+command source to keep talking.
 
 ### Phase 2 (cameras — see CAMERAS.md)
 
-1. Install MediaMTX as a systemd service; RTSP pull for IP cams 10.0.0.5/6 with
-   WebRTC (WHEP) output; verify latency vs direct view.
+1. Add MediaMTX as a service in `docker/compose.basestation.yaml` (official
+   image, host networking); RTSP pull for IP cams 10.0.0.5/6 with WebRTC
+   (WHEP) output; verify latency vs direct view.
 2. Per-USB-camera GStreamer pipeline (`v4l2src -> encoder -> rtspclientsink`)
    into MediaMTX, encoder element configurable, driven by one camera-ownership
    config.
@@ -191,6 +310,6 @@ flowchart LR
    -> encoder -> MediaMTX for the webpage.
 4. Replace `VideoFeedCard` JPEG polling with a WHEP WebRTC `<video>` element;
    camera list from MediaMTX paths.
-5. Retire Django camera code and the `kanga_cameras` publisher (or keep a topic
-   tee only where robot code needs frames); delete the cameras-only Django
-   service.
+5. Retire the legacy camera path entirely: the old Django camera endpoints on
+   the rover and the `kanga_cameras`-style publisher (keep a topic tee only
+   where robot code needs frames).

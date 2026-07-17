@@ -1,0 +1,89 @@
+# Optional operator / basestation stack (ROS participants over host networking).
+# Start with ./scripts/basestation_up.bash after a workspace build (install/).
+services:
+  basestation-django:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.basestation-python
+    image: kanga-basestation-python:humble
+    container_name: basestation-django
+    network_mode: host
+    ipc: host
+    working_dir: /workspace/basestation
+    volumes:
+      - ..:/workspace
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
+    command:
+      [
+        "python3",
+        "-m",
+        "uvicorn",
+        "django_app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+      ]
+
+  basestation-fastapi:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.basestation-python
+    image: kanga-basestation-python:humble
+    container_name: basestation-fastapi
+    network_mode: host
+    ipc: host
+    working_dir: /workspace/basestation
+    volumes:
+      - ..:/workspace
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
+    command:
+      [
+        "python3",
+        "-m",
+        "uvicorn",
+        "fastapi_server.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8080",
+      ]
+
+  basestation-arm-fastapi:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.basestation-python
+    image: kanga-basestation-python:humble
+    container_name: basestation-arm-fastapi
+    network_mode: host
+    ipc: host
+    working_dir: /workspace/basestation
+    volumes:
+      - ..:/workspace
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
+    command:
+      [
+        "python3",
+        "-m",
+        "uvicorn",
+        "arm_fastapi_app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8001",
+      ]
+
+  basestation-frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.basestation-frontend
+    image: kanga-basestation-frontend:scaffold
+    container_name: basestation-frontend
+    network_mode: host
+    ipc: host

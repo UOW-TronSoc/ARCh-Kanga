@@ -13,24 +13,41 @@ on:
 jobs:
   basic-repo-check:
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Check required files exist
+        shell: bash
         run: |
-          test -f README.md
-          test -f CONTRIBUTING.md
-          test -f docs/00_start_here.md
-          test -f docs/architecture.md
+          missing=0
+
+          for file in \
+            README.md \
+            CONTRIBUTING.md \
+            docs/00_start_here.md \
+            docs/architecture.md
+          do
+            if [ ! -f "$file" ]; then
+              echo "Missing required file: $file"
+              missing=1
+            fi
+          done
+
+          exit $missing
 
       - name: Check for bad permanent filenames
+        shell: bash
         run: |
           BAD_FILES=$(find . -type f \( \
             -iname '*_new.*' -o \
             -iname '*_old.*' -o \
             -iname '*_final.*' -o \
             -iname '*_working.*' \
-          \) | grep -v .git || true)
+          \) -not -path './.git/*' || true)
 
           if [ -n "$BAD_FILES" ]; then
             echo "Bad permanent filenames found:"

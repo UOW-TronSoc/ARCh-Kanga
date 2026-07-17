@@ -12,6 +12,9 @@ The remote commit is the reference, not the locally modified checkout. Other
 competition-tested branches may be consulted component by component, but
 `feat/arm-simulation` is the starting point for inventory and provenance.
 
+Basestation operator UI/API migration is tracked separately in
+[basestation.md](basestation.md).
+
 ## Migration method
 
 For each component:

@@ -154,6 +154,19 @@ requirements prove that an abstraction is genuinely shared.
 Each payload also has an empty `kanga_<payload>_utils` structure folder reserved
 for future packages. It must not receive miscellaneous implementation directly.
 
+## Operator UI (basestation)
+
+`basestation/` is the ground-station HTTP stack (Django/FastAPI/frontend). It is
+**not** a ROS package domain and must not live under `src/`. Those services are
+still ROS 2 participants: they use `rclpy`, publish and subscribe on rover
+topics, and import message types from `kanga_interfaces` after a workspace
+`install/` overlay is sourced.
+
+Docker for basestation is separate from `compose.dev.yaml` so members can work
+on ROS packages without starting the operator stack. See
+[Basestation install](../install/basestation.md) and
+[Basestation migration](../migration/basestation.md).
+
 ## Cross-cutting decisions
 
 - ROS 2 Humble on Ubuntu 22.04 is the initial supported environment.
@@ -165,3 +178,5 @@ for future packages. It must not receive miscellaneous implementation directly.
 - Platform SDKs such as ZED are treated separately from ordinary ROS package
   dependencies.
 - Tests should target pure calculations below ROS nodes whenever practical.
+- Operator UI code stays under `basestation/`; shared ROS interfaces stay in
+  `src/kanga_interfaces`.

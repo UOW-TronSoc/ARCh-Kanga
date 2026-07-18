@@ -5,7 +5,8 @@ itself a ROS package and must not become a miscellaneous code dump.
 
 ## Packages
 
-- `kanga_canbus`: interface between SocketCAN and ROS-facing code.
+- `kanga_canbus`: optional Kanga-facing CAN helpers only; not ODrive transport.
+  Club-owned devices should use `ros2socketcan_bridge`.
 - `kanga_onboard_control`: control from a controller connected directly to the
   onboard computer.
 - `kanga_joy`: shared ROS 2 joystick interfaces and integration.

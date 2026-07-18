@@ -221,6 +221,95 @@ operator stack just collapses from four compose services to one.
   browser.
 - **Replace UI with Foxglove:** loses the purpose-built competition UI.
 
+## Review feedback and responses
+
+The original basestation author reviewed this plan and raised two objections:
+(1) don't replace reliable REST with WebSockets — you'll forever be chasing
+connection drops; (2) skip WebRTC for video — use plain TCP or RTSP instead.
+Both come from real field experience; the responses below are why the plan
+holds, and are recorded here so the reasoning lives with the decisions.
+
+### REST vs WebSocket for control
+
+Only the high-rate, safety-critical streams (drive/arm commands + telemetry)
+move to WS. One-shot actions (science, checklist, logs, PIN, servo) stay REST.
+It is not a wholesale switch.
+
+The switch is not just for the dead-man. Four reasons:
+
+1. **Ordering.** The legacy ~60 POST/sec drive loop
+   ([Dashboard.jsx](https://github.com/UOW-TronSoc/ARCh2026-BaseStation) sends
+   at a 16 ms interval) has no ordering guarantee — after a Wi-Fi stall a stale
+   "full speed" can be applied after a newer "stop", and the 3 s command
+   timeout means dozens of stale requests can still be in flight when the link
+   recovers. One ordered WS stream makes out-of-order application structurally
+   impossible, with zero code dedicated to preventing it.
+2. **Telemetry deletes code.** WS push lets us drop Redis/django-redis
+   entirely — it only exists to cache the "latest value" for REST pollers.
+   Fewer moving parts, not more.
+3. **Overhead.** 60 req/sec of full HTTP headers + middleware (the legacy
+   stack even runs request-logging middleware per command POST) vs small
+   frames on one open socket — less contention with video on a bad link.
+4. **Dead-man.** The server can only tell "link dead" from "operator idle" if
+   there is a live session with a liveness signal.
+
+The real comparison is not "simple REST vs complex WS". To make REST hit the
+same safety bar you need hand-rolled heartbeats, sequence numbers, timeout
+tracking, and Redis — *more* custom code with subtler failure modes (cache
+staleness, poller races). The simple REST version is the one running today,
+which is the unsafe one.
+
+The "chasing drops forever" pain comes from proxies, load balancers, and NAT —
+none of which exist here (one browser <-> one FastAPI process, one LAN hop,
+same origin). To keep connection management near-zero maintenance for whoever
+takes the project over next, the plan commits to:
+
+- Native `WebSocket` API only — no socket.io or wrapper libraries.
+- Plain JSON, a handful of documented message types, no acks or custom framing.
+- One fixed reconnect policy (fixed ~1 s retry on close), connection state
+  shown prominently in the UI.
+- **Drive-enable resets to OFF on any reconnect** — the operator must
+  deliberately re-arm, so a reconnect bug can never cause motion.
+- Refresh always fully recovers — the server holds no session state worth
+  preserving (PIN in a cookie, telemetry re-pushes immediately).
+
+Failure direction is safe by design: a dropped control link degrades to "rover
+stops + disconnected badge", never to invisible misbehaviour.
+
+### WebRTC vs plain TCP/RTSP for video
+
+WebRTC is genuinely painful — but that pain is NAT traversal (STUN/TURN/SDP/
+signaling), which does not apply on a flat LAN with known IPs, and MediaMTX
+handles the signaling (WHEP) anyway. Nobody hand-rolls `RTCPeerConnection`
+plumbing.
+
+Two blockers on the proposed alternative:
+
+- **Browsers cannot play RTSP** (no `<video src="rtsp://...">`), so a
+  server-side component must repackage the stream for the browser regardless —
+  that component is exactly what MediaMTX is.
+- **TCP is the actual cause of today's freezing-at-range**: retransmits stall
+  the stream and latency snowballs. MJPEG (current) and RTSP-over-TCP share
+  this failure mode. WebRTC rides UDP and drops frames instead of accumulating
+  delay — which is the "usable at range" requirement.
+
+RTSP is still used — as the *ingest* protocol (IP cams passthrough, GStreamer
+publish into MediaMTX). The only disagreement is the last hop to the browser.
+Rollout is per-camera, IP cams first (passthrough, near-zero risk), with old
+MJPEG kept as fallback until each feed is verified. If WebRTC fights us on the
+real rover network, the fallback is MediaMTX's LL-HLS output from the same
+server (trivial in-browser, no signaling), not RTSP.
+
+### One open question carried back to the reviewer
+
+The sharpest version of the transport objection is **UDP for control**
+(unreliable datagrams — fresh-but-lossy beats ordered-but-stale for teleop,
+since a TCP-based WS can still head-of-line-block newer commands behind a
+retransmit). The plan uses WS as a safe middle ground because the dead-man
+makes a stalled channel degrade to "stop". If unreliable datagrams (UDP or an
+unreliable WebRTC data channel) are worth the extra complexity, that remains
+open for discussion.
+
 ## Phase 2: Camera pipeline redesign
 
 Full diagnosis, hardware comparison (Orin NX vs Nano, encoder boxes), and

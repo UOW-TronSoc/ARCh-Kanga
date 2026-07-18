@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kanga Basestation (scaffold)</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4f1ea;
+        --ink: #1a1a1a;
+        --muted: #5a5a5a;
+        --accent: #2f5d50;
+      }
+      body {
+        margin: 0;
+        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+        background: radial-gradient(circle at top left, #ebe4d4, var(--bg));
+        color: var(--ink);
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 2rem;
+      }
+      main {
+        max-width: 36rem;
+        width: 100%;
+      }
+      h1 {
+        font-size: 1.75rem;
+        margin: 0 0 0.5rem;
+        letter-spacing: -0.02em;
+      }
+      p {
+        color: var(--muted);
+        line-height: 1.5;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 1.5rem 0 0;
+        display: grid;
+        gap: 0.75rem;
+      }
+      a {
+        display: block;
+        padding: 0.85rem 1rem;
+        background: #fff;
+        border: 1px solid #d7d0c3;
+        color: var(--accent);
+        text-decoration: none;
+        font-weight: 600;
+      }
+      a:hover {
+        border-color: var(--accent);
+      }
+      code {
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 0.9em;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Kanga Basestation</h1>
+      <p>
+        Scaffold frontend. Real Vite UI will replace this page. Health stubs
+        for the operator APIs:
+      </p>
+      <ul>
+        <li><a href="http://localhost:8000/health">Django stub <code>:8000/health</code></a></li>
+        <li><a href="http://localhost:8080/health">FastAPI cmd_vel stub <code>:8080/health</code></a></li>
+        <li><a href="http://localhost:8001/health">Arm FastAPI stub <code>:8001/health</code></a></li>
+      </ul>
+    </main>
+  </body>
+</html>

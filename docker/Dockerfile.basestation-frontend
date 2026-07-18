@@ -1,0 +1,17 @@
+# Static scaffold frontend for basestation (replaced by Vite later).
+FROM nginx:1.27-alpine
+
+COPY basestation/frontend/index.html /usr/share/nginx/html/index.html
+
+# Serve on 3000 to match the live basestation Vite port.
+RUN printf '%s\n' \
+  'server {' \
+  '  listen 3000;' \
+  '  server_name localhost;' \
+  '  root /usr/share/nginx/html;' \
+  '  index index.html;' \
+  '  location / { try_files $uri $uri/ /index.html; }' \
+  '}' \
+  > /etc/nginx/conf.d/default.conf
+
+EXPOSE 3000

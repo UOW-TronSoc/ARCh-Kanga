@@ -22,7 +22,8 @@ old tree wholesale.
 ## Repository layout
 
 ```text
-docker/              Reproducible ROS 2 development image
+basestation/         Operator UI/API scaffold (ROS participants, not colcon)
+docker/              Reproducible ROS 2 and basestation images
 docs/                Architecture, migration, and installation documentation
 scripts/             Host and container development helpers
 src/                 ROS 2 packages
@@ -33,6 +34,8 @@ See [the package map](src/README.md) and
 package or moving code across package boundaries.
 
 ## Development environment
+
+### Path A — ROS workspace
 
 Build and enter the development container from the repository root:
 
@@ -48,8 +51,16 @@ Inside the container:
 source install/setup.bash
 ```
 
-See [Docker setup](docs/install/docker.md) and
-[CAN setup](docs/install/can.md) for the full workflow.
+### Path B — Basestation scaffold
+
+After `install/setup.bash` exists, start the operator stubs:
+
+```bash
+./scripts/basestation_up.bash
+```
+
+See [Docker setup](docs/install/docker.md), [CAN setup](docs/install/can.md),
+and [Basestation setup](docs/install/basestation.md).
 
 ## Branch workflow
 

@@ -1,0 +1,22 @@
+# Basestation Python services (Django/FastAPI stubs and future real apps).
+# ROS comes from the base image; workspace msgs come from the bind-mounted install/.
+FROM ros:humble-ros-base-jammy
+
+ENV ROS_DISTRO=humble
+ENV DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-c"]
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python3-pip \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY basestation/requirements.txt /tmp/basestation-requirements.txt
+RUN pip3 install --no-cache-dir -r /tmp/basestation-requirements.txt \
+ && rm -f /tmp/basestation-requirements.txt
+
+COPY basestation/docker-entrypoint.bash /usr/local/bin/basestation-entrypoint.bash
+RUN chmod +x /usr/local/bin/basestation-entrypoint.bash
+
+WORKDIR /workspace/basestation
+ENTRYPOINT ["/usr/local/bin/basestation-entrypoint.bash"]
+CMD ["python3", "-m", "uvicorn", "--help"]

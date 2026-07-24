@@ -1,8 +1,8 @@
 # Next steps: core drive + controller
 
-Agreed design for the rover-base ODrive stack. **`kanga_core_drive` is
-implemented on this branch** (offline-validated; rover HW pending).
-`kanga_core_controller` follows in a later branch.
+Agreed design for the rover-base ODrive stack. **`kanga_core_drive`** landed on
+`feat/drive-system`. **`kanga_core_controller`** is implemented on
+`feat/core-controller` (kinematics + Alternative A mapper; rover HW pending).
 
 Related: [migration overview](README.md),
 [`src/vendor/README.md`](../../src/vendor/README.md),
@@ -16,12 +16,12 @@ Old reference (mapper / launch): `ARCH2026-Kanga` → `src/kanga_drive`.
 
 | Topic | Decision |
 |-------|----------|
-| Packages | **`kanga_core_drive`** — ODrive launch, Fibre configs, commission, closed-loop trigger, wheel JointState. **`kanga_core_controller`** — twist→wheel + setpoint stream (not started). |
-| Branches | **`feat/drive-system`** (this branch: vendor pin + drive). Then **`feat/core-controller`**. |
+| Packages | **`kanga_core_drive`** — ODrive launch, Fibre configs, commission, closed-loop trigger, wheel JointState. **`kanga_core_controller`** — twist→wheel + setpoint stream. |
+| Branches | **`feat/drive-system`** (vendor pin + drive). **`feat/core-controller`** (mapper). |
 | custom_odrive | Do not change the C++ node unless blocked. Apply/calibrate/save via existing `commission` CLI. |
-| Calibrate | **One motor at a time.** CLI and/or ROS service (basestation motor-status button per motor). |
+| Calibrate | **One motor at a time.** CLI and/or per-wheel `std_srvs/Trigger` (`~/calibrate_fl` …). |
 | Save config | Apply shared+individual, then `--save`. Sequential one-at-a-time in a single CLI command. Command only. |
-| Stream | Owned by controller later: Alternative A (~10 Hz desired stream) **only while CLOSED_LOOP**. Stale `/cmd_vel` → desired 0. |
+| Stream | Alternative A (~10 Hz desired stream) **only while CLOSED_LOOP**. Stale `/cmd_vel` → desired 0. |
 | Firmware watchdog | Shared Fibre config uses **`watchdog_timeout = 1`** (seconds). |
 | Invert | Launch `invert_direction` only. URDF sign check later. |
 | Deferred | Diff-bar JointState, odom, errors/UX, WHS, rover HW validation. |
@@ -31,10 +31,11 @@ flowchart LR
   web["Basestation motor page"] -->|"calibrate one wheel"| drivePkg["kanga_core_drive"]
   cliSave["commission CLI"] --> drivePkg
   trigger["set_closed_loop"] --> nodes["custom_odrive nodes"]
-  cmdVel["/cmd_vel"] --> ctrl["kanga_core_controller later"]
+  cmdVel["/cmd_vel"] --> ctrl["kanga_core_controller"]
   ctrl -->|"ControlMessage if CLOSED_LOOP"| nodes
   nodes --> status["controller_status"]
   status --> drivePkg
+  status --> ctrl
   drivePkg --> js["JointState wheels"]
   nodes --> can["SocketCAN can_core"]
 ```
@@ -45,11 +46,14 @@ flowchart LR
 
 ### Vendor
 
-`custom-ros-odrive` pinned in `kanga_vendor.repos`. Import:
+`custom-ros-odrive` pinned in `kanga_vendor.repos`. Import **once** when setting
+up a machine (or after changing the pin) — see
+[`src/vendor/README.md`](../../src/vendor/README.md). Everyday builds use the
+Docker workspace scripts:
 
 ```bash
-vcs import src/vendor < src/vendor/kanga_vendor.repos
-colcon build --packages-select custom_odrive odrive_base kanga_core_drive
+./scripts/docker_shell.bash          # host → container
+./scripts/build_workspace.bash       # inside container
 source install/setup.bash
 ```
 
@@ -95,25 +99,43 @@ ros2 run kanga_core_drive commission_wheels -- \
 
 ---
 
-## Branch 2 — `kanga_core_controller` (later)
+## Branch 2 — `kanga_core_controller` (`feat/core-controller`)
 
-- Pure kinematics library + unit tests (old `kanga_drive` mapper math)
-- Mapper: `/cmd_vel` → desired; stale → 0; publish `ControlMessage` at ~10 Hz **only in CLOSED_LOOP**
-- No invert; no axis-state/enable
+| Piece | Role |
+|-------|------|
+| `kinematics` lib | Pure `twist_to_wheels` / `clamp_wheels` (theta 51°; footprint 110×89 cm → half_length 0.55, half_width 0.445) |
+| `wheel_command_mapper` | `/cmd_vel` → desired; stale → 0; ~10 Hz `ControlMessage` **only if** `axis_state==8` |
+| `config/controller.yaml` | rate, timeout, max vel, chassis geometry |
+| `launch/controller.launch.py` | mapper only (compose with `wheels.launch.py`) |
+
+No invert; no `request_axis_state` / `set_enabled`. Arm via `drive_manager`; stop via `/drivestop`.
+
+### Offline checks
+
+Inside the container after `./scripts/build_workspace.bash`:
+
+- `colcon test --packages-select kanga_core_controller` (kinematics gtests)
+
+### Bench (with drive)
+
+1. Launch wheels + controller
+2. `set_closed_loop true`
+3. Publish `/cmd_vel`; confirm `/wheel_*/control_message` while CLOSED_LOOP
+4. Stop publishing `/cmd_vel` → zeros still stream; leave CLOSED_LOOP → stream stops
 
 ---
 
-## Offline checks (no rover)
+## Offline checks — drive (no rover)
 
-- `colcon build` for vendor ODrive + `kanga_core_drive`
-- Config-merge unit test
+- `./scripts/build_workspace.bash` inside the container (pulls in vendor ODrive)
+- Config-merge unit test: `colcon test --packages-select kanga_core_drive`
 - Launch may fail at runtime without `can_core` — expected until hardware
 
-## Bench checklist (when rover available)
+## Bench checklist — drive (when rover available)
 
-1. Import + build
-2. `wheels.launch.py` — four namespaces idle / not enabled
+1. Vendor import (once) + `./scripts/build_workspace.bash`
+2. `wheels.launch.py` — four namespaces idle
 3. `set_closed_loop true` → `velocity_ramp_test` on one wheel
-4. `commission_wheels --wheels fl --calibrate` (wheel off ground)
+4. `commission_wheels --wheels fl --calibrate` (wheel off ground) or `calibrate_fl` Trigger
 5. `commission_wheels --wheels all --save`
 6. JointState echoes estimates

@@ -1,0 +1,32 @@
+# Parameters for the wheel_command_mapper node.
+#
+# Loaded by launch/controller.launch.py. After changing values, re-launch
+# (or use `ros2 param set` for a running node).
+#
+# Units reminder:
+#   lengths  → metres
+#   angles   → degrees for theta_deg only
+#   speeds   → rad/s for max_wheel_velocity (with radians-mode ODrive nodes)
+
+wheel_command_mapper:
+  ros__parameters:
+    # Must match kanga_core_drive wheel namespaces: /wheel_fl, /wheel_bl, …
+    wheel_ids: [fl, bl, br, fr]
+
+    # How often we publish ControlMessage (times per second).
+    # Keep around 10+: ODrive watchdog is ~1 s and needs regular setpoints.
+    publish_rate_hz: 10.0
+
+    # If no /cmd_vel arrives for this many seconds, command becomes "stop".
+    cmd_vel_timeout_s: 0.5
+
+    # Hard limit on each wheel speed command (±), rad/s.
+    # Hardware max ≈ 22 turns/s → 22 * 2π = 44π ≈ 138.23 rad/s
+    # (ODrive nodes use control_message_in_radians: true).
+    max_wheel_velocity: 138.230076757
+
+    # Chassis footprint (overall 110 cm long × 89 cm wide).
+    # half_* = distance from robot centre to the wheel / axle.
+    theta_deg: 51.0       # mecanum roller angle — leave unless hardware changes
+    half_length: 0.55     # 110 cm / 2
+    half_width: 0.445     #  89 cm / 2

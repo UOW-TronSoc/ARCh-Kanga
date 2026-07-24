@@ -4,8 +4,8 @@ ODrive-facing drive package for the Kanga rover base: launch motor nodes,
 Fibre commissioning (apply / calibrate / save), closed-loop trigger, and wheel
 `JointState` from ODrive estimates.
 
-Twist→wheel mapping lives in **`kanga_core_controller`** (separate package /
-later branch). Do not put chassis kinematics here.
+Twist→wheel mapping lives in **`kanga_core_controller`**. Do not put chassis
+kinematics here.
 
 ## Owns
 
@@ -22,14 +22,31 @@ later branch). Do not put chassis kinematics here.
 - ODrive protocol / SocketCAN internals (vendor `custom_odrive`)
 - Differential-bar JointState, WHS, error UX, whole-rover bringup
 
-## Launch
+## Build (dev container)
+
+Build and run this package **inside the Docker workspace**, not with ad-hoc
+`colcon` on the host:
 
 ```bash
-vcs import src/vendor < src/vendor/kanga_vendor.repos   # or git clone pin
-colcon build --packages-select custom_odrive kanga_core_drive
-source install/setup.bash
+# Host: enter the container
+./scripts/docker_shell.bash
 
-# Host must bring up can_core first
+# Inside the container (workspace root = /workspace)
+./scripts/build_workspace.bash
+source install/setup.bash
+```
+
+`custom_odrive` comes from the vendor pin under `src/vendor/` (see
+[`src/vendor/README.md`](../../../src/vendor/README.md)). Import that once when
+setting up a machine / after changing `kanga_vendor.repos` — not before every
+build.
+
+## Launch
+
+Host must bring up `can_core` first. Then, inside the container (after build +
+`source install/setup.bash`):
+
+```bash
 ros2 launch kanga_core_drive wheels.launch.py
 ```
 
@@ -44,6 +61,7 @@ ros2 service call /drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: fa
 ros2 service call /drive_manager/calibrate_fl std_srvs/srv/Trigger "{}"
 # also: calibrate_bl, calibrate_br, calibrate_fr
 ```
+
 ## Commission CLI
 
 ```bash
@@ -58,7 +76,8 @@ ros2 run kanga_core_drive commission_wheels -- --wheels fl --can can_core --cali
 
 - Launch leaves `start_enabled` at the package default (do not override). Use
   `/drivestop` for global stop. Closed-loop only via `set_closed_loop`.
-- Invert via launch `invert_direction` (left wheels).
+- Invert via launch `invert_direction` (left wheels only — do not also invert
+  in the controller).
 - Shared Fibre `watchdog_timeout = 1` s. Setpoint streaming is
   `kanga_core_controller` (CLOSED_LOOP only).
 - Calibrate: one wheel per request. Save: sequential apply+save in one CLI.

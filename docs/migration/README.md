@@ -25,23 +25,20 @@ what changed and why.
 |------|-------------|--------|-------|
 | 1 | Interface inventory (drive/ODrive) | **Complete** | Merged via PR #15. Science payload interfaces are out of scope for the core track. |
 | 2 | `kanga_interfaces` + ODrive split | **Complete** | `BatteryInfo`, `BmsStatus` in Kanga; ODrive contracts in external repo. |
-| 3 | External ODrive repo + vendor pin | **In progress** | [`custom-ros-odrive`](https://github.com/UOW-TronSoc/custom-ros-odrive) exists; not yet pinned in `kanga_vendor.repos`. |
+| 3 | External ODrive repo + vendor pin | **In progress** | Pin lands with `feat/drive-system` (`kanga_core_drive`). |
 | 4 | `ros2_socketcan` for club CAN | **Partial** | Pinned at `1.3.0` (PR #15). Build and bridge validation deferred to `kanga_core_battery`. |
 | 5 | `kanga_whs` + GPIO stop | **Deferred** | Requirements not finalised. Does not block drive work; ODrive nodes already subscribe to `/drivestop`. |
-| 6 | `kanga_core_drive` (+ wheels) | **Designed** | Agreed next-steps doc; not implemented. See [core_drive.md](core_drive.md). |
+| 6 | `kanga_core_drive` / controller | **In progress** | Drive on `feat/drive-system`; controller later. See [core_drive.md](core_drive.md). |
 | 7 | `kanga_core_description` + payload models | **Not started** | |
 | 8 | `kanga_description` + core bringup | **Not started** | |
 | 9 | Utilities, autonomy, payloads, simulation | **Not started** | Manipulator, excavator, and science as independent slices. |
 
 ### Next up
 
-**Drive / ODrive stack (detailed hand-off):** [core_drive.md](core_drive.md)
+**Drive / ODrive stack:** [core_drive.md](core_drive.md)
 
-1. **`feat/vendor-odrive-pin`** — pin `custom-ros-odrive` in `kanga_vendor.repos`.
-2. **`feat/core-wheels`** — new `kanga_core_wheels` (launch, Fibre configs,
-   commission, closed-loop trigger).
-3. **`feat/core-drive-mapper`** — `kanga_core_drive` twist→wheel at 50 Hz with
-   stale-`/cmd_vel` stop watchdog.
+1. **`feat/drive-system`** — pin `custom-ros-odrive` + implement `kanga_core_drive`.
+2. **`feat/core-controller`** — twist→wheel mapper (Alternative A stream, CLOSED_LOOP only).
 
 Battery / `ros2_socketcan` validation stays a separate track
 (`feat/core-battery`) and does not block the drive branches above.

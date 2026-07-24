@@ -16,12 +16,9 @@ The first migration slices are merged to `main`:
 - **`ros2_socketcan`** — pinned at `1.3.0` under `src/vendor` via
   `kanga_vendor.repos` (merged via PR #15)
 
-Drive, battery, and bringup implementations are not migrated yet. The external
-ODrive package ([`custom-ros-odrive`](https://github.com/UOW-TronSoc/custom-ros-odrive))
-is complete but not yet pinned in this workspace.
-
-**Next up:** core drive + ODrive stack (vendor pin → `kanga_core_wheels` →
-`kanga_core_drive` mapper). Full hand-off:
+Drive work is underway on `feat/drive-system` (`kanga_core_drive` + vendor pin
+for [`custom-ros-odrive`](https://github.com/UOW-TronSoc/custom-ros-odrive)).
+`kanga_core_controller` (twist→wheel) follows. Details:
 [docs/migration/core_drive.md](docs/migration/core_drive.md).
 
 The primary migration reference is the old `ARCH2026-Kanga` repository at

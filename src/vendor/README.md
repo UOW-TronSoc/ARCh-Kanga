@@ -8,7 +8,7 @@ Use the version-controlled `kanga_vendor.repos` manifest in this directory and
 manually copy third-party source trees into this repository.
 
 ```bash
-# From the kanga_wip repository root (host or container):
+# From the repository root (host or container):
 vcs import src/vendor < src/vendor/kanga_vendor.repos
 ```
 
@@ -39,6 +39,10 @@ Club fork: [`UOW-TronSoc/custom-ros-odrive`](https://github.com/UOW-TronSoc/cust
 — reusable per-motor ROS 2 integration with internal SocketCAN/epoll helpers.
 Independent of Kanga packages.
 
-Not yet pinned in `kanga_vendor.repos`. Add an entry and run `vcs import` as
-part of the `feat/vendor-odrive-pin` slice (see
-[core drive next steps](../../docs/migration/core_drive.md)).
+Pinned in `kanga_vendor.repos` (see manifest for the exact revision). Import
+with the command above as part of `feat/drive-system` /
+[`kanga_core_drive`](../kanga_core/kanga_core_drive/README.md). Drive-specific
+Fibre motor configs and launch live in `kanga_core_drive`, not in this vendor
+tree.
+
+See [core drive next steps](../../docs/migration/core_drive.md).

@@ -3,3 +3,7 @@ repositories:
     type: git
     url: https://github.com/autowarefoundation/ros2_socketcan.git
     version: 1.3.0
+  custom_ros_odrive:
+    type: git
+    url: https://github.com/UOW-TronSoc/custom-ros-odrive.git
+    version: d68f61b0047151af345373db4080f4df6f39f7e0

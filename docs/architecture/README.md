@@ -74,14 +74,16 @@ safety-rated emergency stop.
 
 `kanga_core` is a structure folder for the rover base:
 
-- `kanga_core_drive` owns wheel configuration, chassis-to-wheel mapping, drive
-  limits, and two separate feedback paths. ODrive wheel feedback becomes wheel
-  joint states and may optionally produce low-confidence wheel odometry. Raw
-  differential-bar encoder feedback from the core microcontroller becomes the
-  differential-bar and suspension joint states. `robot_state_publisher`
-  generates their link transforms from the robot description. A visual,
-  inertial, SLAM, or fused estimator owns the authoritative `odom` to
-  `base_link` transform.
+- `kanga_core_drive` owns ODrive multi-motor launch, Fibre commissioning
+  (apply / calibrate / save), closed-loop trigger, and wheel `JointState` from
+  ODrive estimates. Invert direction is configured in launch only.
+- `kanga_core_controller` owns chassis-to-wheel velocity mapping, drive limits,
+  and the `/cmd_vel` setpoint stream to ODrive (streams only while CLOSED_LOOP).
+  Differential-bar / suspension JointState from the core microcontroller and
+  optional low-confidence wheel odometry are deferred. `robot_state_publisher`
+  generates link transforms from the robot description. A visual, inertial,
+  SLAM, or fused estimator owns the authoritative `odom` to `base_link`
+  transform.
 - `kanga_core_description` owns chassis, wheel, suspension, and other base
   geometry and frame naming.
 - `kanga_core_bringup` composes the physical core so it can run without a
@@ -94,8 +96,9 @@ safety-rated emergency stop.
 - `kanga_core_simulation` provides standalone simulated hardware and launch
   integration for the rover base.
 
-Transport and device-state management remain below drive behaviour. Mission
-policy remains above the battery and microcontroller packages.
+Transport and device-state management for ODrive live in the vendor
+`custom_odrive` package (opened from `kanga_core_drive` launch). Mission policy
+remains above the battery and microcontroller packages.
 
 ## Whole-rover packages
 

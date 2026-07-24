@@ -1,0 +1,33 @@
+# Canonical wheel → ODrive mapping for kanga_core_drive (reference).
+# Keep in sync with launch/wheels.launch.py and config/motors/wheel_*_motor_config.py.
+#
+#   wheel_fl  node_id 1  invert_direction true
+#   wheel_bl  node_id 2  invert_direction true
+#   wheel_br  node_id 3  invert_direction false
+#   wheel_fr  node_id 4  invert_direction false
+#   interface: can_core
+
+kanga_core_drive:
+  ros__parameters:
+    interface: can_core
+    wheels:
+      - id: fl
+        namespace: wheel_fl
+        node_id: 1
+        invert_direction: true
+        joint_name: wheel_fl_joint
+      - id: bl
+        namespace: wheel_bl
+        node_id: 2
+        invert_direction: true
+        joint_name: wheel_bl_joint
+      - id: br
+        namespace: wheel_br
+        node_id: 3
+        invert_direction: false
+        joint_name: wheel_br_joint
+      - id: fr
+        namespace: wheel_fr
+        node_id: 4
+        invert_direction: false
+        joint_name: wheel_fr_joint

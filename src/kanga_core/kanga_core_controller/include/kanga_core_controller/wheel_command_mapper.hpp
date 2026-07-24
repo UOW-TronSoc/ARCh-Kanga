@@ -31,15 +31,15 @@
  *    teleop client should not leave the rover driving forever.
  *
  * 3. We only publish to a wheel while its axis_state is CLOSED_LOOP (8).
- *    Arming is done by drive_manager (set_closed_loop). This node does
- *    not turn motors on/off itself.
+ *    Enter CLOSED_LOOP via drive_manager (set_closed_loop). This node does
+ *    not change axis state itself.
  *
  * 4. While CLOSED_LOOP we keep publishing even when the command is zero.
  *    The ODrive firmware has a watchdog (~1 s): if setpoints stop arriving
  *    it faults. Streaming zeros = "still alive, please stay stopped".
  *
  * This node does NOT:
- *   - flip left/right signs (see invert_direction in wheels.launch.py)
+ *   - flip left/right signs (see invert_direction in drive.launch.py)
  *   - call request_axis_state / set_enabled
  *   - own the emergency stop topic /drivestop
  */
@@ -91,7 +91,6 @@ private:
     rclcpp::Time last_cmd_stamp_{0, 0, RCL_ROS_TIME};
     bool have_cmd_{false};
     std::array<uint8_t, 4> axis_state_{{1, 1, 1, 1}};  // 1 = IDLE until we hear status
-    std::array<bool, 4> have_status_{{false, false, false, false}};
 
     // ROS interfaces (one subscription + four status subs + four publishers).
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_sub_;

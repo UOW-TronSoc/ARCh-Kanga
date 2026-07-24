@@ -47,7 +47,7 @@ Host must bring up `can_core` first. Then, inside the container (after build +
 `source install/setup.bash`):
 
 ```bash
-ros2 launch kanga_core_drive wheels.launch.py
+ros2 launch kanga_core_drive drive.launch.py
 ```
 
 ## Services (`drive_manager`)
@@ -90,3 +90,7 @@ ros2 run kanga_core_drive commission_wheels -- --wheels fl --can can_core --cali
 - Motor serials moved from `custom_odrive/config/wheel_*` into `config/motors/`
 
 See [`docs/migration/core_drive.md`](../../../docs/migration/core_drive.md).
+
+**Rover checklist:** step-by-step bench procedure lives in
+[`kanga_core_bringup/README.md`](../kanga_core_bringup/README.md) (section
+“Rover test procedure”).

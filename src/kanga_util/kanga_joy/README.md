@@ -11,4 +11,5 @@ Shared ROS 2 joystick integration for Kanga.
 
 Manipulator, excavator, science, and drive-specific control policy remains in the owning domain.
 
-This is an architecture placeholder; no 2026 implementation has been migrated yet.
+This is an architecture placeholder; gamepad teleop will land here later. No
+keyboard test harness in this package for now.

@@ -90,7 +90,6 @@ void WheelCommandMapper::on_status(
     }
     std::lock_guard<std::mutex> lock(mutex_);
     axis_state_[index] = msg.axis_state;
-    have_status_[index] = true;
 }
 
 WheelVelocities WheelCommandMapper::desired_locked()
@@ -126,7 +125,7 @@ void WheelCommandMapper::on_timer()
     ctrl.input_torque = 0.0F;
 
     // Skip wheels that are not in CLOSED_LOOP — do not spam IDLE motors.
-    // No sign flip here; invert lives only in wheels.launch.py → custom_odrive.
+    // No sign flip here; invert lives only in drive.launch.py → custom_odrive.
     for (size_t i = 0; i < ctrl_pubs_.size(); ++i) {
         if (states[i] != kAxisClosedLoop) {
             continue;

@@ -11,7 +11,7 @@
  * without launching nodes or needing motors.
  *
  * Sign flip for left-side wheels is NOT done here. That is handled by
- * invert_direction on each custom_odrive node in wheels.launch.py.
+ * invert_direction on each custom_odrive node in drive.launch.py.
  */
 
 #include <array>

@@ -29,14 +29,14 @@ If you are new to ROS: this package is a **node** that listens on a **topic**
    as zero (stop). We still stream zeros while CLOSED_LOOP so the motor
    watchdog does not trip.
 
-This node does **not** invert wheel signs, arm motors, or handle e-stop — those
-are single-owner elsewhere (`invert_direction` only in `wheels.launch.py`,
+This node does **not** invert wheel signs, change axis state, or handle e-stop —
+those are single-owner elsewhere (`invert_direction` only in `drive.launch.py`,
 `set_closed_loop` on `drive_manager`, `/drivestop`).
 
 ## Try it (on the rover)
 
 ```bash
-ros2 launch kanga_core_drive wheels.launch.py
+ros2 launch kanga_core_drive drive.launch.py
 ros2 launch kanga_core_controller controller.launch.py
 
 ros2 service call /drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: true}"
@@ -71,9 +71,9 @@ Defaults are in [`config/controller.yaml`](config/controller.yaml):
 
 ## Offline tests (no rover needed)
 
-Inside the dev container:
-
 ```bash
+./scripts/docker_shell.bash
+# inside the container:
 ./scripts/build_workspace.bash
 source install/setup.bash
 colcon test --packages-select kanga_core_controller --event-handlers console_direct+
@@ -83,5 +83,5 @@ colcon test --packages-select kanga_core_controller --event-handlers console_dir
 
 Math shape comes from the previous competition `kanga_drive` mapper (roller
 angle 51°). Footprint: current chassis 110×89 cm. Old mapper also inverted
-and auto-armed axes — **do not put those back here**; invert is only
-`invert_direction` in drive launch, arming is only `drive_manager`.
+and auto-requested CLOSED_LOOP — **do not put those back here**; invert is only
+`invert_direction` in drive launch, CLOSED_LOOP is only `drive_manager`.

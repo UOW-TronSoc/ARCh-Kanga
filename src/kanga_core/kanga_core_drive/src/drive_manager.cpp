@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <sstream>
+#include <sys/wait.h>
 
 using namespace std::chrono_literals;
 
@@ -24,7 +25,7 @@ std::string to_lower(std::string value)
 DriveManager::DriveManager(const rclcpp::NodeOptions & options)
 : Node("drive_manager", options)
 {
-    // wheel_ids / can_interface come from launch (wheels.launch.py).
+    // wheel_ids / can_interface come from launch (drive.launch.py).
     // can_interface is forwarded into calibrate_* → commission_wheels.
     this->declare_parameter<std::vector<std::string>>(
         "wheel_ids", {"fl", "bl", "br", "fr"});
@@ -47,7 +48,7 @@ DriveManager::DriveManager(const rclcpp::NodeOptions & options)
     for (const auto & wid : wheel_ids_) {
         const std::string ns = "/wheel_" + wid;
         WheelClients clients;
-        // /wheel_<id>/clear_errors — clear ODrive sticky faults before arming.
+        // /wheel_<id>/clear_errors — clear ODrive sticky faults before CLOSED_LOOP.
         clients.clear_errors = this->create_client<std_srvs::srv::Empty>(
             ns + "/clear_errors", rmw_qos_profile_services_default, cb_group_);
         // /wheel_<id>/request_axis_state — set IDLE (1) or CLOSED_LOOP (8).
@@ -56,7 +57,7 @@ DriveManager::DriveManager(const rclcpp::NodeOptions & options)
         clients_[wid] = clients;
     }
 
-    // Service: arm all wheels (true) or idle all wheels (false). See header.
+    // Service: CLOSED_LOOP all wheels (true) or IDLE all wheels (false). See header.
     set_closed_loop_srv_ = this->create_service<std_srvs::srv::SetBool>(
         "~/set_closed_loop",
         std::bind(
@@ -103,13 +104,12 @@ typename ServiceT::Response::SharedPtr DriveManager::call_sync(
     const typename ServiceT::Request::SharedPtr & request,
     std::chrono::seconds timeout)
 {
-    // Helper: call a ROS service and wait in-place for the response (or timeout).
-    // Needs MultiThreadedExecutor + overlapping callback group (see constructor)
-    // so the reply can be processed while we are blocked here.
+    // Wait on the future only — do NOT spin this node again.
+    // We are already inside a MultiThreadedExecutor callback; nesting
+    // spin_until_future_complete is illegal in Humble and fails. Other
+    // executor threads (Reentrant group) process the service reply.
     auto future = client->async_send_request(request);
-    const auto ret = rclcpp::spin_until_future_complete(
-        this->get_node_base_interface(), future, timeout);
-    if (ret != rclcpp::FutureReturnCode::SUCCESS) {
+    if (future.wait_for(timeout) != std::future_status::ready) {
         return nullptr;
     }
     return future.get();
@@ -120,7 +120,7 @@ void DriveManager::handle_set_closed_loop(
     std::shared_ptr<std_srvs::srv::SetBool::Response> response)
 {
     // ~/set_closed_loop handler: true → CLOSED_LOOP all wheels; false → IDLE all.
-    // try_lock: refuse overlapping arm/calibrate rather than queue long work.
+    // try_lock: refuse overlapping CLOSED_LOOP/calibrate rather than queue long work.
     std::unique_lock<std::mutex> lock(busy_mutex_, std::try_to_lock);
     if (!lock.owns_lock()) {
         response->success = false;
@@ -165,7 +165,13 @@ void DriveManager::handle_set_closed_loop(
             // an emergency/global stop of the setpoint path.
             auto ax_req = std::make_shared<custom_odrive::srv::AxisState::Request>();
             ax_req->axis_requested_state = kAxisIdle;
-            call_sync<custom_odrive::srv::AxisState>(clients.axis_state, ax_req, 15s);
+            auto ax_res = call_sync<custom_odrive::srv::AxisState>(
+                clients.axis_state, ax_req, 15s);
+            if (!ax_res || !ax_res->success) {
+                response->success = false;
+                response->message = "IDLE failed for " + wid;
+                return;
+            }
 
             if (!messages.str().empty()) {
                 messages << ", ";
@@ -199,9 +205,19 @@ void DriveManager::handle_calibrate(
         << " --can " << can_interface_ << " --calibrate";
     RCLCPP_INFO(this->get_logger(), "Calibrating %s: %s", wheel_id.c_str(), cmd.str().c_str());
     const int rc = std::system(cmd.str().c_str());
-    if (rc != 0) {
+    if (rc == -1) {
         response->success = false;
-        response->message = "commission_wheels exited " + std::to_string(rc);
+        response->message = "failed to start commission_wheels";
+        return;
+    }
+#if defined(WIFEXITED) && defined(WEXITSTATUS)
+    const int exit_code = WIFEXITED(rc) ? WEXITSTATUS(rc) : rc;
+#else
+    const int exit_code = rc;
+#endif
+    if (exit_code != 0) {
+        response->success = false;
+        response->message = "commission_wheels exited " + std::to_string(exit_code);
         return;
     }
     response->success = true;

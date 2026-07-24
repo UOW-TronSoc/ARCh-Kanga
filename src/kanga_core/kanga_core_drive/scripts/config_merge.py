@@ -21,7 +21,7 @@ from __future__ import annotations
 from pathlib import Path
 
 
-# Canonical drive wheel ids — keep aligned with wheels.launch.py / drive_manager.
+# Canonical drive wheel ids — keep aligned with drive.launch.py / drive_manager.
 WHEEL_IDS = ("fl", "bl", "br", "fr")
 
 

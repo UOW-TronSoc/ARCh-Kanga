@@ -1,7 +1,7 @@
 #pragma once
 
 /*
- * DriveManager — closed-loop arming and single-wheel calibration for the drive.
+ * DriveManager — CLOSED_LOOP / IDLE requests and single-wheel calibration.
  *
  * Owns ROS services only; does not stream setpoints (that is kanga_core_controller)
  * and does not talk Fibre/CAN itself (commission_wheels → custom_odrive commission).
@@ -9,7 +9,7 @@
  * Services this node offers (names relative to the node, e.g. /drive_manager/…):
  *
  *   ~/set_closed_loop  (std_srvs/SetBool)
- *     Arm or idle every wheel via custom_odrive request_axis_state.
+ *     Put every wheel into CLOSED_LOOP or IDLE via custom_odrive request_axis_state.
  *     data=true  → clear_errors, then CLOSED_LOOP (state 8) on each wheel
  *     data=false → IDLE (state 1) on each wheel
  *     Does NOT call set_enabled / start_enabled — use /drivestop for global stop.
@@ -55,8 +55,9 @@ private:
     // Return true if both services for this wheel are advertised (short 2s wait).
     bool wait_for_clients(const std::string & wheel_id, const WheelClients & clients);
 
-    // Send a service request and wait here until the reply (or timeout).
-    // Used so handlers can stay simple/sequential instead of async chains.
+    // Synchronous service call from inside a MultiThreadedExecutor callback.
+    // Wait on the future only (other threads process the reply). Do not nest
+    // spin_until_future_complete — illegal while this node is already spinning.
     template<typename ServiceT>
     typename ServiceT::Response::SharedPtr call_sync(
         const typename rclcpp::Client<ServiceT>::SharedPtr & client,
@@ -76,7 +77,7 @@ private:
 
     std::vector<std::string> wheel_ids_;
     std::string can_interface_;  // forwarded to commission_wheels --can
-    std::mutex busy_mutex_;      // try_lock across arm + calibrate handlers
+    std::mutex busy_mutex_;      // try_lock across CLOSED_LOOP + calibrate handlers
     // Callback group that allows overlapping callbacks (ROS type name:
     // CallbackGroupType::Reentrant). Needed because handlers block inside
     // call_sync / std::system; without it the executor can deadlock waiting

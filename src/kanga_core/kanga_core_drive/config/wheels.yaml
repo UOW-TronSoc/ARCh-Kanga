@@ -1,5 +1,5 @@
 # Canonical wheel → ODrive mapping for kanga_core_drive (reference).
-# Keep in sync with launch/wheels.launch.py and config/motors/wheel_*_motor_config.py.
+# Keep in sync with launch/drive.launch.py and config/motors/wheel_*_motor_config.py.
 #
 #   wheel_fl  node_id 1  invert_direction true
 #   wheel_bl  node_id 2  invert_direction true

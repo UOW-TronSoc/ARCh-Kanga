@@ -4,6 +4,8 @@
 .vscode/
 *.swp
 *~
+**/__pycache__/
+*.pyc
 
 # Vendor checkouts are imported from kanga_vendor.repos; keep the pin + README.
 /src/vendor/*

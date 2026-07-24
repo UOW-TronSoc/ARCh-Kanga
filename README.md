@@ -10,14 +10,25 @@ as `arch-2027-final`.
 ## Current status
 
 The ROS 2 Humble development environment and SocketCAN workflow are working.
-The package tree is currently an architecture foundation: package boundaries
-and documentation exist, but competition implementations have not yet been
-migrated.
+The first migration slices are merged to `main`:
+
+- **`kanga_interfaces`** — `BatteryInfo` and `BmsStatus` (merged via PR #15)
+- **`ros2_socketcan`** — pinned at `1.3.0` under `src/vendor` via
+  `kanga_vendor.repos` (merged via PR #15)
+
+Drive, battery, and bringup implementations are not migrated yet. The external
+ODrive package ([`custom-ros-odrive`](https://github.com/UOW-TronSoc/custom-ros-odrive))
+is complete but not yet pinned in this workspace.
+
+**Next up:** core drive + ODrive stack (vendor pin → `kanga_core_wheels` →
+`kanga_core_drive` mapper). Full hand-off:
+[docs/migration/core_drive.md](docs/migration/core_drive.md).
 
 The primary migration reference is the old `ARCH2026-Kanga` repository at
 remote commit `8b0c0537823fac7aaac26c1bea8bd4f3763bdc06` on
 `feat/arm-simulation`. Code will be moved deliberately rather than copying the
-old tree wholesale.
+old tree wholesale. See the [migration guide](docs/migration/README.md) for
+progress and branch strategy.
 
 ## Repository layout
 

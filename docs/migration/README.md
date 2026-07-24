@@ -15,6 +15,41 @@ competition-tested branches may be consulted component by component, but
 Basestation operator UI/API migration is tracked separately in
 [basestation.md](basestation.md).
 
+## Migration progress
+
+Status of the initial migration order (updated as slices merge to `main`).
+Each slice should land on its own feature branch so merge history documents
+what changed and why.
+
+| Step | Description | Status | Notes |
+|------|-------------|--------|-------|
+| 1 | Interface inventory (drive/ODrive) | **Complete** | Merged via PR #15. Science payload interfaces are out of scope for the core track. |
+| 2 | `kanga_interfaces` + ODrive split | **Complete** | `BatteryInfo`, `BmsStatus` in Kanga; ODrive contracts in external repo. |
+| 3 | External ODrive repo + vendor pin | **In progress** | [`custom-ros-odrive`](https://github.com/UOW-TronSoc/custom-ros-odrive) exists; not yet pinned in `kanga_vendor.repos`. |
+| 4 | `ros2_socketcan` for club CAN | **Partial** | Pinned at `1.3.0` (PR #15). Build and bridge validation deferred to `kanga_core_battery`. |
+| 5 | `kanga_whs` + GPIO stop | **Deferred** | Requirements not finalised. Does not block drive work; ODrive nodes already subscribe to `/drivestop`. |
+| 6 | `kanga_core_drive` (+ wheels) | **Designed** | Agreed next-steps doc; not implemented. See [core_drive.md](core_drive.md). |
+| 7 | `kanga_core_description` + payload models | **Not started** | |
+| 8 | `kanga_description` + core bringup | **Not started** | |
+| 9 | Utilities, autonomy, payloads, simulation | **Not started** | Manipulator, excavator, and science as independent slices. |
+
+### Next up
+
+**Drive / ODrive stack (detailed hand-off):** [core_drive.md](core_drive.md)
+
+1. **`feat/vendor-odrive-pin`** — pin `custom-ros-odrive` in `kanga_vendor.repos`.
+2. **`feat/core-wheels`** — new `kanga_core_wheels` (launch, Fibre configs,
+   commission, closed-loop trigger).
+3. **`feat/core-drive-mapper`** — `kanga_core_drive` twist→wheel at 50 Hz with
+   stale-`/cmd_vel` stop watchdog.
+
+Battery / `ros2_socketcan` validation stays a separate track
+(`feat/core-battery`) and does not block the drive branches above.
+
+WHS work stays on a separate branch (e.g. `feat/whs-gpio-stop`) once GPIO,
+override, and interface requirements are documented. It is not a prerequisite
+for steps 6–8.
+
 ## Migration method
 
 For each component:
@@ -36,8 +71,8 @@ Do not create an in-tree deprecated copy of the old arm stack. Keep
 
 ## CAN and ODrive policy
 
-ODrive is a multi-project dependency. Drive and manipulator motor work wait
-until the external ODrive repository exists and is pinned under `src/vendor`.
+Pin the external ODrive repository under `src/vendor` before drive and
+manipulator motor glue lands in this workspace.
 
 Use a hybrid CAN model:
 
@@ -72,7 +107,9 @@ axes through the bridge.
    shared CAN foundation.
 5. Establish the Jetson GPIO motion-stop input and manual competition override,
    then define their software contract through `kanga_whs` and
-   `kanga_interfaces`.
+   `kanga_interfaces`. **Deferred** until WHS requirements are documented; not
+   a blocker for drive migration because external ODrive nodes already honour
+   `/drivestop`.
 6. Migrate wheel mapping into `kanga_core_drive`, separating pure kinematics
    from ROS and ODrive glue.
 7. Migrate the canonical rover-base model into `kanga_core_description`, then

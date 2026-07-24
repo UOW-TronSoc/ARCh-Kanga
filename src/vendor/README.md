@@ -33,12 +33,12 @@ builds the same revision on every machine.
 
 ## ODrive
 
-The reusable ODrive ROS integration lives in its own repository and is imported
-here once that repository and its stable interface exist. It must remain
-independent of Kanga-specific packages so other club projects can reuse it.
+Upstream lineage: [odriverobotics/ros_odrive](https://github.com/odriverobotics/ros_odrive)
 
-That repository owns its direct SocketCAN path and any epoll / socket helpers
-internally. It must not depend on `kanga_canbus` or other Kanga packages. Its
-public API should stay generic. Document upstream origin (expanded from
-[odriverobotics/ros_odrive](https://github.com/odriverobotics/ros_odrive)),
-local modifications, hardware compatibility, and release process.
+Club fork: [`UOW-TronSoc/custom-ros-odrive`](https://github.com/UOW-TronSoc/custom-ros-odrive)
+— reusable per-motor ROS 2 integration with internal SocketCAN/epoll helpers.
+Independent of Kanga packages.
+
+Not yet pinned in `kanga_vendor.repos`. Add an entry and run `vcs import` as
+part of the `feat/vendor-odrive-pin` slice (see
+[core drive next steps](../../docs/migration/core_drive.md)).

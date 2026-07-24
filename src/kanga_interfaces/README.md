@@ -22,6 +22,17 @@ Add an interface only when standard ROS interfaces cannot express the contract
 clearly. Keep definitions transport-neutral and document units in field
 comments.
 
+## Migrated from ARCH2026-Kanga
+
+| Message | Source path | Merged |
+|---------|-------------|--------|
+| `BatteryInfo` | `kanga_interfaces/msg/BatteryInfo.msg` | PR #15 |
+| `BmsStatus` | `kanga_interfaces/msg/BmsStatus.msg` | PR #15 |
+
+ODrive motor contracts (`ControlMessage`, `ControllerStatus`, `ODriveStatus`,
+`AxisState`) were removed from Kanga and live in
+[`custom-ros-odrive`](https://github.com/UOW-TronSoc/custom-ros-odrive).
+
 The whole-robot WHS contract may require transport-neutral motion-inhibit state
 and explicit override interfaces here. Their fields and override semantics must
 be documented before implementation.

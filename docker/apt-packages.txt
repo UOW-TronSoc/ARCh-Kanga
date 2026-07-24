@@ -10,9 +10,14 @@ python3-pip
 python3-rosdep
 python3-vcstool
 ros-humble-ament-cmake
+ros-humble-ament-cmake-auto
+ros-humble-can-msgs
 ros-humble-geometry-msgs
+ros-humble-lifecycle-msgs
 ros-humble-nav-msgs
 ros-humble-rclcpp
+ros-humble-rclcpp-components
+ros-humble-rclcpp-lifecycle
 ros-humble-rclpy
 ros-humble-sensor-msgs
 ros-humble-std-msgs

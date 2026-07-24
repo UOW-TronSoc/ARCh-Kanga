@@ -12,10 +12,15 @@ Shared ROS 2 messages, services, and actions for Kanga.
 - Nodes or executable logic
 - Hardware communication
 - Launch or parameter files
+- ODrive motor contracts (`ControlMessage`, `ControllerStatus`, `ODriveStatus`,
+  `AxisState`) — those live in the external ODrive package
+- Raw SocketCAN framing — use
+  [ros2_socketcan](https://github.com/autowarefoundation/ros2_socketcan)
+  instead of a Kanga-local microcontroller frame message
 
 Add an interface only when standard ROS interfaces cannot express the contract
 clearly. Keep definitions transport-neutral and document units in field
-comments. Interface migration from the 2026 repository has not started yet.
+comments.
 
 The whole-robot WHS contract may require transport-neutral motion-inhibit state
 and explicit override interfaces here. Their fields and override semantics must

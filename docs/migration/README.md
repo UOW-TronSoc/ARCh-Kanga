@@ -46,11 +46,11 @@ Use a hybrid CAN model:
   [odriverobotics/ros_odrive](https://github.com/odriverobotics/ros_odrive)
   lineage that the 2026 package was expanded from). Launch one ODrive node per
   axis. Do not depend on any Kanga package.
-- **ARCh-Kanga:** use `ros2socketcan_bridge` (see
-  [ROS4SPACE/ros2can_bridge](https://github.com/ROS4SPACE/ros2can_bridge)) for
-  club-owned devices such as Daly BMS, microcontrollers, and science. Do not
-  port the ODrive epoll event-loop stack into `kanga_canbus` or teach it as the
-  Kanga CAN pattern.
+- **ARCh-Kanga:** use
+  [ros2_socketcan](https://github.com/autowarefoundation/ros2_socketcan)
+  for club-owned devices such as Daly BMS, microcontrollers, and science. Do
+  not port the ODrive epoll event-loop stack into `kanga_canbus` or teach it as
+  the Kanga CAN pattern. Do not migrate `kanga_microcontroller`.
 
 Linux SocketCAN allows multiple RAW sockets on one interface, so ODrive nodes
 and a ros2can bridge may share a bus. Do not also command those same ODrive
@@ -65,8 +65,11 @@ axes through the bridge.
    SocketCAN/epoll helpers into that repository, record provenance (including
    the upstream ros_odrive origin and how the fork differs), and pin it beneath
    `src/vendor` through a `.repos` manifest.
-4. Use `ros2socketcan_bridge` in Kanga bringup for non-ODrive CAN traffic; do
-   not migrate `kanga_canbus` epoll/`SocketCanIntf` as the ODrive foundation.
+4. Use
+   [ros2_socketcan](https://github.com/autowarefoundation/ros2_socketcan)
+   in Kanga bringup for non-ODrive CAN traffic; do not migrate
+   `kanga_microcontroller` or `kanga_canbus` epoll/`SocketCanIntf` as the
+   shared CAN foundation.
 5. Establish the Jetson GPIO motion-stop input and manual competition override,
    then define their software contract through `kanga_whs` and
    `kanga_interfaces`.

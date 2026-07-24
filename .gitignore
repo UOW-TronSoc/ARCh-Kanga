@@ -4,3 +4,8 @@
 .vscode/
 *.swp
 *~
+
+# Vendor checkouts are imported from kanga_vendor.repos; keep the pin + README.
+/src/vendor/*
+!/src/vendor/README.md
+!/src/vendor/kanga_vendor.repos

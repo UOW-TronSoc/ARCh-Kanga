@@ -137,8 +137,10 @@ Use a hybrid model:
 
 - Vendor ODrive nodes open SocketCAN directly (one node per axis).
 - Kanga-owned devices (battery, microcontrollers, science, and similar) use
-  `ros2socketcan_bridge` and exchange CAN frames over ROS topics.
+  [ros2_socketcan](https://github.com/autowarefoundation/ros2_socketcan) and
+  exchange CAN frames over ROS topics.
 - Do not teach or re-home the ODrive epoll stack as a shared Kanga utility.
+- Do not migrate `kanga_microcontroller`; prefer `ros2_socketcan`.
 - Multiple RAW sockets may share one interface; do not also drive the same
   ODrive axes through the bridge.
 
@@ -156,8 +158,9 @@ flow that requires it unless it becomes a general whole-rover layout.
 `kanga_util` contains named cross-cutting packages for onboard control, shared
 joystick integration, and only optional Kanga-facing CAN helpers. It must not
 become a miscellaneous dumping ground, and it must not own SocketCAN for ODrive
-or other device drivers that should use `ros2socketcan_bridge`. Domain-specific
-behaviour stays in its domain.
+or other device drivers that should use
+[ros2_socketcan](https://github.com/autowarefoundation/ros2_socketcan).
+Domain-specific behaviour stays in its domain.
 
 ## Payload domains
 

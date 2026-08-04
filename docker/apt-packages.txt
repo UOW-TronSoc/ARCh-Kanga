@@ -3,6 +3,7 @@ can-utils
 curl
 git
 iproute2
+libusb-1.0-0
 nano
 net-tools
 python3-colcon-common-extensions

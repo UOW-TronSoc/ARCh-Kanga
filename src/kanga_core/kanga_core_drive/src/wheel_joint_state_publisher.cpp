@@ -33,11 +33,14 @@ WheelJointStatePublisher::WheelJointStatePublisher(const rclcpp::NodeOptions & o
 
     // One subscription per custom_odrive_node controller_status stream.
     // Estimates already include invert_direction from that node — do not negate.
+    // QoS must match custom_odrive_node (KeepLast(10), best_effort).
+    rclcpp::QoS status_qos(10);
+    status_qos.best_effort();
     for (const auto & wid : wheel_ids_) {
         const std::string topic = "/wheel_" + wid + "/controller_status";
         subs_.push_back(
             this->create_subscription<custom_odrive::msg::ControllerStatus>(
-                topic, 10,
+                topic, status_qos,
                 [this, wid](const custom_odrive::msg::ControllerStatus::SharedPtr msg) {
                     this->on_status(wid, *msg);
                 }));

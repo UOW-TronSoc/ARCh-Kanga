@@ -52,12 +52,12 @@ vcs import src/vendor < src/vendor/kanga_vendor.repos
 ### 1. Host — CAN
 
 ```bash
-./scripts/setup_can.bash can_core 500000
+./scripts/setup_can.bash can_core 250000
 ./scripts/check_can.bash can_core
 # optional: candump can_core   # should see ODrive traffic when powered
 ```
 
-Pass criteria: `can_core` is UP at 500 kbit/s; dump shows activity when drives are on.
+Pass criteria: `can_core` is UP at 250 kbit/s; dump shows activity when drives are on.
 
 ### 2. Container — build and source
 

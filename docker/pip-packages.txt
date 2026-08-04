@@ -1,0 +1,3 @@
+# Python packages for the kanga-dev image (Fibre-over-CAN commissioning, etc.).
+# Rebuild after changes: ./scripts/docker_shell.bash (rebuilds via --build).
+odrive>=0.6.11.post0

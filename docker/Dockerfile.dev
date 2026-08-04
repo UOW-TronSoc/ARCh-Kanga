@@ -14,11 +14,14 @@ ARG USER_UID=1000
 ARG USER_GID=1000
 
 COPY docker/apt-packages.txt /tmp/apt-packages.txt
+COPY docker/pip-packages.txt /tmp/pip-packages.txt
 
 RUN apt-get update \
     && xargs -r apt-get install -y --no-install-recommends < /tmp/apt-packages.txt \
     && rm -f /tmp/apt-packages.txt \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && pip3 install --no-cache-dir -r /tmp/pip-packages.txt \
+    && rm -f /tmp/pip-packages.txt
 
 # Match the development user to the host so bind-mounted build files are not
 # owned by root. sudo is retained for rosdep to install declared dependencies.

@@ -18,8 +18,8 @@ see CAN traffic, the container won't either.
 Use the helper script:
 
 ```bash
-./scripts/setup_can.bash can_core 500000
-./scripts/setup_can.bash can_payload 500000
+./scripts/setup_can.bash can_core 250000      # txqueuelen defaults to 256
+./scripts/setup_can.bash can_payload 250000
 ./scripts/check_can.bash can_core
 ./scripts/check_can.bash can_payload
 ```
@@ -29,14 +29,17 @@ Use the helper script:
 ```bash
 ip -details link show type can
 sudo ip link set can_core down
-sudo ip link set can_core type can bitrate 500000
+sudo ip link set can_core type can bitrate 250000
+sudo ip link set can_core txqueuelen 256
 sudo ip link set can_core up
+ip -details -statistics link show can_core
 candump can_core
 ```
 
 ## Likely issues
 
 - wrong bitrate
+- devices using different bitrates on the same physical bus
 - adapter not detected
 - stable interface naming has not been configured on the host
 - termination missing (need ~120 ohm at both ends of the bus)
@@ -44,6 +47,11 @@ candump can_core
 - ODrive not powered
 - container missing host networking
 - container not privileged
+
+Do not commission or save configuration while the kernel's `error-warn`,
+`error-pass`, or `bus-off` counters are increasing. With all bus power off, a
+linear CAN bus with one 120-ohm terminator at each end should measure about
+60 ohms between CAN-H and CAN-L.
 
 ## Test order
 

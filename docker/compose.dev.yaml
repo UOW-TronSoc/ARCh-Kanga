@@ -16,6 +16,12 @@ services:
     working_dir: /workspace
     volumes:
       - ..:/workspace
+      # Persist libodrive's firmware-specific device descriptor JSON across
+      # disposable `docker compose run --rm` development shells.
+      - ${KANGA_ODRIVE_CACHE:-${HOME}/.cache/odrivetool}:/home/kanga/.cache/odrivetool
     environment:
+      - TERM=xterm-256color
+      - COLORTERM=${COLORTERM:-truecolor}
+      - RCUTILS_COLORIZED_OUTPUT=1
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
       - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}

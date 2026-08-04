@@ -42,8 +42,8 @@ rebuild and fill it in as you go. Keep it raw and honest; it is a debugging reco
 ## CAN native test
 
 ```
-# ./scripts/setup_can.bash can_core 500000
-# ./scripts/setup_can.bash can_payload 500000
+# ./scripts/setup_can.bash can_core 250000
+# ./scripts/setup_can.bash can_payload 250000
 # ./scripts/check_can.bash can_core
 # ./scripts/check_can.bash can_payload
 ```

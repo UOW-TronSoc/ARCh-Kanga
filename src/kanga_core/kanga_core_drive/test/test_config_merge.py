@@ -22,17 +22,25 @@ class TestConfigMerge(unittest.TestCase):
     def test_wheel_ids(self):
         self.assertEqual(WHEEL_IDS, ("fl", "bl", "br", "fr"))
 
-    def test_merge_contains_serial_and_shared_watchdog(self):
+    def test_merge_contains_shared_bus_config_and_wheel_identity(self):
         shared = self.motors / "shared_motor_config.py"
         wheel = motor_config_path(self.motors, "fl")
         text = merge_motor_configs(shared, wheel)
-        self.assertIn("watchdog_timeout = 1", text)
+        self.assertIn("watchdog_timeout = 5", text)
         self.assertIn('SERIAL_NUMBER = "394D353B3231"', text)
         self.assertIn("node_id = 1", text)
-        self.assertIn("baud_rate = 500000", text)
+        self.assertIn("baud_rate = 250000", text)
+        self.assertIn("heartbeat_msg_rate_ms = 20", text)
+        self.assertIn("encoder_msg_rate_ms = 10", text)
+        self.assertIn("iq_msg_rate_ms = 100", text)
+        self.assertIn("torques_msg_rate_ms = 100", text)
+        self.assertIn("spinout_mechanical_power_bandwidth = 20", text)
+        self.assertIn("spinout_electrical_power_bandwidth = 20", text)
+        self.assertIn("spinout_mechanical_power_threshold = -10", text)
+        self.assertIn("spinout_electrical_power_threshold = 10", text)
         # Shared block before per-wheel overlay assignment
         self.assertLess(
-            text.find("baud_rate = 500000"),
+            text.find("baud_rate = 250000"),
             text.find('SERIAL_NUMBER = "394D353B3231"'),
         )
 

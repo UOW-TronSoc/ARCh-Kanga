@@ -19,6 +19,9 @@ Examples:
 
   # Calibrate front-left only (drive_manager calibrate_fl shells this):
   ros2 run kanga_core_drive commission_wheels -- --wheels fl --calibrate
+
+  # Bench mode (stop drive.launch first — no ROS nodes on the bus):
+  ros2 run kanga_core_drive commission_wheels -- --wheels fl --save --bench
 """
 
 from __future__ import annotations
@@ -64,14 +67,15 @@ def run_commission(
     *,
     can: str,
     config: Path,
-    ns: str,
+    ns: str | None,
     calibrate: bool,
     save: bool,
 ) -> int:
     """Invoke custom_odrive commission; return process exit code.
 
-    --ns must match the ROS namespace of the live custom_odrive_node for that
-    wheel (e.g. /wheel_fl) so Fibre identity and any node-side checks align.
+    When ns is set, parks that custom_odrive_node before Fibre work. Omit ns
+    (--bench) when drive.launch is not running — avoids CAN bus fights between
+    Fibre commissioning and the C++ ODrive nodes.
     """
     cmd = [
         "ros2",
@@ -83,9 +87,9 @@ def run_commission(
         can,
         "--config",
         str(config),
-        "--ns",
-        ns,
     ]
+    if ns is not None:
+        cmd.extend(["--ns", ns])
     if calibrate:
         cmd.append("--calibrate")
     if save:
@@ -114,6 +118,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Apply config then save_configuration() per wheel",
     )
     parser.add_argument(
+        "--bench",
+        action="store_true",
+        help="Bench mode: omit --ns (stop drive.launch before commissioning)",
+    )
+    parser.add_argument(
         "--motors-dir",
         type=Path,
         default=None,
@@ -138,7 +147,7 @@ def main(argv: list[str] | None = None) -> int:
         if not wheel_path.is_file():
             print(f"Missing wheel config: {wheel_path}", file=sys.stderr)
             return 1
-        ns = f"/wheel_{wheel_id}"
+        ns = None if args.bench else f"/wheel_{wheel_id}"
         # Temp dir keeps merged Fibre scripts off the package tree and cleans up
         # even if commission fails mid-run.
         with tempfile.TemporaryDirectory(prefix="kanga_motor_cfg_") as tmp:

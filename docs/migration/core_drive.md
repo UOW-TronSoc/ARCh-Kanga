@@ -72,7 +72,7 @@ source install/setup.bash
 
 ```text
 config/motors/
-  shared_motor_config.py      # common odrv.*; watchdog_timeout = 1; baud 500000
+  shared_motor_config.py      # common odrv.*; watchdog_timeout = 5; baud 250000
   wheel_fl_motor_config.py    # SERIAL_NUMBER + node_id + per-wheel diffs
   ...
 ```

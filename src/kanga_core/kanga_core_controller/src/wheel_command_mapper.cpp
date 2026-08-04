@@ -39,6 +39,8 @@ WheelCommandMapper::WheelCommandMapper(const rclcpp::NodeOptions & options)
     // One publisher + one status subscription per wheel namespace.
     // Example for fl: publish /wheel_fl/control_message
     //                 listen  /wheel_fl/controller_status
+    rclcpp::QoS status_qos(10);
+    status_qos.best_effort();  // match custom_odrive_node controller_status publisher
     for (size_t i = 0; i < wheel_ids_.size(); ++i) {
         const std::string ns = "/wheel_" + wheel_ids_[i];
         ctrl_pubs_.push_back(
@@ -46,7 +48,7 @@ WheelCommandMapper::WheelCommandMapper(const rclcpp::NodeOptions & options)
                 ns + "/control_message", 10));
         status_subs_.push_back(
             this->create_subscription<custom_odrive::msg::ControllerStatus>(
-                ns + "/controller_status", 10,
+                ns + "/controller_status", status_qos,
                 [this, i](const custom_odrive::msg::ControllerStatus::SharedPtr msg) {
                     this->on_status(i, *msg);
                 }));

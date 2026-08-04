@@ -38,7 +38,8 @@ what changed and why.
 **Drive / ODrive stack:** [core_drive.md](core_drive.md)
 
 1. **`feat/drive-system`** — pin `custom-ros-odrive` + implement `kanga_core_drive` (pushed; HW pending).
-2. **`feat/core-controller`** — twist→wheel mapper (Alternative A stream, CLOSED_LOOP only).
+2. **`feat/core-controller`** — Twist→wheel-joint mapper; drive owns
+   CLOSED_LOOP gating and motor setpoint streaming.
 
 Battery / `ros2_socketcan` validation stays a separate track
 (`feat/core-battery`) and does not block the drive branches above.

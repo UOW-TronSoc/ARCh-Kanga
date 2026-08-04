@@ -1,0 +1,14 @@
+# Active Kanga-specific actuator parameters. Loaded by drive.launch.py.
+#
+# custom_odrive remains motor-shaft based. wheel_actuator consumes wheel-joint
+# rad/s, applies this reduction and motor limit, then publishes motor rad/s.
+
+/**:
+  ros__parameters:
+    gear_ratio: 50.0
+
+wheel_actuator:
+  ros__parameters:
+    motor_velocity_limit_tps: 22.0
+    publish_rate_hz: 10.0
+    joint_command_timeout_s: 0.5

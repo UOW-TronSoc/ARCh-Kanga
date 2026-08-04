@@ -100,6 +100,62 @@ Transport and device-state management for ODrive live in the vendor
 `custom_odrive` package (opened from `kanga_core_drive` launch). Mission policy
 remains above the battery and microcontroller packages.
 
+### Drive command and limit model
+
+The drive actuator boundary is implemented. The operator `0–100%` mapping,
+physical wheel-radius kinematics, and Twist-domain shaping remain future work.
+
+The operator's `0–100%` speed setting is a UI-level scale, not a motor unit.
+The basestation should map it onto configurable maximum chassis linear and
+angular speeds and publish a `geometry_msgs/Twist`: linear components in m/s
+and yaw in rad/s.
+
+The planned path is:
+
+```text
+operator speed scale (0–100%)
+  → chassis command limits / shaping (Twist: m/s and rad/s)
+  → mecanum kinematics using chassis geometry and effective wheel radius
+  → wheel-joint velocity (rad/s)
+  → Kanga drive actuator boundary (50:1 reduction)
+  → motor-shaft velocity (rad/s)
+  → generic custom_odrive node / CAN Simple
+```
+
+`kanga_core_controller` owns the Twist-domain behaviour: configurable linear
+and yaw limits, command timeout, and basic acceleration/deceleration or slew
+limiting. It also owns chassis geometry, effective loaded wheel radius, and the
+mecanum transform. Its output is wheel-joint rad/s. It must not know the motor,
+gear ratio, motor TPS limit, ODrive, or CAN units. A later feedback controller
+may use an authoritative chassis velocity estimate, but that is separate from
+the initial command shaper.
+
+`kanga_core_drive` owns the actuator boundary. It converts wheel-joint rad/s to
+motor-shaft rad/s using Kanga's 50:1 reduction, applies motor-facing limits, and
+converts motor feedback back to joint units where required. The reusable
+`custom_odrive` API remains in motor-shaft units; its `velocity_ramp_test` must
+therefore continue to test motor-shaft rad/s without Kanga gearbox knowledge.
+
+Limits must be enforced at several layers:
+
+- `100%` maps to configurable chassis-speed maxima, not directly to 22 TPS.
+- If mecanum mixing would exceed a wheel, uniformly desaturate all four wheel
+  commands so the requested motion direction is preserved.
+- No motor command may exceed the configured, commissioned S1
+  `motor_velocity_limit_tps` (currently `22 turns/s`, or
+  `44π ≈ 138.23 motor rad/s`). At the current value, 50:1 reduction corresponds
+  to about `2.7646 rad/s` at the gearbox output.
+- The onboard ODrive velocity limit remains the final hardware-side guard.
+
+The controller remains provisional: it does not yet include wheel radius,
+so its `/cmd_vel` linear values are not a physically calibrated m/s-to-wheel
+rad/s conversion. Do not treat commanded chassis speed as accurate until this
+planned path is implemented and measured rolling radius is configured.
+
+ODrive motor-shaft torque/current telemetry remains the unmodified logging
+source. A Kanga drive-layer output-torque estimate may later add reduction and
+measured gearbox efficiency without replacing the raw data.
+
 ## Whole-rover packages
 
 `kanga_description` assembles `kanga_core_description` and the selected payload

@@ -13,12 +13,12 @@
  *            v
  *   wheel_command_mapper   (this node)
  *            |
- *            |  every ~0.1 s, if that wheel is in CLOSED_LOOP
+ *            |  every ~0.1 s
  *            v
- *   /wheel_fl/control_message   … same for bl, br, fr
+ *   /wheel_fl/joint_velocity_command   … same for bl, br, fr
  *            |
  *            v
- *   custom_odrive_node     (talks CAN to the real ODrive)
+ *   kanga_core_drive wheel_actuator (applies reduction + motor limit)
  *
  * Important behaviours for beginners:
  *
@@ -30,13 +30,8 @@
  *    the command as "stop" (all wheel speeds = 0). Safety: a crashed
  *    teleop client should not leave the rover driving forever.
  *
- * 3. We only publish to a wheel while its axis_state is CLOSED_LOOP (8).
- *    Enter CLOSED_LOOP via drive_manager (set_closed_loop). This node does
- *    not change axis state itself.
- *
- * 4. While CLOSED_LOOP we keep publishing even when the command is zero.
- *    The ODrive firmware has a watchdog (~1 s): if setpoints stop arriving
- *    it faults. Streaming zeros = "still alive, please stay stopped".
+ * 3. Output is wheel-joint rad/s. This node does not know the motor, gearbox,
+ *    ODrive state, or motor limit; those belong to kanga_core_drive.
  *
  * This node does NOT:
  *   - flip left/right signs (see invert_direction in drive.launch.py)
@@ -44,17 +39,14 @@
  *   - own the emergency stop topic /drivestop
  */
 
-#include <array>
-#include <cmath>
 #include <mutex>
 #include <string>
 #include <vector>
 
-#include "custom_odrive/msg/control_message.hpp"
-#include "custom_odrive/msg/controller_status.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 #include "kanga_core_controller/kinematics.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "std_msgs/msg/float64.hpp"
 
 class WheelCommandMapper : public rclcpp::Node
 {
@@ -62,18 +54,9 @@ public:
     explicit WheelCommandMapper(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
 
 private:
-    // ODrive axis_state value meaning "ready to accept velocity commands".
-    static constexpr uint8_t kAxisClosedLoop = 8;
-    // Numbers the ODrive expects for "velocity control with ramped input".
-    // See ODrive docs / custom_odrive ControlMessage — do not change casually.
-    static constexpr uint32_t kControlModeVelocity = 2;
-    static constexpr uint32_t kInputModeVelRamp = 2;
-
     // Called whenever someone publishes to /cmd_vel.
     void on_cmd_vel(const geometry_msgs::msg::Twist::SharedPtr msg);
-    // Called whenever an ODrive node publishes controller_status.
-    void on_status(size_t index, const custom_odrive::msg::ControllerStatus & msg);
-    // Called on a fixed timer (~10 Hz) to send ControlMessage to the wheels.
+    // Called on a fixed timer (~10 Hz) to send joint velocities to drive.
     void on_timer();
 
     // Build the four desired wheel speeds from the last /cmd_vel (or zeros
@@ -82,7 +65,6 @@ private:
 
     std::vector<std::string> wheel_ids_;
     kanga_core_controller::ChassisGeometry geom_;
-    double max_wheel_velocity_{44.0 * M_PI};  // 22 turns/s in rad/s
     double cmd_vel_timeout_s_{0.5};
 
     // Shared state touched by topic callbacks and the timer. Lock before use.
@@ -90,11 +72,9 @@ private:
     kanga_core_controller::Twist2D last_twist_;
     rclcpp::Time last_cmd_stamp_{0, 0, RCL_ROS_TIME};
     bool have_cmd_{false};
-    std::array<uint8_t, 4> axis_state_{{1, 1, 1, 1}};  // 1 = IDLE until we hear status
 
-    // ROS interfaces (one subscription + four status subs + four publishers).
+    // ROS interfaces (one chassis subscription + four joint publishers).
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_sub_;
-    std::vector<rclcpp::Subscription<custom_odrive::msg::ControllerStatus>::SharedPtr> status_subs_;
-    std::vector<rclcpp::Publisher<custom_odrive::msg::ControlMessage>::SharedPtr> ctrl_pubs_;
+    std::vector<rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr> joint_pubs_;
     rclcpp::TimerBase::SharedPtr timer_;
 };

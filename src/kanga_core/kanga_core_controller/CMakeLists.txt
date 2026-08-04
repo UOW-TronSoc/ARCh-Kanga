@@ -9,7 +9,6 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
-find_package(custom_odrive REQUIRED)
 
 include_directories(include)
 
@@ -29,7 +28,6 @@ ament_target_dependencies(wheel_command_mapper
   rclcpp
   geometry_msgs
   std_msgs
-  custom_odrive
 )
 target_link_libraries(wheel_command_mapper kanga_kinematics)
 target_compile_features(wheel_command_mapper PRIVATE cxx_std_17)

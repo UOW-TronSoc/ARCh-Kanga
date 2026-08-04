@@ -6,7 +6,9 @@ Work through top to bottom. Stop and fix before continuing if a step fails.
 
 **CAN policy:** bus and all wheel ODrive S1s run at **250000** bit/s (BMS requirement).
 
-**Interface naming:** code defaults to `can_core`. If the host shows `can0` or `can1`, either rename the interface (Phase 1) or pass your name to every `--can` flag and edit `drive.launch.py` temporarily.
+**Interface naming:** code defaults to `can_core`. If the host shows `can0` or
+`can1`, either rename the interface (Phase 1), pass the name to every `--can`
+flag, or launch with `can_interface:=can0`.
 
 ---
 
@@ -93,7 +95,8 @@ sudo ip link set can0 name can_core
 export CAN_IF=can_core
 ```
 
-If you skip rename, set `export CAN_IF=can0` and edit `drive.launch.py` / `drive_manager` params to match before Phase 4.
+If you skip rename, set `export CAN_IF=can0` and pass
+`can_interface:=${CAN_IF}` when launching the drive stack.
 
 ### 1.3 Bring up the 250k bus
 
@@ -180,7 +183,7 @@ ros2 run kanga_core_drive commission_wheels -- \
 ### 4.1 Launch drive only
 
 ```bash
-ros2 launch kanga_core_drive drive.launch.py
+ros2 launch kanga_core_drive drive.launch.py can_interface:=${CAN_IF:-can_core}
 ```
 
 Second shell (`docker_shell` + `source install/setup.bash`):
@@ -190,7 +193,8 @@ ros2 node list
 ros2 topic echo /wheel_fl/controller_status --once
 ```
 
-**Pass:** `drive_manager`, `wheel_{fl,bl,br,fr}/can_node`, `wheel_joint_state_publisher`; `axis_state: 1` (IDLE).
+**Pass:** `drive_manager`, `wheel_actuator`, `wheel_{fl,bl,br,fr}/can_node`,
+`wheel_joint_state_publisher`; `axis_state: 1` (IDLE).
 
 ### 4.2 Clear drivestop if needed
 
@@ -224,6 +228,10 @@ ros2 topic echo /wheel_fl/controller_status --once   # axis_state == 8
 ros2 run custom_odrive velocity_ramp_test -- --ns /wheel_fl --target-vel 3.14
 ```
 
+`custom_odrive` works in motor-shaft units, so this requests `3.14` motor rad/s
+(`0.5` motor turns/s). The generic test intentionally does not apply Kanga's
+gearbox reduction.
+
 **Pass:** wheel spins correct direction; `wheel_joint_states` updates.
 
 ---
@@ -235,7 +243,7 @@ ros2 run custom_odrive velocity_ramp_test -- --ns /wheel_fl --target-vel 3.14
 Stop previous launch (Ctrl-C), then:
 
 ```bash
-ros2 launch kanga_core_bringup core_drive.launch.py
+ros2 launch kanga_core_bringup core_drive.launch.py can_interface:=${CAN_IF:-can_core}
 ```
 
 ```bash
@@ -245,10 +253,11 @@ ros2 service call /drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: tr
 ### 6.2 Confirm mapper stream (zero cmd)
 
 ```bash
+ros2 topic echo /wheel_fl/joint_velocity_command
 ros2 topic echo /wheel_fl/control_message
 ```
 
-**Pass:** ~10 Hz, `input_vel ≈ 0`, `control_mode: 2`.
+**Pass:** both ~10 Hz and near zero; motor `input_vel` is the joint command ×50.
 
 ### 6.3 Motion smoke test
 
@@ -263,11 +272,13 @@ ros2 topic pub /cmd_vel geometry_msgs/msg/Twist \
 Watch:
 
 ```bash
+ros2 topic echo /wheel_fl/joint_velocity_command
 ros2 topic echo /wheel_fl/control_message
 ros2 topic echo /wheel_joint_states
 ```
 
-**Pass:** `input_vel` leaves zero; robot/wheels move forward; left wheels not fighting right.
+**Pass:** both velocities leave zero and motor `input_vel ≈ joint × 50`;
+robot/wheels move forward; left wheels not fighting right.
 
 ---
 
@@ -325,5 +336,6 @@ Then repeat with `core_drive.launch.py` running to confirm shared-bus stability.
 | `candump` silent | Wrong bitrate, interface down, no termination, ODrives off |
 | Only some wheels on bus | Check power, node IDs, wiring, and that every S1 is saved at 250k |
 | `set_closed_loop` fails | CAN down, fault latched — `clear_errors` via service or power cycle |
-| No `control_message` | Not in CLOSED_LOOP, or `/drivestop` true |
+| No `joint_velocity_command` | Controller not running |
+| No `control_message` | Stale/partial joint commands, not in CLOSED_LOOP, or `/drivestop` true |
 | Motion backwards / fighting | Check `invert_direction` on FL/BL in `drive.launch.py` only |

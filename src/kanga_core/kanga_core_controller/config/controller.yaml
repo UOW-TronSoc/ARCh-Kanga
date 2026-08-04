@@ -6,7 +6,7 @@
 # Units reminder:
 #   lengths  → metres
 #   angles   → degrees for theta_deg only
-#   speeds   → rad/s for max_wheel_velocity (with radians-mode ODrive nodes)
+#   output wheel velocity → wheel-joint rad/s
 
 wheel_command_mapper:
   ros__parameters:
@@ -14,16 +14,11 @@ wheel_command_mapper:
     wheel_ids: [fl, bl, br, fr]
 
     # How often we publish ControlMessage (times per second).
-    # Keep around 10+: ODrive watchdog is ~1 s and needs regular setpoints.
+    # Keep around 10 Hz so the drive actuator receives a steady four-wheel vector.
     publish_rate_hz: 10.0
 
     # If no /cmd_vel arrives for this many seconds, command becomes "stop".
     cmd_vel_timeout_s: 0.5
-
-    # Hard limit on each wheel speed command (±), rad/s.
-    # Hardware max ≈ 22 turns/s → 22 * 2π = 44π ≈ 138.23 rad/s
-    # (ODrive nodes use control_message_in_radians: true).
-    max_wheel_velocity: 138.230076757
 
     # Chassis footprint (overall 110 cm long × 89 cm wide).
     # half_* = distance from robot centre to the wheel / axle.

@@ -14,6 +14,17 @@ find_package(custom_odrive REQUIRED)
 
 include_directories(include)
 
+add_executable(wheel_actuator
+  src/wheel_actuator.cpp
+  src/wheel_actuator_main.cpp
+)
+ament_target_dependencies(wheel_actuator
+  rclcpp
+  std_msgs
+  custom_odrive
+)
+target_compile_features(wheel_actuator PRIVATE cxx_std_17)
+
 add_executable(drive_manager
   src/drive_manager.cpp
   src/drive_manager_main.cpp
@@ -37,6 +48,7 @@ ament_target_dependencies(wheel_joint_state_publisher
 target_compile_features(wheel_joint_state_publisher PRIVATE cxx_std_17)
 
 install(TARGETS
+  wheel_actuator
   drive_manager
   wheel_joint_state_publisher
   DESTINATION lib/${PROJECT_NAME}
@@ -63,7 +75,11 @@ install(FILES README.md
 
 if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
+  find_package(ament_cmake_gtest REQUIRED)
   ament_add_pytest_test(test_config_merge test/test_config_merge.py)
+  ament_add_gtest(test_transmission test/test_transmission.cpp)
+  target_include_directories(test_transmission PRIVATE include)
+  target_compile_features(test_transmission PRIVATE cxx_std_17)
 endif()
 
 ament_package()

@@ -5,12 +5,12 @@
  *
  * Subscribes to each /wheel_<id>/controller_status (custom_odrive) and publishes
  * a combined JointState on ~/wheel_joint_states (or remapped). Position and
- * velocity come from pos_estimate / vel_estimate (rad / rad/s when the ODrive
- * nodes run with control_message_in_radians: true).
+ * ODrive pos_estimate / vel_estimate are motor-shaft rad / rad/s. This node
+ * divides both by gear_ratio and publishes wheel-joint rad / rad/s.
  *
  * Invert is already applied inside custom_odrive when invert_direction is set
  * in launch — do not flip signs again here. URDF joint-name alignment is
- * configured via the joint_names parameter (see wheels.yaml / launch).
+ * configured via the joint_names parameter in drive.launch.py.
  *
  * Diff-bar / suspension joints are out of scope (separate MCU pipeline later).
  */
@@ -37,6 +37,7 @@ private:
     void publish_timer();
 
     std::vector<std::string> wheel_ids_;
+    double gear_ratio_{50.0};
     std::unordered_map<std::string, std::string> joint_by_wheel_;  // id → URDF name
     std::unordered_map<std::string, double> pos_;  // last pos_estimate (rad)
     std::unordered_map<std::string, double> vel_;  // last vel_estimate (rad/s)

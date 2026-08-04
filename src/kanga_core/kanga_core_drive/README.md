@@ -11,6 +11,8 @@ kinematics here.
 
 - Multi-motor `custom_odrive` launch (`can_core`, wheel namespaces) — same
   explicit Node-per-wheel style as `custom_odrive` `example_multi_launch.py`
+- `wheel_actuator` — wheel-joint rad/s → 50:1 reduction, uniform limiting,
+  CLOSED_LOOP-gated motor-shaft `ControlMessage`
 - Shared + per-wheel Fibre motor configs (merged at commission time)
 - `commission_wheels` CLI (Python) wrapping `custom_odrive commission`
 - `drive_manager` (C++) — `set_closed_loop` + per-wheel `calibrate_<id>` services
@@ -74,12 +76,20 @@ ros2 run kanga_core_drive commission_wheels -- --wheels fl --can can_core --cali
 
 ## Runtime notes
 
+- `config/drive.yaml` is the active actuator configuration: `gear_ratio: 50.0`
+  plus the runtime motor TPS limit and command timeout.
+- `wheel_actuator` accepts `/wheel_*/joint_velocity_command` in wheel-joint
+  rad/s, uniformly desaturates the four-wheel vector, multiplies by 50, and
+  sends motor-shaft rad/s to generic `custom_odrive` nodes.
+- `wheel_joint_state_publisher` divides motor position/velocity feedback by 50
+  so `wheel_joint_states` is expressed at the wheel joint.
 - Launch leaves `start_enabled` at the package default (do not override). Use
   `/drivestop` for global stop. Closed-loop only via `set_closed_loop`.
 - Invert via launch `invert_direction` (left wheels only — do not also invert
   in the controller).
-- Shared Fibre `watchdog_timeout = 1` s. Setpoint streaming is
-  `kanga_core_controller` (CLOSED_LOOP only).
+- Shared Fibre `watchdog_timeout = 5` s. Motor setpoint streaming is
+  `wheel_actuator` (CLOSED_LOOP only). A stale/partial joint-command vector
+  stops transmission so the firmware watchdog can disarm the axes.
 - Calibrate: one wheel per request. Save: sequential apply+save in one CLI.
 
 ## Provenance

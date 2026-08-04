@@ -62,7 +62,6 @@ source install/setup.bash
 | Piece | Role |
 |-------|------|
 | `launch/drive.launch.py` | 4× `custom_odrive_node` on `can_core`, namespaces `wheel_fl/bl/br/fr`, ids 1–4, left invert (no `start_enabled` override; use `/drivestop` for stop) |
-| `config/wheels.yaml` | Canonical map |
 | `config/motors/` | `shared_motor_config.py` + per-wheel overlays |
 | `commission_wheels` | Concat shared+individual → call `custom_odrive commission` |
 | `drive_manager` | `set_closed_loop` + `calibrate_fl/bl/br/fr` (Trigger) |
@@ -104,8 +103,8 @@ ros2 run kanga_core_drive commission_wheels -- \
 | Piece | Role |
 |-------|------|
 | `kinematics` lib | Pure `twist_to_wheels` / `clamp_wheels` (theta 51°; footprint 110×89 cm → half_length 0.55, half_width 0.445) |
-| `wheel_command_mapper` | `/cmd_vel` → desired; stale → 0; ~10 Hz `ControlMessage` **only if** `axis_state==8` |
-| `config/controller.yaml` | rate, timeout, max vel, chassis geometry |
+| `wheel_command_mapper` | `/cmd_vel` → four wheel-joint rad/s topics; stale `/cmd_vel` → joint zeros |
+| `config/controller.yaml` | rate, timeout, chassis geometry |
 | `launch/controller.launch.py` | mapper only (compose with `drive.launch.py`) |
 
 No invert; no `request_axis_state` / `set_enabled` from the mapper. Enter CLOSED_LOOP via `drive_manager`; stop via `/drivestop`.
@@ -120,7 +119,7 @@ Inside the container after `./scripts/build_workspace.bash`:
 
 1. Launch wheels + controller
 2. `set_closed_loop true`
-3. Publish `/cmd_vel`; confirm `/wheel_*/control_message` while CLOSED_LOOP
+3. Publish `/cmd_vel`; confirm joint commands and ×50 motor `control_message` while CLOSED_LOOP
 4. Stop publishing `/cmd_vel` → zeros still stream; leave CLOSED_LOOP → stream stops
 
 ---

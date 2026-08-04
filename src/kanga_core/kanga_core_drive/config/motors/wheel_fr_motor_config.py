@@ -1,6 +1,6 @@
 # ODrive S1 — wheel_fr (front right)
 # Merged after shared_motor_config.py by commission_wheels.
-# Keep node_id in sync with config/wheels.yaml and launch.
+# Keep node_id in sync with launch/drive.launch.py.
 
 SERIAL_NUMBER = "3964344C3331"
 

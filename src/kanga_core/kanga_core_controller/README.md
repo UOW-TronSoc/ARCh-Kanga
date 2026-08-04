@@ -3,35 +3,40 @@
 Turns “drive the robot this way” into “spin each wheel at this speed”.
 
 If you are new to ROS: this package is a **node** that listens on a **topic**
-(`/cmd_vel`) and publishes commands on other topics
-(`/wheel_fl/control_message`, …). The motors themselves are started by
-`kanga_core_drive` — this package only sends speed setpoints.
+(`/cmd_vel`) and publishes wheel-joint commands on other topics
+(`/wheel_fl/joint_velocity_command`, …). `kanga_core_drive` converts those
+joint speeds for the physical motors.
 
 ```text
-  /cmd_vel  --->  wheel_command_mapper  --->  /wheel_*/control_message
-   (Twist)         (this package)              (picked up by ODrive nodes)
+  /cmd_vel  --->  wheel_command_mapper  --->  /wheel_*/joint_velocity_command
+   (Twist)         (this package)              (wheel-joint rad/s to drive)
 ```
 
 ## What lives where
 
 | Package | Job |
 |---------|-----|
-| `kanga_core_drive` | Start ODrive nodes, calibrate/save motors, enter CLOSED_LOOP, publish wheel JointState |
+| `kanga_core_drive` | Apply 50:1 reduction/limits, start ODrives, calibrate/save, enter CLOSED_LOOP, publish wheel JointState |
 | `kanga_core_controller` (here) | Map `/cmd_vel` → four wheel speeds and keep streaming them |
 
 ## How the mapper behaves
 
 1. **Subscribe** to `/cmd_vel` (`geometry_msgs/Twist`).
 2. On a **timer** (~10 Hz), convert that twist to four wheel speeds (kinematics).
-3. **Publish** a `ControlMessage` to each wheel **only if** that wheel’s
-   `controller_status.axis_state` is `8` (CLOSED_LOOP).
-4. If `/cmd_vel` stops for longer than `cmd_vel_timeout_s`, treat the command
-   as zero (stop). We still stream zeros while CLOSED_LOOP so the motor
-   watchdog does not trip.
+3. **Publish** each result as wheel-joint rad/s. The controller has no motor,
+   gearbox, ODrive-state, or motor-limit knowledge.
+4. If `/cmd_vel` stops for longer than `cmd_vel_timeout_s`, keep publishing
+   zero wheel-joint speed. The drive layer then keeps stopped CLOSED_LOOP axes
+   fed without masking a failed controller process.
 
 This node does **not** invert wheel signs, change axis state, or handle e-stop —
 those are single-owner elsewhere (`invert_direction` only in `drive.launch.py`,
 `set_closed_loop` on `drive_manager`, `/drivestop`).
+
+> **Current limitation:** wheel radius is not implemented yet. Directional
+> mixing is testable, but `/cmd_vel` linear values are not yet a calibrated
+> physical m/s command. The command/limit chain is recorded in the
+> [software architecture](../../../docs/architecture/README.md#drive-command-and-limit-model).
 
 ## Try it (on the rover)
 
@@ -46,9 +51,9 @@ ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}" --rate 10
 Useful beginner checks:
 
 ```bash
-ros2 topic list | grep -E 'cmd_vel|control_message|controller_status'
-ros2 topic echo /wheel_fl/control_message --once
-ros2 topic echo /wheel_fl/controller_status --once
+ros2 topic list | grep -E 'cmd_vel|joint_velocity_command|control_message'
+ros2 topic echo /wheel_fl/joint_velocity_command --once  # joint rad/s
+ros2 topic echo /wheel_fl/control_message --once          # motor rad/s from drive
 ```
 
 ## Edit the robot size / limits
@@ -56,9 +61,8 @@ ros2 topic echo /wheel_fl/controller_status --once
 Defaults are in [`config/controller.yaml`](config/controller.yaml):
 
 - Footprint: **110 cm long × 89 cm wide** → `half_length: 0.55`, `half_width: 0.445`
-- `max_wheel_velocity`: safety clamp per wheel (**22 turns/s = 44π rad/s**)
 - `cmd_vel_timeout_s`: how long before a quiet `/cmd_vel` becomes “stop”
-- `publish_rate_hz`: how often we stream setpoints (keep ≥ ~10 with a 1 s watchdog)
+- `publish_rate_hz`: how often wheel-joint commands are published
 
 ## Code map (for reading the source)
 

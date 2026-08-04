@@ -110,9 +110,9 @@ In another container shell (`docker_shell` + `source install/setup.bash`):
 
 ```bash
 ros2 node list
-# expect: drive_manager, wheel_command_mapper, wheel_*/can_node, …
+# expect: drive_manager, wheel_actuator, wheel_command_mapper, wheel_*/can_node, …
 
-ros2 topic list | grep -E 'controller_status|control_message|wheel_joint|cmd_vel'
+ros2 topic list | grep -E 'controller_status|joint_velocity_command|control_message|wheel_joint|cmd_vel'
 
 ros2 topic echo /wheel_fl/controller_status --once
 # note axis_state (expect IDLE = 1 before CLOSED_LOOP)
@@ -137,11 +137,13 @@ If this fails: check CAN, clear faults, retry; do not proceed to motion.
 
 ### 7. Confirm mapper streams (still may be zero cmd)
 
-With CLOSED_LOOP on, the mapper publishes even when `/cmd_vel` is quiet (zeros for watchdog).
+With CLOSED_LOOP on, the controller publishes zero joint commands when
+`/cmd_vel` is quiet; drive converts them to motor commands for the watchdog.
 
 ```bash
-ros2 topic echo /wheel_fl/control_message
-# should see control_mode=2, input_mode=2, input_vel≈0 at ~10 Hz
+ros2 topic echo /wheel_fl/joint_velocity_command  # wheel-joint rad/s
+ros2 topic echo /wheel_fl/control_message         # motor-shaft rad/s
+# both should be ≈0 at ~10 Hz
 ```
 
 Pass criteria: steady `control_message` on each wheel while CLOSED_LOOP.
@@ -161,6 +163,7 @@ Watch:
 
 ```bash
 ros2 topic echo /wheel_fl/control_message    # input_vel should leave 0
+ros2 topic echo /wheel_fl/joint_velocity_command
 ros2 topic echo /wheel_joint_states          # estimates should move
 ```
 
@@ -188,7 +191,7 @@ ros2 service call /drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: fa
 ros2 topic echo /wheel_fl/controller_status --once
 # axis_state back toward IDLE (1)
 
-# control_message should stop (mapper only publishes while CLOSED_LOOP)
+# control_message should stop (actuator only publishes while CLOSED_LOOP)
 ```
 
 Also verify global stop if you use it in the field:

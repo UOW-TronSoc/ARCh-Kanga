@@ -8,7 +8,6 @@ using namespace std::chrono_literals;
 using kanga_core_controller::ChassisGeometry;
 using kanga_core_controller::Twist2D;
 using kanga_core_controller::WheelVelocities;
-using kanga_core_controller::clamp_wheels;
 using kanga_core_controller::twist_to_wheels;
 
 WheelCommandMapper::WheelCommandMapper(const rclcpp::NodeOptions & options)
@@ -20,7 +19,6 @@ WheelCommandMapper::WheelCommandMapper(const rclcpp::NodeOptions & options)
         "wheel_ids", {"fl", "bl", "br", "fr"});
     this->declare_parameter<double>("publish_rate_hz", 10.0);
     this->declare_parameter<double>("cmd_vel_timeout_s", 0.5);
-    this->declare_parameter<double>("max_wheel_velocity", 44.0 * M_PI);  // 22 turns/s
     this->declare_parameter<double>("theta_deg", 51.0);
     this->declare_parameter<double>("half_length", 0.55);
     this->declare_parameter<double>("half_width", 0.445);
@@ -31,27 +29,15 @@ WheelCommandMapper::WheelCommandMapper(const rclcpp::NodeOptions & options)
     }
 
     cmd_vel_timeout_s_ = this->get_parameter("cmd_vel_timeout_s").as_double();
-    max_wheel_velocity_ = this->get_parameter("max_wheel_velocity").as_double();
     geom_.theta_deg = this->get_parameter("theta_deg").as_double();
     geom_.half_length = this->get_parameter("half_length").as_double();
     geom_.half_width = this->get_parameter("half_width").as_double();
 
-    // One publisher + one status subscription per wheel namespace.
-    // Example for fl: publish /wheel_fl/control_message
-    //                 listen  /wheel_fl/controller_status
-    rclcpp::QoS status_qos(10);
-    status_qos.best_effort();  // match custom_odrive_node controller_status publisher
-    for (size_t i = 0; i < wheel_ids_.size(); ++i) {
-        const std::string ns = "/wheel_" + wheel_ids_[i];
-        ctrl_pubs_.push_back(
-            this->create_publisher<custom_odrive::msg::ControlMessage>(
-                ns + "/control_message", 10));
-        status_subs_.push_back(
-            this->create_subscription<custom_odrive::msg::ControllerStatus>(
-                ns + "/controller_status", status_qos,
-                [this, i](const custom_odrive::msg::ControllerStatus::SharedPtr msg) {
-                    this->on_status(i, *msg);
-                }));
+    // One actuator-independent wheel-joint velocity publisher per wheel.
+    for (const auto & wheel_id : wheel_ids_) {
+        const std::string topic = "/wheel_" + wheel_id + "/joint_velocity_command";
+        joint_pubs_.push_back(
+            this->create_publisher<std_msgs::msg::Float64>(topic, 10));
     }
 
     // Chassis command from teleop / Nav2 / basestation.
@@ -68,8 +54,8 @@ WheelCommandMapper::WheelCommandMapper(const rclcpp::NodeOptions & options)
 
     RCLCPP_INFO(
         this->get_logger(),
-        "wheel_command_mapper ready (%.1f Hz, timeout %.2f s, max_wheel_vel %.2f)",
-        rate > 0.0 ? rate : 10.0, cmd_vel_timeout_s_, max_wheel_velocity_);
+        "wheel_command_mapper ready (%.1f Hz, timeout %.2f s, output=wheel-joint rad/s)",
+        rate > 0.0 ? rate : 10.0, cmd_vel_timeout_s_);
 }
 
 void WheelCommandMapper::on_cmd_vel(const geometry_msgs::msg::Twist::SharedPtr msg)
@@ -83,17 +69,6 @@ void WheelCommandMapper::on_cmd_vel(const geometry_msgs::msg::Twist::SharedPtr m
     have_cmd_ = true;
 }
 
-void WheelCommandMapper::on_status(
-    size_t index, const custom_odrive::msg::ControllerStatus & msg)
-{
-    // Remember whether this wheel is IDLE (1), CLOSED_LOOP (8), etc.
-    if (index >= axis_state_.size()) {
-        return;
-    }
-    std::lock_guard<std::mutex> lock(mutex_);
-    axis_state_[index] = msg.axis_state;
-}
-
 WheelVelocities WheelCommandMapper::desired_locked()
 {
     // Caller already holds mutex_.
@@ -105,34 +80,22 @@ WheelVelocities WheelCommandMapper::desired_locked()
         }
         // else: command is stale → keep twist at zeros
     }
-    return clamp_wheels(twist_to_wheels(twist, geom_), max_wheel_velocity_);
+    return twist_to_wheels(twist, geom_);
 }
 
 void WheelCommandMapper::on_timer()
 {
     // Snapshot shared state quickly, then publish without holding the lock.
     WheelVelocities desired;
-    std::array<uint8_t, 4> states{};
     {
         std::lock_guard<std::mutex> lock(mutex_);
         desired = desired_locked();
-        states = axis_state_;
     }
 
     const auto vels = desired.as_array();  // fl, bl, br, fr
-    custom_odrive::msg::ControlMessage ctrl;
-    ctrl.control_mode = kControlModeVelocity;
-    ctrl.input_mode = kInputModeVelRamp;
-    ctrl.input_pos = 0.0F;
-    ctrl.input_torque = 0.0F;
-
-    // Skip wheels that are not in CLOSED_LOOP — do not spam IDLE motors.
-    // No sign flip here; invert lives only in drive.launch.py → custom_odrive.
-    for (size_t i = 0; i < ctrl_pubs_.size(); ++i) {
-        if (states[i] != kAxisClosedLoop) {
-            continue;
-        }
-        ctrl.input_vel = static_cast<float>(vels[i]);
-        ctrl_pubs_[i]->publish(ctrl);
+    for (size_t i = 0; i < joint_pubs_.size(); ++i) {
+        std_msgs::msg::Float64 msg;
+        msg.data = vels[i];
+        joint_pubs_[i]->publish(msg);
     }
 }

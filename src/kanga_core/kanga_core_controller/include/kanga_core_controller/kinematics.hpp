@@ -44,7 +44,9 @@ struct Twist2D
 };
 
 // One speed command per wheel. Order matches drive: fl, bl, br, fr.
-// Units: rad/s when ODrive nodes run with control_message_in_radians: true.
+// These are wheel-joint rad/s consumed by kanga_core_drive. Physical m/s →
+// wheel rad/s still requires the effective wheel radius; see
+// docs/architecture/README.md "Drive command and limit model".
 struct WheelVelocities
 {
     double fl{0.0};  // front left

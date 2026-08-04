@@ -5,6 +5,10 @@
 # watchdog_timeout = 5 s — kanga_core_controller should stream setpoints at
 # roughly 5–10 Hz while CLOSED_LOOP so the firmware watchdog stays fed.
 
+# Commissioned motor-shaft velocity limit in turns per second. Keep the
+# drive.yaml runtime actuator limit equal; test_config_merge.py enforces this.
+MOTOR_VELOCITY_LIMIT_TPS = 22.0
+
 odrv.config.dc_bus_overvoltage_trip_level = 36
 odrv.config.dc_bus_undervoltage_trip_level = 21
 odrv.config.dc_max_positive_current = math.inf
@@ -21,13 +25,13 @@ odrv.axis0.config.calibration_lockin.current = 10
 odrv.axis0.motor.motor_thermistor.config.enabled = False
 odrv.axis0.controller.config.control_mode = ControlMode.VELOCITY_CONTROL
 odrv.axis0.controller.config.input_mode = InputMode.VEL_RAMP
-odrv.axis0.controller.config.vel_limit = 22
+odrv.axis0.controller.config.vel_limit = MOTOR_VELOCITY_LIMIT_TPS
 odrv.axis0.controller.config.vel_limit_tolerance = 1.1363636363636365
 # Spinout detection power filters (bandwidth in 1/s, thresholds in watts).
 odrv.axis0.controller.config.spinout_mechanical_power_bandwidth = 20
 odrv.axis0.controller.config.spinout_electrical_power_bandwidth = 20
-odrv.axis0.controller.config.spinout_mechanical_power_threshold = -10
-odrv.axis0.controller.config.spinout_electrical_power_threshold = 10
+odrv.axis0.controller.config.spinout_mechanical_power_threshold = -30
+odrv.axis0.controller.config.spinout_electrical_power_threshold = 30
 odrv.axis0.config.torque_soft_min = -math.inf
 odrv.axis0.config.torque_soft_max = math.inf
 odrv.axis0.trap_traj.config.accel_limit = 40

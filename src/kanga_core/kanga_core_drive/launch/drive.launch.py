@@ -10,8 +10,9 @@ Mapping (keep aligned with config/motors/ and commission_wheels):
   wheel_br  node_id 3
   wheel_fr  node_id 4
 
-All share SocketCAN interface can_core. Host must bring the iface up first
-(bitrate must match the ODrives / autobaud).
+All share one SocketCAN interface. It defaults to can_core and can be overridden
+at launch, for example: can_interface:=can0. The host must bring the interface
+up first at the same bitrate as the ODrives.
 
 Do not set start_enabled here — leave the package default. Global stop uses
 /drivestop when needed. Enter CLOSED_LOOP via:
@@ -22,16 +23,25 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
 def generate_launch_description():
+    can_interface = LaunchConfiguration("can_interface")
+
     # Shared custom_odrive defaults (radians, idle on startup/shutdown, …).
     # Per-Node dicts below only override what differs per wheel.
     defaults = os.path.join(
         get_package_share_directory("custom_odrive"),
         "config",
         "custom_odrive_defaults.yaml",
+    )
+    drive_params = os.path.join(
+        get_package_share_directory("kanga_core_drive"),
+        "config",
+        "drive.yaml",
     )
 
     # node_id must match Fibre axis0.config.can.node_id (wheel_* configs).
@@ -45,7 +55,7 @@ def generate_launch_description():
             defaults,
             {
                 "node_id": 1,
-                "interface": "can_core",
+                "interface": can_interface,
                 "invert_direction": True,
             },
         ],
@@ -61,7 +71,7 @@ def generate_launch_description():
             defaults,
             {
                 "node_id": 2,
-                "interface": "can_core",
+                "interface": can_interface,
                 "invert_direction": True,
             },
         ],
@@ -78,7 +88,7 @@ def generate_launch_description():
             defaults,
             {
                 "node_id": 3,
-                "interface": "can_core",
+                "interface": can_interface,
             },
         ],
         output="screen",
@@ -93,7 +103,22 @@ def generate_launch_description():
             defaults,
             {
                 "node_id": 4,
-                "interface": "can_core",
+                "interface": can_interface,
+            },
+        ],
+        output="screen",
+    )
+
+    # Actuator boundary: wheel-joint rad/s from controller → motor-shaft rad/s
+    # for custom_odrive, including 50:1 reduction and motor TPS limiting.
+    wheel_actuator = Node(
+        package="kanga_core_drive",
+        executable="wheel_actuator",
+        name="wheel_actuator",
+        parameters=[
+            drive_params,
+            {
+                "wheel_ids": ["fl", "bl", "br", "fr"],
             },
         ],
         output="screen",
@@ -108,7 +133,7 @@ def generate_launch_description():
         parameters=[
             {
                 "wheel_ids": ["fl", "bl", "br", "fr"],
-                "can_interface": "can_core",
+                "can_interface": can_interface,
             },
         ],
         output="screen",
@@ -121,6 +146,7 @@ def generate_launch_description():
         executable="wheel_joint_state_publisher",
         name="wheel_joint_state_publisher",
         parameters=[
+            drive_params,
             {
                 "wheel_ids": ["fl", "bl", "br", "fr"],
                 "joint_names": [
@@ -136,10 +162,16 @@ def generate_launch_description():
 
     return LaunchDescription(
         [
+            DeclareLaunchArgument(
+                "can_interface",
+                default_value="can_core",
+                description="Host SocketCAN interface shared by all wheel ODrives",
+            ),
             wheel_fl,
             wheel_bl,
             wheel_br,
             wheel_fr,
+            wheel_actuator,
             drive_manager,
             wheel_joint_state_publisher,
         ]

@@ -1,8 +1,11 @@
 #include "kanga_core_drive/wheel_joint_state_publisher.hpp"
 
 #include <chrono>
+#include <cmath>
 #include <functional>
 #include <stdexcept>
+
+#include "kanga_core_drive/transmission.hpp"
 
 using namespace std::chrono_literals;
 
@@ -17,11 +20,16 @@ WheelJointStatePublisher::WheelJointStatePublisher(const rclcpp::NodeOptions & o
         "joint_names",
         {"wheel_fl_joint", "wheel_bl_joint", "wheel_br_joint", "wheel_fr_joint"});
     this->declare_parameter<double>("publish_rate_hz", 50.0);
+    this->declare_parameter<double>("gear_ratio", 50.0);
 
     wheel_ids_ = this->get_parameter("wheel_ids").as_string_array();
+    gear_ratio_ = this->get_parameter("gear_ratio").as_double();
     const auto joint_names = this->get_parameter("joint_names").as_string_array();
     if (joint_names.size() != wheel_ids_.size()) {
         throw std::runtime_error("joint_names length must match wheel_ids");
+    }
+    if (!std::isfinite(gear_ratio_) || gear_ratio_ <= 0.0) {
+        throw std::runtime_error("gear_ratio must be finite and > 0");
     }
 
     for (size_t i = 0; i < wheel_ids_.size(); ++i) {
@@ -55,7 +63,8 @@ WheelJointStatePublisher::WheelJointStatePublisher(const rclcpp::NodeOptions & o
         std::bind(&WheelJointStatePublisher::publish_timer, this));
 
     RCLCPP_INFO(
-        this->get_logger(), "Publishing wheel_joint_states (%zu wheels)", wheel_ids_.size());
+        this->get_logger(), "Publishing wheel_joint_states (%zu wheels, ratio %.3f:1)",
+        wheel_ids_.size(), gear_ratio_);
 }
 
 void WheelJointStatePublisher::on_status(
@@ -65,8 +74,10 @@ void WheelJointStatePublisher::on_status(
     // Callback and timer may run concurrently on a multi-threaded executor if
     // remapped later; guard the caches.
     std::lock_guard<std::mutex> lock(mutex_);
-    pos_[wheel_id] = msg.pos_estimate;
-    vel_[wheel_id] = msg.vel_estimate;
+    pos_[wheel_id] = kanga_core_drive::joint_position_from_motor(
+        msg.pos_estimate, gear_ratio_);
+    vel_[wheel_id] = kanga_core_drive::joint_velocity_from_motor(
+        msg.vel_estimate, gear_ratio_);
     have_[wheel_id] = true;
 }
 

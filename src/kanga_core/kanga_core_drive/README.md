@@ -24,6 +24,21 @@ kinematics here.
 - ODrive protocol / SocketCAN internals (vendor `custom_odrive`)
 - Differential-bar JointState, WHS, error UX, whole-rover bringup
 
+## Functional status
+
+As of 2026-08-05, the current v1 drive-package scope is functionally complete
+and bench-validated on the rover. Commissioning, calibration, four-wheel state
+management, the 50:1 actuator conversion, joint feedback, direction handling,
+22 TPS limiting, uniform desaturation, command timeouts, `/drivestop`, and
+recovery after a stop have all been exercised with the physical ODrives.
+
+This status means the drive actuator boundary is ready for controller work; it
+does not mean the complete rover is field-qualified. Loaded/on-ground driving,
+long-duration thermal/current testing, power-cycle or CAN-loss recovery, and
+the real WHS source of `/drivestop` remain whole-system validation. Physical
+Twist calibration and effective wheel radius belong to
+`kanga_core_controller`, not this package.
+
 ## Build (dev container)
 
 Build and run this package **inside the Docker workspace**, not with ad-hoc

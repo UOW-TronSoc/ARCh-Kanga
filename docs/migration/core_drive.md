@@ -1,8 +1,9 @@
 # Next steps: core drive + controller
 
 Agreed design for the rover-base ODrive stack. **`kanga_core_drive`** landed on
-`feat/drive-system`. **`kanga_core_controller`** is implemented on
-`feat/core-controller` (kinematics + Alternative A mapper; rover HW pending).
+`feat/drive-system` and its current v1 actuator scope was bench-validated on
+the rover on 2026-08-05. **`kanga_core_controller`** is implemented on
+`feat/core-controller`; physical m/s calibration and command shaping remain.
 
 Related: [migration overview](README.md),
 [`src/vendor/README.md`](../../src/vendor/README.md),
@@ -21,10 +22,10 @@ Old reference (mapper / launch): `ARCH2026-Kanga` → `src/kanga_drive`.
 | custom_odrive | Do not change the C++ node unless blocked. Apply/calibrate/save via existing `commission` CLI. |
 | Calibrate | **One motor at a time.** CLI and/or per-wheel `std_srvs/Trigger` (`~/calibrate_fl` …). |
 | Save config | Apply shared+individual, then `--save`. Sequential one-at-a-time in a single CLI command. Command only. |
-| Stream | Alternative A (~10 Hz desired stream) **only while CLOSED_LOOP**. Stale `/cmd_vel` → desired 0. |
-| Firmware watchdog | Shared Fibre config uses **`watchdog_timeout = 1`** (seconds). |
+| Stream | Controller publishes wheel-joint commands at ~10 Hz. Drive publishes motor commands only while CLOSED_LOOP. Stale `/cmd_vel` → continuously streamed zero. |
+| Firmware watchdog | Shared Fibre config uses **`watchdog_timeout = 5`** (seconds). |
 | Invert | Launch `invert_direction` only. URDF sign check later. |
-| Deferred | Diff-bar JointState, odom, errors/UX, WHS, rover HW validation. |
+| Deferred | Diff-bar JointState, odom, errors/UX, WHS, and loaded/field qualification. |
 
 ```mermaid
 flowchart LR
@@ -32,10 +33,10 @@ flowchart LR
   cliSave["commission CLI"] --> drivePkg
   trigger["set_closed_loop"] --> nodes["custom_odrive nodes"]
   cmdVel["/cmd_vel"] --> ctrl["kanga_core_controller"]
-  ctrl -->|"ControlMessage if CLOSED_LOOP"| nodes
+  ctrl -->|"wheel-joint rad/s"| actuator["wheel_actuator"]
+  actuator -->|"motor-shaft rad/s if CLOSED_LOOP"| nodes
   nodes --> status["controller_status"]
   status --> drivePkg
-  status --> ctrl
   drivePkg --> js["JointState wheels"]
   nodes --> can["SocketCAN can_core"]
 ```

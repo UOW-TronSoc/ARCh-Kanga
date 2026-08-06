@@ -43,6 +43,24 @@ Hardware protocol PDF: `docs/reference/Daly-CAN-Communications-Protocol-V1.0.pdf
 
 Launch only sets `interface` and `req_period`. Node IDs use the defaults in code.
 
+## Polling and BMS sleep
+
+Only one request is active at a time. The node waits up to 250 ms for the matching
+reply and makes at most three attempts before moving to the next command. This
+prevents overlapping requests and lets communication recover automatically when
+the Daly BMS temporarily stops answering.
+
+`battery_info` is published only after both of its source replies arrive.
+`bms_status` is published only after temperatures, charge state, and fault status
+arrive. Individual cell voltages (`0x95`) are intentionally not requested by this
+package. Missing replies therefore reduce the topic update rate instead of
+producing a message that appears fresh but contains an incomplete data set.
+
+Daly BMS models can enter a sleep state. If timeout warnings continue and no
+battery topics are published, wake the BMS using its supported button,
+charge/discharge, or communication activation procedure before investigating the
+ROS node.
+
 ## Run
 
 CAN must be up at **250000**.

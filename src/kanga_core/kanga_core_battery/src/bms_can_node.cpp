@@ -19,11 +19,10 @@ namespace
 {
 
 // Commands we request each poll cycle (others like 0x91/0x94 are unused).
-const uint8_t kPollCommands[5] = {
+const uint8_t kPollCommands[4] = {
   0x90,  // voltage, current, SOC
   0x92,  // temperatures
   0x93,  // charge state + capacity
-  0x95,  // cell voltages
   0x98,  // fault bytes
 };
 
@@ -101,11 +100,11 @@ BMSCanNode::BMSCanNode(const std::string & node_name)
     std::chrono::seconds(req_period_),
     std::bind(&BMSCanNode::start_poll_cycle, this));
 
-  // Sequencer: 50 ms between each request frame (starts cancelled).
-  request_sequencer_timer_ = this->create_wall_timer(
-    std::chrono::milliseconds(kRequestGapMs),
-    std::bind(&BMSCanNode::send_next_request, this));
-  request_sequencer_timer_->cancel();
+  // Response timeout: retry a request if its matching reply does not arrive.
+  request_timeout_timer_ = this->create_wall_timer(
+    std::chrono::milliseconds(kResponseTimeoutMs),
+    std::bind(&BMSCanNode::on_request_timeout, this));
+  request_timeout_timer_->cancel();
 
   // Flush: often check whether we have enough decoded fields to publish.
   publish_flush_timer_ = this->create_wall_timer(
@@ -113,6 +112,8 @@ BMSCanNode::BMSCanNode(const std::string & node_name)
     std::bind(&BMSCanNode::flush_ready_messages, this));
 
   poll_command_index_ = 0;
+  request_attempt_ = 0;
+  poll_cycle_active_ = false;
   battery_info_ready_flags_ = 0;
   bms_status_ready_flags_ = 0;
 }
@@ -121,27 +122,29 @@ BMSCanNode::BMSCanNode(const std::string & node_name)
 // Polling: ask the BMS for data
 // ---------------------------------------------------------------------------
 
-// Begin one poll round: send the first request, then let the sequencer continue.
+// Begin one poll round unless the previous round is still waiting for replies.
 void BMSCanNode::start_poll_cycle()
 {
-  request_sequencer_timer_->cancel();
-  poll_command_index_ = 0;
-  send_next_request();
-  if (poll_command_index_ < kNumPollCommands) {
-    request_sequencer_timer_->reset();
+  if (poll_cycle_active_) {
+    RCLCPP_DEBUG(this->get_logger(), "Previous BMS poll cycle is still active");
+    return;
   }
+
+  poll_cycle_active_ = true;
+  poll_command_index_ = 0;
+  request_attempt_ = 0;
+  send_current_request();
 }
 
-// Publish one empty request Frame for the next command in kPollCommands.
-void BMSCanNode::send_next_request()
+// Publish one empty request Frame for the current command.
+void BMSCanNode::send_current_request()
 {
-  if (poll_command_index_ >= kNumPollCommands) {
-    request_sequencer_timer_->cancel();
+  if (!poll_cycle_active_ || poll_command_index_ >= kNumPollCommands) {
     return;
   }
 
   const uint8_t command = kPollCommands[poll_command_index_];
-  poll_command_index_ = poll_command_index_ + 1;
+  request_attempt_ = request_attempt_ + 1;
 
   can_msgs::msg::Frame frame;
   frame.header.stamp = this->now();
@@ -155,11 +158,45 @@ void BMSCanNode::send_next_request()
   }
 
   can_tx_publisher_->publish(frame);
-  RCLCPP_DEBUG(this->get_logger(), "Sent BMS request 0x%02X", command);
+  RCLCPP_DEBUG(
+    this->get_logger(), "Sent BMS request 0x%02X (attempt %d/%d)",
+    command, request_attempt_, kMaxRequestAttempts);
+  request_timeout_timer_->reset();
+}
+
+// Retry the current command, then move on if the BMS remains silent.
+void BMSCanNode::on_request_timeout()
+{
+  request_timeout_timer_->cancel();
+  if (!poll_cycle_active_) {
+    return;
+  }
+
+  if (request_attempt_ < kMaxRequestAttempts) {
+    send_current_request();
+    return;
+  }
+
+  RCLCPP_WARN_THROTTLE(
+    this->get_logger(), *this->get_clock(), kWarningThrottleMs,
+    "No BMS response to command 0x%02X after %d attempts",
+    kPollCommands[poll_command_index_], kMaxRequestAttempts);
+  advance_to_next_request();
+}
+
+// Stop the timeout and either request the next command or finish the cycle.
+void BMSCanNode::advance_to_next_request()
+{
+  request_timeout_timer_->cancel();
+  poll_command_index_ = poll_command_index_ + 1;
+  request_attempt_ = 0;
 
   if (poll_command_index_ >= kNumPollCommands) {
-    request_sequencer_timer_->cancel();
+    poll_cycle_active_ = false;
+    return;
   }
+
+  send_current_request();
 }
 
 // ---------------------------------------------------------------------------
@@ -178,6 +215,10 @@ void BMSCanNode::on_can_frame(const can_msgs::msg::Frame::SharedPtr msg)
   }
 
   const uint8_t command = command_id_from_can_id(msg->id);
+  const bool is_expected_response =
+    poll_cycle_active_ && poll_command_index_ < kNumPollCommands &&
+    command == kPollCommands[poll_command_index_];
+  bool response_complete = false;
 
   switch (command) {
     case 0x90: {
@@ -192,6 +233,7 @@ void BMSCanNode::on_can_frame(const can_msgs::msg::Frame::SharedPtr msg)
       battery_info_.current = (read_u16_be(&msg->data[4]) - 30000) * 0.1f;
       battery_info_.soc = read_u16_be(&msg->data[6]) * 0.1f;
       battery_info_ready_flags_ |= kBatteryInfoVoltageCurrentSocReady;
+      response_complete = true;
       break;
     }
 
@@ -207,6 +249,7 @@ void BMSCanNode::on_can_frame(const can_msgs::msg::Frame::SharedPtr msg)
       battery_info_.capacity = read_u32_be(&msg->data[4]);
       battery_info_ready_flags_ |= kBatteryInfoCapacityReady;
       bms_status_ready_flags_ |= kBMSStatusChargeStateReady;
+      response_complete = true;
       break;
     }
 
@@ -219,25 +262,7 @@ void BMSCanNode::on_can_frame(const can_msgs::msg::Frame::SharedPtr msg)
       bms_status_.temps[0] = msg->data[0] - 40;
       bms_status_.temps[1] = msg->data[2] - 40;
       bms_status_ready_flags_ |= kBMSStatusTemperaturesReady;
-      break;
-    }
-
-    case 0x95: {
-      // Cell voltages (mV). Up to 3 cells per frame; index treated as 1-based.
-      if (!verify_frame_length("CellVoltageFrame", 8, msg->dlc)) {
-        break;
-      }
-      std::lock_guard<std::mutex> lock(bms_status_mutex_);
-      const uint8_t frame_index = msg->data[0];
-      for (int cell_slot = 0; cell_slot < 3; ++cell_slot) {
-        const int cell_index = (frame_index - 1) * 3 + cell_slot;
-        if (cell_index < 0 || cell_index >= kCellCount) {
-          break;
-        }
-        bms_status_.cell_voltages[cell_index] =
-          read_u16_be(&msg->data[1 + 2 * cell_slot]);
-      }
-      bms_status_ready_flags_ |= kBMSStatusCellVoltagesReady;
+      response_complete = true;
       break;
     }
 
@@ -251,11 +276,16 @@ void BMSCanNode::on_can_frame(const can_msgs::msg::Frame::SharedPtr msg)
         bms_status_.fault_bits[i] = msg->data[i];
       }
       bms_status_ready_flags_ |= kBMSStatusFaultBitsReady;
+      response_complete = true;
       break;
     }
 
     default:
       break;
+  }
+
+  if (response_complete && is_expected_response) {
+    advance_to_next_request();
   }
 }
 

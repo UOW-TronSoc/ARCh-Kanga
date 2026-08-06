@@ -9,8 +9,8 @@ Fibre configs, or battery logic.
 
 `core_drive.launch.py` starts:
 
-1. `kanga_core_drive` `drive.launch.py` — ODrive nodes, `drive_manager`, wheel JointState  
-2. `kanga_core_controller` `controller.launch.py` — `/cmd_vel` → wheel setpoints  
+1. `kanga_core_drive` `drive.launch.py` — ODrive nodes, `drive_manager`, wheel JointState
+2. `kanga_core_controller` `controller.launch.py` — `/cmd_vel` → wheel setpoints
 
 Host must bring up `can_core` first. CLOSED_LOOP is still manual via
 `drive_manager`.

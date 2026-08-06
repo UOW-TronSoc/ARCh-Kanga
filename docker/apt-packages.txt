@@ -3,6 +3,7 @@ can-utils
 curl
 git
 iproute2
+libusb-1.0-0
 nano
 net-tools
 python3-colcon-common-extensions
@@ -13,6 +14,7 @@ ros-humble-ament-cmake
 ros-humble-ament-cmake-auto
 ros-humble-can-msgs
 ros-humble-geometry-msgs
+ros-humble-joy
 ros-humble-lifecycle-msgs
 ros-humble-nav-msgs
 ros-humble-rclcpp

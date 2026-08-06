@@ -74,16 +74,19 @@ safety-rated emergency stop.
 
 `kanga_core` is a structure folder for the rover base:
 
-- `kanga_core_drive` owns wheel configuration, chassis-to-wheel mapping, drive
-  limits, and two separate feedback paths. ODrive wheel feedback becomes wheel
-  joint states and may optionally produce low-confidence wheel odometry. Raw
-  differential-bar encoder feedback from the core microcontroller becomes the
-  differential-bar and suspension joint states. `robot_state_publisher`
-  generates their link transforms from the robot description. A visual,
-  inertial, SLAM, or fused estimator owns the authoritative `odom` to
-  `base_link` transform.
+- `kanga_core_drive` owns ODrive multi-motor launch, Fibre commissioning
+  (apply / calibrate / save), closed-loop trigger, and wheel `JointState` from
+  ODrive estimates. Invert direction is configured in launch only.
+- `kanga_core_controller` owns chassis-to-wheel velocity mapping, drive limits,
+  and the `/cmd_vel` setpoint stream to ODrive (streams only while CLOSED_LOOP).
+  Differential-bar / suspension JointState from the core microcontroller and
+  optional low-confidence wheel odometry are deferred. `robot_state_publisher`
+  generates link transforms from the robot description. A visual, inertial,
+  SLAM, or fused estimator owns the authoritative `odom` to `base_link`
+  transform.
 - `kanga_core_description` owns chassis, wheel, suspension, and other base
-  geometry and frame naming.
+  geometry and frame naming. It also owns versioned drivetrain hardware
+  profiles consumed by description, controller, drive, and commissioning.
 - `kanga_core_bringup` composes the physical core so it can run without a
   payload.
 - `kanga_core_microcontroller` owns the rover-base microcontroller firmware and
@@ -94,8 +97,87 @@ safety-rated emergency stop.
 - `kanga_core_simulation` provides standalone simulated hardware and launch
   integration for the rover base.
 
-Transport and device-state management remain below drive behaviour. Mission
-policy remains above the battery and microcontroller packages.
+Transport and device-state management for ODrive live in the vendor
+`custom_odrive` package (opened from `kanga_core_drive` launch). Mission policy
+remains above the battery and microcontroller packages.
+
+### Drive command and limit model
+
+The drive actuator boundary and nominal wheel-radius conversion are
+implemented. The operator `0–100%` mapping and Twist-domain shaping remain
+future work.
+
+The operator's `0–100%` speed setting is a UI-level scale, not a motor unit.
+The basestation should map it onto configurable maximum chassis linear and
+angular speeds and publish a `geometry_msgs/Twist`: linear components in m/s
+and yaw in rad/s.
+
+The planned path is:
+
+```text
+operator speed scale (0–100%)
+  → chassis command limits / shaping (Twist: m/s and rad/s)
+  → angled-grouser wheel kinematics using chassis geometry and effective radius
+  → wheel-joint velocity (rad/s)
+  → Kanga drive actuator boundary (50:1 reduction)
+  → motor-shaft velocity (rad/s)
+  → generic custom_odrive node / CAN Simple
+```
+
+`kanga_core_controller` owns the Twist-domain behaviour: configurable linear
+and yaw limits, command timeout, and basic acceleration/deceleration or slew
+limiting. It also owns chassis geometry, effective loaded wheel radius, and the
+angled-grouser wheel transform calculations; their measured physical inputs
+live in the selected description profile. Its output is wheel-joint rad/s. It
+consumes a derived maximum joint velocity from that hardware profile so it can
+uniformly desaturate wheel mixing, but it does not perform motor/gearbox
+conversion or use ODrive/CAN units. A later feedback controller may use an
+authoritative chassis velocity estimate, but that is separate from the initial
+command shaper.
+
+Kanga uses regular wheels with angled grousers, not mecanum wheels. The legacy
+51° transform retains the rover's limited lateral capability, but that motion
+is inefficient and is not the normal operating mode. Controller configuration
+must later provide an explicit holonomic enable/disable mode; disabled mode
+must ignore lateral commands and use the appropriate non-holonomic wheel mix.
+Nominal measured geometry is a 230 mm wheel diameter, 180 mm wheel width, and
+an outside wheel envelope of 1.10 m long by 0.89 m wide. Wheel-centre values are
+derived rather than independently configured.
+
+`kanga_core_drive` owns the actuator boundary. It converts wheel-joint rad/s to
+motor-shaft rad/s using the selected reduction, applies an independent final
+motor-facing safety clamp, and converts motor feedback back to joint units
+where required. The reusable
+`custom_odrive` API remains in motor-shaft units; its `velocity_ramp_test` must
+therefore continue to test motor-shaft rad/s without Kanga gearbox knowledge.
+
+Limits must be enforced at several layers:
+
+- `100%` maps to configurable chassis-speed maxima, not directly to 22 TPS.
+- If wheel mixing would exceed a wheel, uniformly desaturate all four wheel
+  commands so the requested motion direction is preserved.
+- No motor command may exceed the configured, commissioned S1
+  `motor_velocity_limit_tps` (currently `22 turns/s`, or
+  `44π ≈ 138.23 motor rad/s`). At the current value, 50:1 reduction corresponds
+  to about `2.7646 rad/s` at the gearbox output.
+- The onboard ODrive velocity limit remains the final hardware-side guard.
+
+The authoritative physical inputs live in a versioned
+`kanga_core_description/config/drivetrains/` profile. Core bringup selects one
+profile and passes one shared parameter dictionary to controller, drive, and
+joint feedback; each node uses only its declared subset. Commissioning
+uses that same profile for the saved ODrive velocity limit. Consumer YAML and
+C++ defaults must not duplicate the physical values. Hardware profile changes
+are launch-time choices, not live parameter changes.
+
+The controller uses a nominal effective radius of 0.115 m, measured to the
+bottom of the grousers, so its transform is dimensionally correct in physical
+units. Do not treat commanded chassis speed as field-calibrated until the
+loaded rolling radius and traction/slip behaviour have been measured.
+
+ODrive motor-shaft torque/current telemetry remains the unmodified logging
+source. A Kanga drive-layer output-torque estimate may later add reduction and
+measured gearbox efficiency without replacing the raw data.
 
 ## Whole-rover packages
 

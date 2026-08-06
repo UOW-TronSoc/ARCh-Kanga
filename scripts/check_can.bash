@@ -15,12 +15,12 @@ INTERFACE="${1:-can_core}"
 
 # 1. Print all CAN interfaces.
 echo "=== All CAN interfaces ==="
-ip -details link show type can || true
+ip -details -statistics link show type can || true
 echo
 
 # 2. Print details of the selected interface.
 echo "=== Details for ${INTERFACE} ==="
-ip -details link show "${INTERFACE}"
+ip -details -statistics link show "${INTERFACE}"
 echo
 
 # 3. Dump up to 10 frames from the interface.
@@ -37,4 +37,8 @@ If candump appears to hang with no frames, likely causes are:
   - missing/incorrect bus termination (need ~120 ohm at both ends)
   - ODrive (or other CAN node) not powered
   - wrong interface name (e.g. device is can1, not can0)
+
+If error-warn, error-pass, or bus-off counters keep increasing, fix the physical
+bus or bitrate mismatch before commissioning. With power off, a correctly
+terminated linear bus should measure about 60 ohms between CAN-H and CAN-L.
 EOF

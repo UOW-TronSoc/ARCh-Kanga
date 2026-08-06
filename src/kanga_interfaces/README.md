@@ -1,5 +1,11 @@
 # kanga_interfaces
 
+Shared ROS messages and services used across Kanga packages.
+
+- `WheelVelocityCommand` carries one timestamped, atomic four-wheel joint
+  velocity command from `kanga_core_controller` to `kanga_core_drive`.
+- Wheel velocity fields are in rad/s before gearbox conversion.
+
 Shared ROS 2 messages, services, and actions for Kanga.
 
 ## Owns
@@ -21,6 +27,17 @@ Shared ROS 2 messages, services, and actions for Kanga.
 Add an interface only when standard ROS interfaces cannot express the contract
 clearly. Keep definitions transport-neutral and document units in field
 comments.
+
+## Migrated from ARCH2026-Kanga
+
+| Message | Source path | Merged |
+|---------|-------------|--------|
+| `BatteryInfo` | `kanga_interfaces/msg/BatteryInfo.msg` | PR #15 |
+| `BmsStatus` | `kanga_interfaces/msg/BmsStatus.msg` | PR #15 |
+
+ODrive motor contracts (`ControlMessage`, `ControllerStatus`, `ODriveStatus`,
+`AxisState`) were removed from Kanga and live in
+[`custom-ros-odrive`](https://github.com/UOW-TronSoc/custom-ros-odrive).
 
 The whole-robot WHS contract may require transport-neutral motion-inhibit state
 and explicit override interfaces here. Their fields and override semantics must

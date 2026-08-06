@@ -13,6 +13,8 @@ display_name: "2025 drivetrain design"
 drivetrain:
   # Explicit convention: motor revolutions per one wheel-joint revolution.
   motor_revolutions_per_wheel_revolution: 50.0
+  # ODrive vel_ramp_rate in motor turns/s²; used as the final actuator limit.
+  motor_acceleration_limit_tps_s: 80.0
   motor_velocity_limit_tps: 22.0
 
 wheel_geometry:

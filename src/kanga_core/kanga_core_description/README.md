@@ -26,11 +26,11 @@ not copies of consumer-specific derived values:
 - overall wheel-envelope length and width
 - grouser angle and limited-holonomic hardware capability
 - motor revolutions per wheel revolution
-- commissioned motor velocity limit in turns per second
+- commissioned motor velocity and acceleration limits in turns/s and turns/s²
 
 The profile loader derives wheel radius, wheel-centre half-length/half-width,
-and maximum wheel-joint rad/s. It then produces one shared ROS-parameter
-dictionary used by controller, drive, and joint feedback. Each node declares
+and maximum wheel-joint velocity and acceleration. It then produces one shared
+ROS-parameter dictionary used by controller, drive, and joint feedback. Each node declares
 and reads only the entries it needs.
 
 Ordinary new profile values are forwarded automatically: add the value to a

@@ -6,8 +6,8 @@
 # CLOSED_LOOP. The watchdog below is currently disabled; timeout only takes
 # effect if enable_watchdog is set true and the configuration is recommissioned.
 
-# MOTOR_VELOCITY_LIMIT_TPS is injected ahead of this file by
-# commission_wheels from the selected kanga_core_description drivetrain profile.
+# MOTOR_VELOCITY_LIMIT_TPS and MOTOR_ACCELERATION_LIMIT_TPS_S are injected
+# ahead of this file from the selected kanga_core_description drivetrain profile.
 
 odrv.config.dc_bus_overvoltage_trip_level = 36
 odrv.config.dc_bus_undervoltage_trip_level = 21
@@ -35,7 +35,7 @@ odrv.axis0.controller.config.spinout_electrical_power_threshold = 30
 odrv.axis0.config.torque_soft_min = -math.inf
 odrv.axis0.config.torque_soft_max = math.inf
 odrv.axis0.trap_traj.config.accel_limit = 40
-odrv.axis0.controller.config.vel_ramp_rate = 80
+odrv.axis0.controller.config.vel_ramp_rate = MOTOR_ACCELERATION_LIMIT_TPS_S
 odrv.can.config.protocol = Protocol.SIMPLE
 odrv.can.config.baud_rate = 250000
 # Keep state feedback responsive at 50 Hz while retaining bus headroom.

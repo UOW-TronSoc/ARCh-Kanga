@@ -35,12 +35,16 @@
  *    the requested chassis-motion ratio. Motor/gearbox conversion and the
  *    final motor-side safety limit belong to kanga_core_drive.
  *
+ * 4. Combined body and wheel transitions are acceleration limited uniformly.
+ *    A complete stop bypasses both software ramps and uses the full S1 rate.
+ *
  * This node does NOT:
  *   - flip left/right signs (see invert_direction in drive.launch.py)
  *   - call request_axis_state / set_enabled
  *   - own the emergency stop topic /drivestop
  */
 
+#include <chrono>
 #include <mutex>
 
 #include "geometry_msgs/msg/twist.hpp"
@@ -65,7 +69,13 @@ private:
   // Stored once at startup and reused for every Twist-to-wheel calculation.
   kanga_core_controller::ChassisGeometry chassis_geometry_;
   double max_wheel_joint_velocity_rad_s_{0.0};
+  double max_wheel_joint_acceleration_rad_s2_{0.0};
   double cmd_vel_timeout_s_{0.5};
+  double max_linear_acceleration_m_s2_{0.0};
+  double max_angular_acceleration_rad_s2_{0.0};
+  geometry_msgs::msg::Twist previous_limited_twist_;
+  kanga_interfaces::msg::WheelVelocityCommand previous_wheel_command_;
+  std::chrono::steady_clock::time_point previous_publish_time_;
 
   // Shared state touched by topic callbacks and the timer. Lock before use.
   std::mutex twist_mutex_;

@@ -47,16 +47,13 @@ The wheels are not mecanum wheels. The current transform preserves the legacy
 future controller mode must allow lateral/holonomic mixing to be disabled for
 normal skid-steer-style operation.
 
-## Tracked future work
-
-- **Synchronised wheel acceleration and deceleration:** every S1 currently uses
-  the same 40 turns/s² velocity-ramp limit, so a faster wheel takes longer to
-  reach zero than a slower wheel and the rover's path can change during a
-  transition. Add the actuator acceleration limit to the selected drivetrain
-  profile when this feature is implemented, calculate one common transition
-  time from the largest wheel-speed change, and shape every wheel command so
-  their speed ratios are preserved throughout acceleration and deceleration.
-  Do not add the profile parameter before a node consumes it.
+Body velocity changes use one shared transition fraction before conversion to
+wheel speeds, so forward and yaw mixing cannot outrun each other. The initial
+limits are `0.5 m/s²` for translation and `0.75 rad/s²` for yaw. The resulting
+wheel vector is also limited uniformly by the joint acceleration derived from
+the selected drivetrain's motor ramp and reduction. A complete stop bypasses
+both software ramps, and an overall reversal commands zero before accelerating
+in the opposite direction.
 
 ## Try it (on the rover)
 
@@ -81,6 +78,8 @@ ros2 topic echo /wheel_fl/control_message --once      # FL motor rad/s from driv
 Controller behaviour is in [`config/controller.yaml`](config/controller.yaml):
 
 - `cmd_vel_timeout_s`: how long before a quiet `/cmd_vel` becomes “stop”
+- `max_linear_acceleration_m_s2`: traction limit for increasing body speed
+- `max_angular_acceleration_rad_s2`: traction limit for increasing yaw speed
 - `publish_rate_hz`: how often wheel-joint commands are published
 
 Do not add physical geometry or drivetrain limits there. Those live once in a

@@ -177,6 +177,7 @@ def main(argv: list[str] | None = None) -> int:
                 wheel_path,
                 merged_config,
                 profile.parameters["motor_velocity_limit_tps"],
+                profile.parameters["motor_acceleration_limit_tps_s"],
             )
             commission_exit_code = run_commission(
                 can_interface=args.can,

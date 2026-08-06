@@ -12,8 +12,11 @@ find_package(kanga_interfaces REQUIRED)
 
 include_directories(include)
 
-# Pure kinematics (no ROS) — unit-tested offline.
-add_library(kanga_kinematics src/kinematics.cpp)
+# Pure controller math — unit-tested without running ROS nodes.
+add_library(kanga_kinematics
+  src/acceleration_limiter.cpp
+  src/kinematics.cpp
+)
 target_include_directories(kanga_kinematics PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>

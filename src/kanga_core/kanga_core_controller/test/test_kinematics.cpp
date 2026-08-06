@@ -7,6 +7,7 @@
  * These checks catch math regressions (e.g. wrong wheel order or scaling).
  */
 
+#include "kanga_core_controller/acceleration_limiter.hpp"
 #include "kanga_core_controller/kinematics.hpp"
 
 #include <cmath>
@@ -14,6 +15,8 @@
 
 using kanga_core_controller::ChassisGeometry;
 using kanga_core_controller::desaturate_wheel_velocities;
+using kanga_core_controller::limit_body_velocity_change;
+using kanga_core_controller::limit_wheel_acceleration;
 using kanga_core_controller::twist_to_wheels;
 using geometry_msgs::msg::Twist;
 using kanga_interfaces::msg::WheelVelocityCommand;
@@ -164,6 +167,84 @@ TEST(Kinematics, DesaturateRejectsNonFiniteInput)
 {
   const auto input = wheel_command(1.0, NAN, 2.0, 3.0);
   const auto output = desaturate_wheel_velocities(input, 2.0);
+  EXPECT_NEAR(output.front_left_rad_s, 0.0, kEps);
+  EXPECT_NEAR(output.back_left_rad_s, 0.0, kEps);
+  EXPECT_NEAR(output.back_right_rad_s, 0.0, kEps);
+  EXPECT_NEAR(output.front_right_rad_s, 0.0, kEps);
+}
+
+TEST(AccelerationLimiter, MovesBodyComponentsByOneSharedFraction)
+{
+  Twist current;
+  Twist target;
+  target.linear.x = 1.0;
+  target.linear.y = -1.0;
+  target.angular.z = 2.0;
+
+  const auto output = limit_body_velocity_change(current, target, 0.5, 0.75, 0.1);
+  const double progress = 0.1 / (std::sqrt(2.0) / 0.5);
+  EXPECT_NEAR(output.linear.x, progress, kEps);
+  EXPECT_NEAR(output.linear.y, -progress, kEps);
+  EXPECT_NEAR(output.angular.z, 2.0 * progress, kEps);
+}
+
+TEST(AccelerationLimiter, CompleteStopBypassesBodyLimit)
+{
+  Twist current;
+  current.linear.x = 1.0;
+  current.angular.z = -1.0;
+  Twist target;
+
+  const auto output = limit_body_velocity_change(current, target, 0.5, 0.75, 0.1);
+  EXPECT_NEAR(output.linear.x, 0.0, kEps);
+  EXPECT_NEAR(output.angular.z, 0.0, kEps);
+}
+
+TEST(AccelerationLimiter, ReversalStopsBeforeAcceleratingOppositeDirection)
+{
+  Twist current;
+  current.linear.x = 0.5;
+  Twist target;
+  target.linear.x = -0.5;
+
+  const auto stopped = limit_body_velocity_change(current, target, 0.5, 0.75, 0.1);
+  EXPECT_NEAR(stopped.linear.x, 0.0, kEps);
+
+  const auto reversing = limit_body_velocity_change(stopped, target, 0.5, 0.75, 0.1);
+  EXPECT_NEAR(reversing.linear.x, -0.05, kEps);
+}
+
+TEST(AccelerationLimiter, CombinedForwardAndYawKeepRequestedRatio)
+{
+  Twist current;
+  Twist target;
+  target.linear.x = 0.4;
+  target.angular.z = 0.3;
+
+  const auto output = limit_body_velocity_change(current, target, 0.5, 0.75, 0.1);
+  EXPECT_NEAR(output.linear.x, 0.05, kEps);
+  EXPECT_NEAR(output.angular.z, 0.0375, kEps);
+  EXPECT_NEAR(output.angular.z / output.linear.x, 0.75, kEps);
+}
+
+TEST(AccelerationLimiter, WheelTransitionIsUniform)
+{
+  const auto current = wheel_command(2.0, 2.0, 0.0, 0.0);
+  const auto target = wheel_command(2.0, 2.0, 2.0, 2.0);
+
+  const auto output = limit_wheel_acceleration(current, target, 10.0, 0.1);
+  EXPECT_NEAR(output.front_left_rad_s, 2.0, kEps);
+  EXPECT_NEAR(output.back_left_rad_s, 2.0, kEps);
+  EXPECT_NEAR(output.back_right_rad_s, 1.0, kEps);
+  EXPECT_NEAR(output.front_right_rad_s, 1.0, kEps);
+}
+
+TEST(AccelerationLimiter, CompleteStopBypassesWheelLimit)
+{
+  const auto current = wheel_command(2.0, 1.0, -1.0, -2.0);
+  const auto target = wheel_command(0.0, 0.0, 0.0, 0.0);
+
+  const auto output = limit_wheel_acceleration(current, target, 10.0, 0.1);
   EXPECT_NEAR(output.front_left_rad_s, 0.0, kEps);
   EXPECT_NEAR(output.back_left_rad_s, 0.0, kEps);
   EXPECT_NEAR(output.back_right_rad_s, 0.0, kEps);

@@ -1,7 +1,7 @@
 """Load one drivetrain YAML into one shared ROS-parameter dictionary.
 
 Most values are copied through automatically. Only values that are genuinely
-derived (wheel centres, radius, and joint limit) are calculated here.
+derived (wheel centres, radius, and joint velocity limit) are calculated here.
 """
 
 from __future__ import annotations
@@ -132,6 +132,9 @@ def load_drivetrain_profile(profile: str | Path) -> DrivetrainProfile:
     # parameters pass through untouched and are validated by the node using them.
     ratio = _positive_number(parameters, "motor_revolutions_per_wheel_revolution")
     motor_limit_tps = _positive_number(parameters, "motor_velocity_limit_tps")
+    motor_acceleration_limit_tps_s = _positive_number(
+        parameters, "motor_acceleration_limit_tps_s"
+    )
     wheel_diameter = _positive_number(parameters, "wheel_diameter_m")
     wheel_width = _positive_number(parameters, "wheel_width_m")
     overall_length = _positive_number(parameters, "overall_wheel_envelope_length_m")
@@ -152,7 +155,7 @@ def load_drivetrain_profile(profile: str | Path) -> DrivetrainProfile:
     if abs(math.cos(theta_rad)) < 1e-9:
         raise DrivetrainProfileError("grouser_angle_deg must have non-zero cosine")
 
-    # These four values are derived once here rather than copied into the YAML.
+    # These values are derived once here rather than copied into the YAML.
     radius_override = parameters.get("effective_rolling_radius_m")
     if radius_override is not None:
         radius_override = _positive_number(parameters, "effective_rolling_radius_m")
@@ -164,7 +167,9 @@ def load_drivetrain_profile(profile: str | Path) -> DrivetrainProfile:
     parameters["max_wheel_joint_velocity_rad_s"] = (
         motor_limit_tps * 2.0 * math.pi / ratio
     )
-
+    parameters["max_wheel_joint_acceleration_rad_s2"] = (
+        motor_acceleration_limit_tps_s * 2.0 * math.pi / ratio
+    )
     return DrivetrainProfile(
         profile_id=profile_id,
         display_name=display_name,

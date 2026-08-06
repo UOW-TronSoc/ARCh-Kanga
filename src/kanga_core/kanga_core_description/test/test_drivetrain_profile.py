@@ -28,6 +28,9 @@ def test_2025_profile_derived_values():
     assert params["max_wheel_joint_velocity_rad_s"] == pytest.approx(
         22.0 * 2.0 * math.pi / 50.0
     )
+    assert params["max_wheel_joint_acceleration_rad_s2"] == pytest.approx(
+        80.0 * 2.0 * math.pi / 50.0
+    )
     assert params["limited_holonomic"] is True
 
 
@@ -39,6 +42,7 @@ def test_one_shared_dictionary_contains_raw_and_derived_values():
     assert params["grouser_angle_deg"] == pytest.approx(51.0)
     assert params["motor_revolutions_per_wheel_revolution"] == pytest.approx(50.0)
     assert params["motor_velocity_limit_tps"] == pytest.approx(22.0)
+    assert params["motor_acceleration_limit_tps_s"] == pytest.approx(80.0)
 
 
 def test_new_parameter_group_is_forwarded_without_loader_changes(tmp_path):
@@ -62,6 +66,7 @@ profile_id: bad
 display_name: bad
 drivetrain:
   motor_revolutions_per_wheel_revolution: 50
+  motor_acceleration_limit_tps_s: 80
   motor_velocity_limit_tps: 22
 wheel_geometry:
   wheel_diameter_m: 0.23

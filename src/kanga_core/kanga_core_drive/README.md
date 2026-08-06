@@ -104,8 +104,8 @@ reduction/limit and the saved ODrive velocity limit cannot silently diverge.
 ## Runtime notes
 
 - `config/drive.yaml` contains runtime behaviour only (publish rate and command
-  timeout). Physical reduction and motor TPS limit come from the selected
-  `kanga_core_description` drivetrain profile.
+  timeout). Physical reduction and motor TPS/TPS-per-second limits come from
+  the selected `kanga_core_description` drivetrain profile.
 - `wheel_actuator` accepts one atomic `/wheel_joint_velocity_command` containing
   all four wheel-joint velocities, applies the selected reduction,
   independently clamps only as a final actuator safety guard, and sends

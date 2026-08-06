@@ -18,7 +18,7 @@ WheelActuator::WheelActuator(const rclcpp::NodeOptions & options)
   this->declare_parameter<double>("motor_revolutions_per_wheel_revolution");
   this->declare_parameter<double>("motor_velocity_limit_tps");
   this->declare_parameter<double>("joint_command_timeout_s", 0.5);
-  this->declare_parameter<double>("publish_rate_hz", 10.0);
+  this->declare_parameter<double>("publish_rate_hz", 50.0);
 
   wheel_ids_ = this->get_parameter("wheel_ids").as_string_array();
   gear_ratio_ = this->get_parameter(

@@ -13,7 +13,7 @@
  *            v
  *   wheel_command_mapper   (this node)
  *            |
- *            |  every ~0.1 s
+ *            |  every ~0.02 s
  *            v
  *   /wheel_joint_velocity_command  (one atomic four-wheel message)
  *            |
@@ -60,7 +60,7 @@ public:
 private:
   // Called whenever someone publishes to /cmd_vel.
   void on_cmd_vel(const geometry_msgs::msg::Twist::SharedPtr msg);
-  // Called on a fixed timer (~10 Hz) to send joint velocities to drive.
+  // Called on a fixed timer (~50 Hz) to send joint velocities to drive.
   void publish_wheel_velocity_command();
 
   // Return the latest Twist, or a zero Twist when it has timed out.

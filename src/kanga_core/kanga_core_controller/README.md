@@ -22,7 +22,7 @@ speeds for the physical motors.
 ## How the mapper behaves
 
 1. **Subscribe** to `/cmd_vel` (`geometry_msgs/Twist`).
-2. On a **timer** (~10 Hz), convert that twist to four wheel speeds (kinematics).
+2. On a **timer** (~50 Hz), convert that twist to four wheel speeds (kinematics).
 3. **Uniformly desaturate** the four-wheel vector if any wheel would exceed the
    selected drivetrain's joint-speed capability. Ratios are preserved: a
    `[50%, 150%]` mix becomes `[33.3%, 100%]`, not `[50%, 100%]`.

@@ -2,7 +2,7 @@
 # Concatenated before each wheel_*_motor_config.py at commission time.
 # Do not put SERIAL_NUMBER or node_id here (those live in per-wheel overlays).
 #
-# kanga_core_controller normally streams setpoints at roughly 10 Hz while
+# kanga_core_controller normally streams setpoints at roughly 50 Hz while
 # CLOSED_LOOP. The watchdog below is currently disabled; timeout only takes
 # effect if enable_watchdog is set true and the configuration is recommissioned.
 
@@ -48,7 +48,7 @@ odrv.axis0.config.can.error_msg_rate_ms = 100
 odrv.axis0.config.can.temperature_msg_rate_ms = 100
 odrv.axis0.config.can.bus_voltage_msg_rate_ms = 100
 odrv.axis0.config.enable_watchdog = False
-# Firmware setpoint watchdog (seconds). kanga_core_controller streams ~10 Hz in CLOSED_LOOP.
+# Firmware setpoint watchdog (seconds). kanga_core_controller streams ~50 Hz in CLOSED_LOOP.
 odrv.axis0.config.watchdog_timeout = 1
 odrv.axis0.config.load_encoder = EncoderId.ONBOARD_ENCODER0
 odrv.axis0.config.commutation_encoder = EncoderId.ONBOARD_ENCODER0

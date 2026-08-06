@@ -17,7 +17,7 @@ WheelCommandMapper::WheelCommandMapper(const rclcpp::NodeOptions & options)
 {
   // Behaviour parameters come from controller.yaml. Physical parameters have
   // no hardware-specific defaults and are injected by the selected profile.
-  this->declare_parameter<double>("publish_rate_hz", 10.0);
+  this->declare_parameter<double>("publish_rate_hz", 50.0);
   this->declare_parameter<double>("cmd_vel_timeout_s", 0.5);
   this->declare_parameter<double>("max_linear_acceleration_m_s2", 0.5);
   this->declare_parameter<double>("max_angular_acceleration_rad_s2", 0.75);
@@ -106,7 +106,7 @@ WheelCommandMapper::WheelCommandMapper(const rclcpp::NodeOptions & options)
       &WheelCommandMapper::on_cmd_vel, this,
       std::placeholders::_1));
 
-  // Steady publish rate (default 10 times per second).
+  // Steady publish rate (default 50 times per second).
   const auto publish_period =
     std::chrono::duration<double>(1.0 / publish_rate_hz);
   wheel_command_publish_timer_ = this->create_wall_timer(

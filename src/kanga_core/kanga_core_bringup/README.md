@@ -155,7 +155,7 @@ With CLOSED_LOOP on, the controller publishes zero joint commands when
 ```bash
 ros2 topic echo /wheel_joint_velocity_command  # all four wheel-joint rad/s values
 ros2 topic echo /wheel_fl/control_message      # FL motor-shaft rad/s
-# the joint vector and each closed-loop motor command should be ≈0 at ~10 Hz
+# the joint vector and each closed-loop motor command should be ≈0 at ~50 Hz
 ```
 
 Pass criteria: steady `control_message` on each wheel while CLOSED_LOOP.

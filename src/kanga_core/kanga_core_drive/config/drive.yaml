@@ -3,7 +3,8 @@
 
 wheel_actuator:
   ros__parameters:
-    publish_rate_hz: 10.0
+    # Forward the latest motor command at the controller's 50 Hz rate.
+    publish_rate_hz: 50.0
     joint_command_timeout_s: 0.5
 
 wheel_joint_state_publisher:

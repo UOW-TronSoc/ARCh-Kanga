@@ -9,8 +9,8 @@
 wheel_command_mapper:
   ros__parameters:
     # How often we publish wheel-joint commands (times per second).
-    # Keep around 10 Hz so the drive actuator receives a steady four-wheel vector.
-    publish_rate_hz: 10.0
+    # Stream smooth wheel commands to the drive adapter at 50 Hz.
+    publish_rate_hz: 50.0
     # If no /cmd_vel arrives for this many seconds, command becomes "stop".
     cmd_vel_timeout_s: 0.5
     # Starting traction limits; combined body changes keep one shared progress.

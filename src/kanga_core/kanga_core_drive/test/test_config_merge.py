@@ -58,10 +58,10 @@ class TestConfigMerge(unittest.TestCase):
 
     def test_all_wheels_have_serial(self):
         shared = self.motors / "shared_motor_config.py"
-        for wid in WHEEL_IDS:
+        for wheel_id in WHEEL_IDS:
             merged = merge_motor_configs(
                 shared,
-                motor_config_path(self.motors, wid),
+                motor_config_path(self.motors, wheel_id),
                 self.profile.parameters["motor_velocity_limit_tps"],
             )
             self.assertIn("SERIAL_NUMBER", merged)

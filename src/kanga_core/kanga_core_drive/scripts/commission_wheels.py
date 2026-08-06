@@ -71,37 +71,37 @@ def parse_wheels(value: str) -> list[str]:
 # Run the underlying custom_odrive commissioning command once.
 def run_commission(
     *,
-    can: str,
+    can_interface: str,
     config: Path,
-    ns: str | None,
+    wheel_namespace: str | None,
     calibrate: bool,
     save: bool,
 ) -> int:
     """Invoke custom_odrive commission; return process exit code.
 
-    When ns is set, parks that custom_odrive_node before Fibre work. Omit ns
-    (--bench) when drive.launch is not running — avoids CAN bus fights between
-    Fibre commissioning and the C++ ODrive nodes.
+    When wheel_namespace is set, parks that custom_odrive_node before Fibre
+    work. Omit it (--bench) when drive.launch is not running to avoid CAN bus
+    fights between Fibre commissioning and the C++ ODrive nodes.
     """
-    cmd = [
+    command = [
         "ros2",
         "run",
         "custom_odrive",
         "commission",
         "--",
         "--can",
-        can,
+        can_interface,
         "--config",
         str(config),
     ]
-    if ns is not None:
-        cmd.extend(["--ns", ns])
+    if wheel_namespace is not None:
+        command.extend(["--ns", wheel_namespace])
     if calibrate:
-        cmd.append("--calibrate")
+        command.append("--calibrate")
     if save:
-        cmd.append("--save")
-    print("+", " ".join(cmd), flush=True)
-    return subprocess.call(cmd)
+        command.append("--save")
+    print("+", " ".join(command), flush=True)
+    return subprocess.call(command)
 
 
 # Parse CLI options and commission the requested wheels sequentially.
@@ -167,27 +167,30 @@ def main(argv: list[str] | None = None) -> int:
         if not wheel_path.is_file():
             print(f"Missing wheel config: {wheel_path}", file=sys.stderr)
             return 1
-        ns = None if args.bench else f"/wheel_{wheel_id}"
+        wheel_namespace = None if args.bench else f"/wheel_{wheel_id}"
         # Temp dir keeps merged Fibre scripts off the package tree and cleans up
         # even if commission fails mid-run.
-        with tempfile.TemporaryDirectory(prefix="kanga_motor_cfg_") as tmp:
-            merged = Path(tmp) / f"wheel_{wheel_id}_merged.py"
+        with tempfile.TemporaryDirectory(prefix="kanga_motor_cfg_") as temp_directory:
+            merged_config = Path(temp_directory) / f"wheel_{wheel_id}_merged.py"
             write_merged_config(
                 shared_path,
                 wheel_path,
-                merged,
+                merged_config,
                 profile.parameters["motor_velocity_limit_tps"],
             )
-            rc = run_commission(
-                can=args.can,
-                config=merged,
-                ns=ns,
+            commission_exit_code = run_commission(
+                can_interface=args.can,
+                config=merged_config,
+                wheel_namespace=wheel_namespace,
                 calibrate=args.calibrate,
                 save=args.save,
             )
-            if rc != 0:
-                print(f"Commission failed for {wheel_id} (exit {rc})", file=sys.stderr)
-                return rc
+            if commission_exit_code != 0:
+                print(
+                    f"Commission failed for {wheel_id} (exit {commission_exit_code})",
+                    file=sys.stderr,
+                )
+                return commission_exit_code
     return 0
 
 

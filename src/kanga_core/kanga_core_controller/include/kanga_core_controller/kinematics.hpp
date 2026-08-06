@@ -21,28 +21,28 @@ namespace kanga_core_controller
 {
 
 // One stored set of physical inputs used by every kinematics calculation.
-// geom_ in WheelCommandMapper is an instance populated from profile parameters.
+// WheelCommandMapper stores one instance populated from profile parameters.
 struct ChassisGeometry
 {
-    // Empirical grouser angle used by the legacy limited-holonomic model.
-    double grouser_angle_deg{0.0};
-    // Distance from rover centre to the front/rear wheel centres.
-    double half_length{0.0};
-    // Distance from rover centre to the left/right wheel centres.
-    double half_width{0.0};
-    // Rolling radius used to convert linear wheel speed into angular speed.
-    double effective_wheel_radius_m{0.0};
+  // Empirical grouser angle used by the legacy limited-holonomic model.
+  double grouser_angle_deg{0.0};
+  // Distance from rover centre to the front/rear wheel centres.
+  double half_length{0.0};
+  // Distance from rover centre to the left/right wheel centres.
+  double half_width{0.0};
+  // Rolling radius used to convert linear wheel speed into angular speed.
+  double effective_wheel_radius_m{0.0};
 };
 
 // Convert physical chassis twist → wheel-joint rad/s using Kanga's empirical
 // angled-grouser limited-holonomic map.
 kanga_interfaces::msg::WheelVelocityCommand twist_to_wheels(
-    const geometry_msgs::msg::Twist & twist, const ChassisGeometry & geom);
+  const geometry_msgs::msg::Twist & twist, const ChassisGeometry & geom);
 
 // Scale the complete vector when any wheel exceeds the joint limit. This
 // preserves the requested chassis-motion ratio. Invalid input returns stop.
 kanga_interfaces::msg::WheelVelocityCommand desaturate_wheel_velocities(
-    const kanga_interfaces::msg::WheelVelocityCommand & in,
-    double max_abs_joint_rad_s);
+  const kanga_interfaces::msg::WheelVelocityCommand & in,
+  double max_abs_joint_rad_s);
 
 }  // namespace kanga_core_controller

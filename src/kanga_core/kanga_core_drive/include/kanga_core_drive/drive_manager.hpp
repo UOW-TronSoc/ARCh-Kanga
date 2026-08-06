@@ -37,58 +37,68 @@
 class DriveManager : public rclcpp::Node
 {
 public:
-    // Declares params, creates per-wheel clients, advertises services.
-    explicit DriveManager(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
+  // Declares params, creates per-wheel clients, advertises services.
+  explicit DriveManager(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
 
 private:
-    // ODrive Axis.requested_state values (see ODrive docs / custom_odrive).
-    static constexpr uint32_t kAxisIdle = 1;
-    static constexpr uint32_t kAxisClosedLoop = 8;
+  // ODrive Axis.requested_state values (see ODrive docs / custom_odrive).
+  static constexpr uint32_t kAxisIdle = 1;
+  static constexpr uint32_t kAxisClosedLoop = 8;
 
-    // Clients we call on each /wheel_<id>/ custom_odrive_node.
-    struct WheelClients
-    {
-        rclcpp::Client<std_srvs::srv::Empty>::SharedPtr clear_errors_client;
-        rclcpp::Client<custom_odrive::srv::AxisState>::SharedPtr axis_state_client;
-    };
+  // Clients we call on each /wheel_<id>/ custom_odrive_node.
+  struct WheelClients
+  {
+    rclcpp::Client<std_srvs::srv::Empty>::SharedPtr clear_errors_client;
+    rclcpp::Client<custom_odrive::srv::AxisState>::SharedPtr axis_state_client;
+  };
 
-    // Return true if both services for this wheel are advertised (short 2s wait).
-    bool wait_for_clients(const std::string & wheel_id, const WheelClients & clients);
+  // Return true if both services for this wheel are advertised (short 2s wait).
+  bool wait_for_clients(
+    const std::string & wheel_id,
+    const WheelClients & wheel_clients);
 
-    // Call one wheel's clear-errors service and wait for its response.
-    std_srvs::srv::Empty::Response::SharedPtr call_clear_errors(
-        const rclcpp::Client<std_srvs::srv::Empty>::SharedPtr & client,
-        const std_srvs::srv::Empty::Request::SharedPtr & request,
-        std::chrono::seconds timeout);
+  // Call one wheel's clear-errors service and wait for its response.
+  std_srvs::srv::Empty::Response::SharedPtr call_clear_errors(
+    const rclcpp::Client<std_srvs::srv::Empty>::SharedPtr & client,
+    const std_srvs::srv::Empty::Request::SharedPtr & request,
+    std::chrono::seconds timeout);
 
-    // Call one wheel's axis-state service and wait for its response.
-    custom_odrive::srv::AxisState::Response::SharedPtr call_axis_state(
-        const rclcpp::Client<custom_odrive::srv::AxisState>::SharedPtr & client,
-        const custom_odrive::srv::AxisState::Request::SharedPtr & request,
-        std::chrono::seconds timeout);
+  // Call one wheel's axis-state service and wait for its response.
+  custom_odrive::srv::AxisState::Response::SharedPtr call_axis_state(
+    const rclcpp::Client<custom_odrive::srv::AxisState>::SharedPtr & client,
+    const custom_odrive::srv::AxisState::Request::SharedPtr & request,
+    std::chrono::seconds timeout);
 
-    // Handler for ~/set_closed_loop — see class comment above.
-    void handle_set_closed_loop(
-        const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
-        std::shared_ptr<std_srvs::srv::SetBool::Response> response);
+  // Attempt to leave every wheel safe in IDLE, even if an earlier one fails.
+  bool request_idle_for_all_wheels();
 
-    // Shared body for ~/calibrate_<id> Trigger services.
-    void handle_calibrate(
-        const std::string & wheel_id,
-        const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
-        std::shared_ptr<std_srvs::srv::Trigger::Response> response);
+  // Report a failed CLOSED_LOOP transition after attempting an IDLE rollback.
+  void report_closed_loop_failure(
+    const std::shared_ptr<std_srvs::srv::SetBool::Response> & response,
+    const std::string & reason);
 
-    std::vector<std::string> wheel_ids_;
-    std::string can_interface_;  // forwarded to commission_wheels --can
-    std::string drivetrain_profile_;  // forwarded to commission_wheels
-    std::mutex drive_operation_mutex_;
-    // Callback group that allows overlapping callbacks (ROS type name:
-    // CallbackGroupType::Reentrant). Needed because handlers wait for service
-    // responses or std::system; without it the executor can deadlock waiting
-    // for a reply that never gets spun. Pair with MultiThreadedExecutor in main.
-    rclcpp::CallbackGroup::SharedPtr service_callback_group_;
-    std::unordered_map<std::string, WheelClients> wheel_clients_by_id_;
-    rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr set_closed_loop_service_;
-    std::vector<rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr>
-        calibration_services_;
+  // Handler for ~/set_closed_loop — see class comment above.
+  void handle_set_closed_loop(
+    const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
+    std::shared_ptr<std_srvs::srv::SetBool::Response> response);
+
+  // Shared body for ~/calibrate_<id> Trigger services.
+  void handle_calibrate(
+    const std::string & wheel_id,
+    const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+    std::shared_ptr<std_srvs::srv::Trigger::Response> response);
+
+  std::vector<std::string> wheel_ids_;
+  std::string can_interface_;    // forwarded to commission_wheels --can
+  std::string drivetrain_profile_;    // forwarded to commission_wheels
+  std::mutex drive_operation_mutex_;
+  // Callback group that allows overlapping callbacks (ROS type name:
+  // CallbackGroupType::Reentrant). Needed because handlers wait for service
+  // responses or std::system; without it the executor can deadlock waiting
+  // for a reply that never gets spun. Pair with MultiThreadedExecutor in main.
+  rclcpp::CallbackGroup::SharedPtr service_callback_group_;
+  std::unordered_map<std::string, WheelClients> wheel_clients_by_id_;
+  rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr set_closed_loop_service_;
+  std::vector<rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr>
+  calibration_services_;
 };

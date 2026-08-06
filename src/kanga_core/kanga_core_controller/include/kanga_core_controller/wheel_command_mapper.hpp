@@ -51,31 +51,32 @@
 class WheelCommandMapper : public rclcpp::Node
 {
 public:
-    explicit WheelCommandMapper(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
+  explicit WheelCommandMapper(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
 
 private:
-    // Called whenever someone publishes to /cmd_vel.
-    void on_cmd_vel(const geometry_msgs::msg::Twist::SharedPtr msg);
-    // Called on a fixed timer (~10 Hz) to send joint velocities to drive.
-    void on_timer();
+  // Called whenever someone publishes to /cmd_vel.
+  void on_cmd_vel(const geometry_msgs::msg::Twist::SharedPtr msg);
+  // Called on a fixed timer (~10 Hz) to send joint velocities to drive.
+  void publish_wheel_velocity_command();
 
-    // Return the latest Twist, or a zero Twist when it has timed out.
-    geometry_msgs::msg::Twist get_active_twist_locked();
+  // Return the latest Twist, or a zero Twist when it has timed out.
+  geometry_msgs::msg::Twist get_active_twist_locked();
 
-    // Stored once at startup and reused for every Twist-to-wheel calculation.
-    kanga_core_controller::ChassisGeometry geom_;
-    double max_wheel_joint_velocity_rad_s_{0.0};
-    double cmd_vel_timeout_s_{0.5};
+  // Stored once at startup and reused for every Twist-to-wheel calculation.
+  kanga_core_controller::ChassisGeometry chassis_geometry_;
+  double max_wheel_joint_velocity_rad_s_{0.0};
+  double cmd_vel_timeout_s_{0.5};
 
-    // Shared state touched by topic callbacks and the timer. Lock before use.
-    std::mutex mutex_;
-    geometry_msgs::msg::Twist last_twist_;
-    rclcpp::Time last_cmd_stamp_{0, 0, RCL_ROS_TIME};
-    bool have_cmd_{false};
+  // Shared state touched by topic callbacks and the timer. Lock before use.
+  std::mutex twist_mutex_;
+  geometry_msgs::msg::Twist latest_twist_;
+  rclcpp::Time latest_twist_time_{0, 0, RCL_ROS_TIME};
+  bool twist_received_{false};
 
-    // ROS interfaces (one chassis input and one atomic four-wheel output).
-    rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_sub_;
-    rclcpp::Publisher<kanga_interfaces::msg::WheelVelocityCommand>::SharedPtr
-        joint_command_pub_;
-    rclcpp::TimerBase::SharedPtr timer_;
+  // ROS interfaces (one chassis input and one atomic four-wheel output).
+  rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr
+    cmd_vel_subscription_;
+  rclcpp::Publisher<kanga_interfaces::msg::WheelVelocityCommand>::SharedPtr
+    wheel_velocity_command_publisher_;
+  rclcpp::TimerBase::SharedPtr wheel_command_publish_timer_;
 };

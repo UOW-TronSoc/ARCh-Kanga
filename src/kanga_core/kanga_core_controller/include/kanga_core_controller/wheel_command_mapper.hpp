@@ -15,7 +15,7 @@
  *            |
  *            |  every ~0.1 s
  *            v
- *   /wheel_fl/joint_velocity_command   … same for bl, br, fr
+ *   /wheel_joint_velocity_command  (one atomic four-wheel message)
  *            |
  *            v
  *   kanga_core_drive wheel_actuator (applies reduction + motor limit)
@@ -30,8 +30,10 @@
  *    the command as "stop" (all wheel speeds = 0). Safety: a crashed
  *    teleop client should not leave the rover driving forever.
  *
- * 3. Output is wheel-joint rad/s. This node does not know the motor, gearbox,
- *    ODrive state, or motor limit; those belong to kanga_core_drive.
+ * 3. Output is wheel-joint rad/s. The complete four-wheel vector is scaled
+ *    uniformly to the selected drivetrain's joint-speed capability, preserving
+ *    the requested chassis-motion ratio. Motor/gearbox conversion and the
+ *    final motor-side safety limit belong to kanga_core_drive.
  *
  * This node does NOT:
  *   - flip left/right signs (see invert_direction in drive.launch.py)
@@ -40,13 +42,11 @@
  */
 
 #include <mutex>
-#include <string>
-#include <vector>
 
 #include "geometry_msgs/msg/twist.hpp"
 #include "kanga_core_controller/kinematics.hpp"
+#include "kanga_interfaces/msg/wheel_velocity_command.hpp"
 #include "rclcpp/rclcpp.hpp"
-#include "std_msgs/msg/float64.hpp"
 
 class WheelCommandMapper : public rclcpp::Node
 {
@@ -59,22 +59,23 @@ private:
     // Called on a fixed timer (~10 Hz) to send joint velocities to drive.
     void on_timer();
 
-    // Build the four desired wheel speeds from the last /cmd_vel (or zeros
-    // if timed out). Caller must already hold mutex_.
-    kanga_core_controller::WheelVelocities desired_locked();
+    // Return the latest Twist, or a zero Twist when it has timed out.
+    geometry_msgs::msg::Twist get_active_twist_locked();
 
-    std::vector<std::string> wheel_ids_;
+    // Stored once at startup and reused for every Twist-to-wheel calculation.
     kanga_core_controller::ChassisGeometry geom_;
+    double max_wheel_joint_velocity_rad_s_{0.0};
     double cmd_vel_timeout_s_{0.5};
 
     // Shared state touched by topic callbacks and the timer. Lock before use.
     std::mutex mutex_;
-    kanga_core_controller::Twist2D last_twist_;
+    geometry_msgs::msg::Twist last_twist_;
     rclcpp::Time last_cmd_stamp_{0, 0, RCL_ROS_TIME};
     bool have_cmd_{false};
 
-    // ROS interfaces (one chassis subscription + four joint publishers).
+    // ROS interfaces (one chassis input and one atomic four-wheel output).
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_sub_;
-    std::vector<rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr> joint_pubs_;
+    rclcpp::Publisher<kanga_interfaces::msg::WheelVelocityCommand>::SharedPtr
+        joint_command_pub_;
     rclcpp::TimerBase::SharedPtr timer_;
 };

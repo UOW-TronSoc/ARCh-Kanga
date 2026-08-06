@@ -23,9 +23,9 @@ Old reference (mapper / launch): `ARCH2026-Kanga` → `src/kanga_drive`.
 | Calibrate | **One motor at a time.** CLI and/or per-wheel `std_srvs/Trigger` (`~/calibrate_fl` …). |
 | Save config | Apply shared+individual, then `--save`. Sequential one-at-a-time in a single CLI command. Command only. |
 | Stream | Controller publishes wheel-joint commands at ~10 Hz. Drive publishes motor commands only while CLOSED_LOOP. Stale `/cmd_vel` → continuously streamed zero. |
-| Firmware watchdog | Shared Fibre config uses **`watchdog_timeout = 5`** (seconds). |
+| Firmware watchdog | Shared Fibre config is authoritative; verify enable/timeout policy before rover operation. |
 | Invert | Launch `invert_direction` only. URDF sign check later. |
-| Deferred | Diff-bar JointState, odom, errors/UX, WHS, and loaded/field qualification. |
+| Deferred | Synchronised wheel acceleration/deceleration shaping, diff-bar JointState, odom, errors/UX, WHS, and loaded/field qualification. |
 
 ```mermaid
 flowchart LR
@@ -72,7 +72,7 @@ source install/setup.bash
 
 ```text
 config/motors/
-  shared_motor_config.py      # common odrv.*; watchdog_timeout = 5; baud 250000
+  shared_motor_config.py      # common odrv.*; baud 250000; watchdog policy
   wheel_fl_motor_config.py    # SERIAL_NUMBER + node_id + per-wheel diffs
   ...
 ```
@@ -103,10 +103,10 @@ ros2 run kanga_core_drive commission_wheels -- \
 
 | Piece | Role |
 |-------|------|
-| `kinematics` lib | Pure `twist_to_wheels` / `clamp_wheels` (theta 51°; footprint 110×89 cm → half_length 0.55, half_width 0.445) |
-| `wheel_command_mapper` | `/cmd_vel` → four wheel-joint rad/s topics; stale `/cmd_vel` → joint zeros |
-| `config/controller.yaml` | rate, timeout, chassis geometry |
-| `launch/controller.launch.py` | mapper only (compose with `drive.launch.py`) |
+| `kinematics` lib | Pure `twist_to_wheels` plus proportional four-wheel desaturation; legacy angled-grouser model |
+| `wheel_command_mapper` | `/cmd_vel` → one limited four-wheel joint command; stale `/cmd_vel` → joint zeros |
+| `config/controller.yaml` | controller rate and timeout only |
+| `launch/controller.launch.py` | loads selected description profile and starts mapper |
 
 No invert; no `request_axis_state` / `set_enabled` from the mapper. Enter CLOSED_LOOP via `drive_manager`; stop via `/drivestop`.
 
@@ -122,6 +122,20 @@ Inside the container after `./scripts/build_workspace.bash`:
 2. `set_closed_loop true`
 3. Publish `/cmd_vel`; confirm joint commands and ×50 motor `control_message` while CLOSED_LOOP
 4. Stop publishing `/cmd_vel` → zeros still stream; leave CLOSED_LOOP → stream stops
+
+---
+
+## Shared drivetrain profile
+
+`kanga_core_description/config/drivetrains/drivetrain_2025.yaml` is the single
+source for measured wheel geometry, outside wheel-envelope dimensions, grouser
+angle, motor-to-wheel reduction, and motor TPS limit. The loader derives
+wheel-centre geometry, effective radius, and joint speed capability.
+
+`kanga_core_bringup` passes the selected `drivetrain_profile` to controller and
+drive. `commission_wheels` consumes it as well, so saved ODrive limits and
+runtime limits share the same value. Physical values no longer belong in
+`controller.yaml`, `drive.yaml`, or C++ defaults.
 
 ---
 

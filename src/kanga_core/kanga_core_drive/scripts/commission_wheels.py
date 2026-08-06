@@ -33,6 +33,10 @@ import tempfile
 from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
+from kanga_core_description.drivetrain_profile import (
+    DEFAULT_DRIVETRAIN_PROFILE,
+    load_drivetrain_profile,
+)
 
 # Same directory as this script when installed to lib/kanga_core_drive/
 # (ament installs sibling .py modules next to the entrypoint).
@@ -40,6 +44,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from config_merge import WHEEL_IDS, motor_config_path, write_merged_config  # noqa: E402
 
 
+# Parse and validate a wheel selection while preserving its order.
 def parse_wheels(value: str) -> list[str]:
     """Parse 'all' or comma-separated fl,bl,br,fr (order preserved, deduped)."""
     value = value.strip().lower()
@@ -63,6 +68,7 @@ def parse_wheels(value: str) -> list[str]:
     return ordered
 
 
+# Run the underlying custom_odrive commissioning command once.
 def run_commission(
     *,
     can: str,
@@ -98,6 +104,7 @@ def run_commission(
     return subprocess.call(cmd)
 
 
+# Parse CLI options and commission the requested wheels sequentially.
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -107,6 +114,14 @@ def main(argv: list[str] | None = None) -> int:
         help="Comma-separated wheel ids (fl,bl,br,fr) or 'all'",
     )
     parser.add_argument("--can", default="can_core", help="SocketCAN interface")
+    parser.add_argument(
+        "--drivetrain-profile",
+        default=DEFAULT_DRIVETRAIN_PROFILE,
+        help=(
+            "Profile id from kanga_core_description "
+            f"(default: {DEFAULT_DRIVETRAIN_PROFILE})"
+        ),
+    )
     parser.add_argument(
         "--calibrate",
         action="store_true",
@@ -129,6 +144,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Override motors config directory (default: package share)",
     )
     args = parser.parse_args(argv)
+    profile = load_drivetrain_profile(args.drivetrain_profile)
+    print(
+        f"Using drivetrain profile: {profile.profile_id} ({profile.display_name})",
+        flush=True,
+    )
 
     # HARD RULE: never run FULL_CALIBRATION on more than one axis in one CLI.
     if args.calibrate and len(args.wheels) != 1:
@@ -152,7 +172,12 @@ def main(argv: list[str] | None = None) -> int:
         # even if commission fails mid-run.
         with tempfile.TemporaryDirectory(prefix="kanga_motor_cfg_") as tmp:
             merged = Path(tmp) / f"wheel_{wheel_id}_merged.py"
-            write_merged_config(shared_path, wheel_path, merged)
+            write_merged_config(
+                shared_path,
+                wheel_path,
+                merged,
+                profile.parameters["motor_velocity_limit_tps"],
+            )
             rc = run_commission(
                 can=args.can,
                 config=merged,

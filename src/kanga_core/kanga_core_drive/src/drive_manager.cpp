@@ -20,6 +20,21 @@ std::string to_lower(std::string value)
     return value;
 }
 
+// Quote a launch-provided value for the commissioning shell command.
+std::string shell_quote(const std::string & value)
+{
+    std::string out{"'"};
+    for (const char ch : value) {
+        if (ch == '\'') {
+            out += "'\\''";
+        } else {
+            out += ch;
+        }
+    }
+    out += '\'';
+    return out;
+}
+
 }  // namespace
 
 DriveManager::DriveManager(const rclcpp::NodeOptions & options)
@@ -30,84 +45,99 @@ DriveManager::DriveManager(const rclcpp::NodeOptions & options)
     this->declare_parameter<std::vector<std::string>>(
         "wheel_ids", {"fl", "bl", "br", "fr"});
     this->declare_parameter<std::string>("can_interface", "can_core");
+    this->declare_parameter<std::string>("drivetrain_profile");
 
     wheel_ids_ = this->get_parameter("wheel_ids").as_string_array();
     can_interface_ = this->get_parameter("can_interface").as_string();
-    for (auto & id : wheel_ids_) {
-        id = to_lower(id);
+    drivetrain_profile_ = this->get_parameter("drivetrain_profile").as_string();
+    for (auto & wheel_id : wheel_ids_) {
+        wheel_id = to_lower(wheel_id);
     }
 
     // Allow overlapping callbacks in this group (ROS calls this "Reentrant").
     // Handlers block waiting on wheel services / shelling commission; if the
     // group were mutually exclusive, the reply callback could never run and
     // we'd deadlock. MultiThreadedExecutor in main spins the other work.
-    cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+    service_callback_group_ =
+        this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
 
     // One client pair per wheel under /wheel_<id>/… (custom_odrive_node services).
     // Intentionally no set_enabled clients — stop is /drivestop, not latching enable.
-    for (const auto & wid : wheel_ids_) {
-        const std::string ns = "/wheel_" + wid;
+    for (const auto & wheel_id : wheel_ids_) {
+        const std::string wheel_namespace = "/wheel_" + wheel_id;
         WheelClients clients;
         // /wheel_<id>/clear_errors — clear ODrive sticky faults before CLOSED_LOOP.
-        clients.clear_errors = this->create_client<std_srvs::srv::Empty>(
-            ns + "/clear_errors", rmw_qos_profile_services_default, cb_group_);
+        clients.clear_errors_client = this->create_client<std_srvs::srv::Empty>(
+            wheel_namespace + "/clear_errors", rmw_qos_profile_services_default,
+            service_callback_group_);
         // /wheel_<id>/request_axis_state — set IDLE (1) or CLOSED_LOOP (8).
-        clients.axis_state = this->create_client<custom_odrive::srv::AxisState>(
-            ns + "/request_axis_state", rmw_qos_profile_services_default, cb_group_);
-        clients_[wid] = clients;
+        clients.axis_state_client = this->create_client<custom_odrive::srv::AxisState>(
+            wheel_namespace + "/request_axis_state", rmw_qos_profile_services_default,
+            service_callback_group_);
+        wheel_clients_by_id_[wheel_id] = clients;
     }
 
     // Service: CLOSED_LOOP all wheels (true) or IDLE all wheels (false). See header.
-    set_closed_loop_srv_ = this->create_service<std_srvs::srv::SetBool>(
+    set_closed_loop_service_ = this->create_service<std_srvs::srv::SetBool>(
         "~/set_closed_loop",
         std::bind(
             &DriveManager::handle_set_closed_loop, this, std::placeholders::_1,
             std::placeholders::_2),
-        rmw_qos_profile_services_default, cb_group_);
+        rmw_qos_profile_services_default, service_callback_group_);
 
     // One Trigger per wheel — basestation can bind one button → one service.
-    for (const auto & wid : wheel_ids_) {
-        const std::string name = "~/calibrate_" + wid;
-        calibrate_srvs_.push_back(
+    for (const auto & wheel_id : wheel_ids_) {
+        const std::string service_name = "~/calibrate_" + wheel_id;
+        calibration_services_.push_back(
             this->create_service<std_srvs::srv::Trigger>(
-                name,
-                [this, wid](
-                    const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
-                    std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
-                    this->handle_calibrate(wid, request, response);
-                },
-                rmw_qos_profile_services_default, cb_group_));
+                service_name,
+                std::bind(
+                    &DriveManager::handle_calibrate, this, wheel_id,
+                    std::placeholders::_1, std::placeholders::_2),
+                rmw_qos_profile_services_default, service_callback_group_));
     }
 
     RCLCPP_INFO(this->get_logger(), "drive_manager ready (%zu wheels)", wheel_ids_.size());
 }
 
+
 bool DriveManager::wait_for_clients(const std::string & wheel_id, const WheelClients & clients)
 {
     // Helper: confirm this wheel's clear_errors + request_axis_state exist.
     // Short wait — if custom_odrive_node is down, fail the request, don't hang.
-    const std::string ns = "/wheel_" + wheel_id;
-    if (!clients.clear_errors->wait_for_service(2s)) {
-        RCLCPP_ERROR(this->get_logger(), "Service not available: %s/clear_errors", ns.c_str());
+    const std::string wheel_namespace = "/wheel_" + wheel_id;
+    if (!clients.clear_errors_client->wait_for_service(2s)) {
+        RCLCPP_ERROR(
+            this->get_logger(), "Service not available: %s/clear_errors",
+            wheel_namespace.c_str());
         return false;
     }
-    if (!clients.axis_state->wait_for_service(2s)) {
-        RCLCPP_ERROR(this->get_logger(), "Service not available: %s/request_axis_state", ns.c_str());
+    if (!clients.axis_state_client->wait_for_service(2s)) {
+        RCLCPP_ERROR(
+            this->get_logger(), "Service not available: %s/request_axis_state",
+            wheel_namespace.c_str());
         return false;
     }
     return true;
 }
 
-template<typename ServiceT>
-typename ServiceT::Response::SharedPtr DriveManager::call_sync(
-    const typename rclcpp::Client<ServiceT>::SharedPtr & client,
-    const typename ServiceT::Request::SharedPtr & request,
+std_srvs::srv::Empty::Response::SharedPtr DriveManager::call_clear_errors(
+    const rclcpp::Client<std_srvs::srv::Empty>::SharedPtr & client,
+    const std_srvs::srv::Empty::Request::SharedPtr & request,
     std::chrono::seconds timeout)
 {
-    // Wait on the future only — do NOT spin this node again.
-    // We are already inside a MultiThreadedExecutor callback; nesting
-    // spin_until_future_complete is illegal in Humble and fails. Other
-    // executor threads (Reentrant group) process the service reply.
+    auto future = client->async_send_request(request);
+    if (future.wait_for(timeout) != std::future_status::ready) {
+        return nullptr;
+    }
+    return future.get();
+}
+
+custom_odrive::srv::AxisState::Response::SharedPtr DriveManager::call_axis_state(
+    const rclcpp::Client<custom_odrive::srv::AxisState>::SharedPtr & client,
+    const custom_odrive::srv::AxisState::Request::SharedPtr & request,
+    std::chrono::seconds timeout)
+{
     auto future = client->async_send_request(request);
     if (future.wait_for(timeout) != std::future_status::ready) {
         return nullptr;
@@ -121,67 +151,77 @@ void DriveManager::handle_set_closed_loop(
 {
     // ~/set_closed_loop handler: true → CLOSED_LOOP all wheels; false → IDLE all.
     // try_lock: refuse overlapping CLOSED_LOOP/calibrate rather than queue long work.
-    std::unique_lock<std::mutex> lock(busy_mutex_, std::try_to_lock);
-    if (!lock.owns_lock()) {
+    std::unique_lock<std::mutex> operation_lock(
+        drive_operation_mutex_, std::try_to_lock);
+    if (!operation_lock.owns_lock()) {
         response->success = false;
         response->message = "busy";
         return;
     }
 
-    const bool enable = request->data;
-    std::ostringstream messages;
+    const bool request_closed_loop = request->data;
+    std::ostringstream result_messages;
 
     // Fail the whole request if any wheel cannot transition; earlier wheels may
     // already have changed state — operator should retry or idle explicitly.
-    for (const auto & wid : wheel_ids_) {
-        auto & clients = clients_.at(wid);
-        if (!wait_for_clients(wid, clients)) {
+    for (const auto & wheel_id : wheel_ids_) {
+        auto & clients = wheel_clients_by_id_.at(wheel_id);
+        if (!wait_for_clients(wheel_id, clients)) {
             response->success = false;
-            response->message = "services missing for " + wid;
+            response->message = "services missing for " + wheel_id;
             return;
         }
 
-        if (enable) {
+        if (request_closed_loop) {
             // Clear sticky faults before CLOSED_LOOP so a prior trip does not
             // immediately bounce the axis back out.
-            auto clear_req = std::make_shared<std_srvs::srv::Empty::Request>();
-            call_sync<std_srvs::srv::Empty>(clients.clear_errors, clear_req, 5s);
-
-            auto ax_req = std::make_shared<custom_odrive::srv::AxisState::Request>();
-            ax_req->axis_requested_state = kAxisClosedLoop;
-            auto ax_res = call_sync<custom_odrive::srv::AxisState>(
-                clients.axis_state, ax_req, 15s);
-            if (!ax_res || !ax_res->success) {
+            auto clear_errors_request =
+                std::make_shared<std_srvs::srv::Empty::Request>();
+            auto clear_errors_response = call_clear_errors(
+                clients.clear_errors_client, clear_errors_request, 5s);
+            if (!clear_errors_response) {
                 response->success = false;
-                response->message = "CLOSED_LOOP failed for " + wid;
+                response->message = "clear_errors timed out for " + wheel_id;
                 return;
             }
-            if (!messages.str().empty()) {
-                messages << ", ";
+
+            auto axis_state_request =
+                std::make_shared<custom_odrive::srv::AxisState::Request>();
+            axis_state_request->axis_requested_state = kAxisClosedLoop;
+            auto axis_state_response = call_axis_state(
+                clients.axis_state_client, axis_state_request, 15s);
+            if (!axis_state_response || !axis_state_response->success) {
+                response->success = false;
+                response->message = "CLOSED_LOOP failed for " + wheel_id;
+                return;
             }
-            messages << wid << ":closed_loop";
+            if (!result_messages.str().empty()) {
+                result_messages << ", ";
+            }
+            result_messages << wheel_id << ":closed_loop";
         } else {
             // Soft idle only — does not latch set_enabled. Use /drivestop for
             // an emergency/global stop of the setpoint path.
-            auto ax_req = std::make_shared<custom_odrive::srv::AxisState::Request>();
-            ax_req->axis_requested_state = kAxisIdle;
-            auto ax_res = call_sync<custom_odrive::srv::AxisState>(
-                clients.axis_state, ax_req, 15s);
-            if (!ax_res || !ax_res->success) {
+            auto axis_state_request =
+                std::make_shared<custom_odrive::srv::AxisState::Request>();
+            axis_state_request->axis_requested_state = kAxisIdle;
+            auto axis_state_response = call_axis_state(
+                clients.axis_state_client, axis_state_request, 15s);
+            if (!axis_state_response || !axis_state_response->success) {
                 response->success = false;
-                response->message = "IDLE failed for " + wid;
+                response->message = "IDLE failed for " + wheel_id;
                 return;
             }
 
-            if (!messages.str().empty()) {
-                messages << ", ";
+            if (!result_messages.str().empty()) {
+                result_messages << ", ";
             }
-            messages << wid << ":idle";
+            result_messages << wheel_id << ":idle";
         }
     }
 
     response->success = true;
-    response->message = messages.str();
+    response->message = result_messages.str();
 }
 
 void DriveManager::handle_calibrate(
@@ -191,8 +231,9 @@ void DriveManager::handle_calibrate(
 {
     // ~/calibrate_<id> handler: one-wheel FULL_CALIBRATION via commission_wheels.
     // Basestation motor-status page: one button → one Trigger service.
-    std::unique_lock<std::mutex> lock(busy_mutex_, std::try_to_lock);
-    if (!lock.owns_lock()) {
+    std::unique_lock<std::mutex> operation_lock(
+        drive_operation_mutex_, std::try_to_lock);
+    if (!operation_lock.owns_lock()) {
         response->success = false;
         response->message = "busy";
         return;
@@ -200,39 +241,33 @@ void DriveManager::handle_calibrate(
 
     // Shell out to the Python commission wrapper (Fibre apply + FULL_CALIBRATION).
     // Interactive prompts inside custom_odrive commission still apply on the TTY.
-    std::ostringstream cmd;
-    cmd << "ros2 run kanga_core_drive commission_wheels -- --wheels " << wheel_id
-        << " --can " << can_interface_ << " --calibrate";
-    RCLCPP_INFO(this->get_logger(), "Calibrating %s: %s", wheel_id.c_str(), cmd.str().c_str());
-    const int rc = std::system(cmd.str().c_str());
-    if (rc == -1) {
+    std::ostringstream commission_command;
+    commission_command
+        << "ros2 run kanga_core_drive commission_wheels -- --wheels " << wheel_id
+        << " --can " << shell_quote(can_interface_)
+        << " --drivetrain-profile " << shell_quote(drivetrain_profile_)
+        << " --calibrate";
+    RCLCPP_INFO(
+        this->get_logger(), "Calibrating %s: %s", wheel_id.c_str(),
+        commission_command.str().c_str());
+    const int system_status = std::system(commission_command.str().c_str());
+    if (system_status == -1) {
         response->success = false;
         response->message = "failed to start commission_wheels";
         return;
     }
-#if defined(WIFEXITED) && defined(WEXITSTATUS)
-    const int exit_code = WIFEXITED(rc) ? WEXITSTATUS(rc) : rc;
-#else
-    const int exit_code = rc;
-#endif
-    if (exit_code != 0) {
+    if (!WIFEXITED(system_status)) {
         response->success = false;
-        response->message = "commission_wheels exited " + std::to_string(exit_code);
+        response->message = "commission_wheels terminated abnormally";
+        return;
+    }
+    const int commission_exit_code = WEXITSTATUS(system_status);
+    if (commission_exit_code != 0) {
+        response->success = false;
+        response->message =
+            "commission_wheels exited " + std::to_string(commission_exit_code);
         return;
     }
     response->success = true;
     response->message = "calibrated " + wheel_id;
 }
-
-// Explicit instantiations for the two service types we call synchronously.
-template std_srvs::srv::Empty::Response::SharedPtr
-DriveManager::call_sync<std_srvs::srv::Empty>(
-    const rclcpp::Client<std_srvs::srv::Empty>::SharedPtr &,
-    const std_srvs::srv::Empty::Request::SharedPtr &,
-    std::chrono::seconds);
-
-template custom_odrive::srv::AxisState::Response::SharedPtr
-DriveManager::call_sync<custom_odrive::srv::AxisState>(
-    const rclcpp::Client<custom_odrive::srv::AxisState>::SharedPtr &,
-    const custom_odrive::srv::AxisState::Request::SharedPtr &,
-    std::chrono::seconds);

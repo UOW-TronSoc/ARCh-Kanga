@@ -13,23 +13,31 @@ from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
+from kanga_core_description.drivetrain_profile import DEFAULT_DRIVETRAIN_PROFILE
 
+
+# Forward one CAN interface and drivetrain profile to controller and drive.
 def generate_launch_description():
     drive_share = get_package_share_directory("kanga_core_drive")
     controller_share = get_package_share_directory("kanga_core_controller")
     can_interface = LaunchConfiguration("can_interface")
+    drivetrain_profile = LaunchConfiguration("drivetrain_profile")
 
     drive = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(drive_share, "launch", "drive.launch.py")
         ),
-        launch_arguments={"can_interface": can_interface}.items(),
+        launch_arguments={
+            "can_interface": can_interface,
+            "drivetrain_profile": drivetrain_profile,
+        }.items(),
     )
 
     controller = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(controller_share, "launch", "controller.launch.py")
-        )
+        ),
+        launch_arguments={"drivetrain_profile": drivetrain_profile}.items(),
     )
 
     return LaunchDescription(
@@ -38,6 +46,11 @@ def generate_launch_description():
                 "can_interface",
                 default_value="can_core",
                 description="Host SocketCAN interface used by the drive ODrives",
+            ),
+            DeclareLaunchArgument(
+                "drivetrain_profile",
+                default_value=DEFAULT_DRIVETRAIN_PROFILE,
+                description="Core drivetrain profile from kanga_core_description",
             ),
             drive,
             controller,

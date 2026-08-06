@@ -10,7 +10,7 @@ int main(int argc, char ** argv)
     auto node = std::make_shared<DriveManager>();
     // Several threads: handlers block waiting on wheel replies / commission.
     // Overlapping-callback group (ROS: "Reentrant") needs another thread free
-    // to process those replies, otherwise call_sync deadlocks.
+    // to process those replies, otherwise the waiting handler deadlocks.
     rclcpp::executors::MultiThreadedExecutor executor(rclcpp::ExecutorOptions(), 4);
     executor.add_node(node);
     executor.spin();

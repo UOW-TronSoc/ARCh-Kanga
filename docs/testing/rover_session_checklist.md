@@ -253,7 +253,7 @@ ros2 service call /drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: tr
 ### 6.2 Confirm mapper stream (zero cmd)
 
 ```bash
-ros2 topic echo /wheel_fl/joint_velocity_command
+ros2 topic echo /wheel_joint_velocity_command
 ros2 topic echo /wheel_fl/control_message
 ```
 
@@ -272,7 +272,7 @@ ros2 topic pub /cmd_vel geometry_msgs/msg/Twist \
 Watch:
 
 ```bash
-ros2 topic echo /wheel_fl/joint_velocity_command
+ros2 topic echo /wheel_joint_velocity_command
 ros2 topic echo /wheel_fl/control_message
 ros2 topic echo /wheel_joint_states
 ```
@@ -336,6 +336,6 @@ Then repeat with `core_drive.launch.py` running to confirm shared-bus stability.
 | `candump` silent | Wrong bitrate, interface down, no termination, ODrives off |
 | Only some wheels on bus | Check power, node IDs, wiring, and that every S1 is saved at 250k |
 | `set_closed_loop` fails | CAN down, fault latched — `clear_errors` via service or power cycle |
-| No `joint_velocity_command` | Controller not running |
-| No `control_message` | Stale/partial joint commands, not in CLOSED_LOOP, or `/drivestop` true |
+| No `wheel_joint_velocity_command` | Controller not running |
+| No `control_message` | Stale joint command, not in CLOSED_LOOP, or `/drivestop` true |
 | Motion backwards / fighting | Check `invert_direction` on FL/BL in `drive.launch.py` only |

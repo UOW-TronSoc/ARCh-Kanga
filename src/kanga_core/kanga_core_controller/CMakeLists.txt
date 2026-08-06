@@ -8,7 +8,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
-find_package(std_msgs REQUIRED)
+find_package(kanga_interfaces REQUIRED)
 
 include_directories(include)
 
@@ -19,6 +19,10 @@ target_include_directories(kanga_kinematics PUBLIC
   $<INSTALL_INTERFACE:include>
 )
 target_compile_features(kanga_kinematics PUBLIC cxx_std_17)
+ament_target_dependencies(kanga_kinematics
+  geometry_msgs
+  kanga_interfaces
+)
 
 add_executable(wheel_command_mapper
   src/wheel_command_mapper.cpp
@@ -27,7 +31,7 @@ add_executable(wheel_command_mapper
 ament_target_dependencies(wheel_command_mapper
   rclcpp
   geometry_msgs
-  std_msgs
+  kanga_interfaces
 )
 target_link_libraries(wheel_command_mapper kanga_kinematics)
 target_compile_features(wheel_command_mapper PRIVATE cxx_std_17)

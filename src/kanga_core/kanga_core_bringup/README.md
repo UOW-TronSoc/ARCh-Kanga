@@ -27,6 +27,18 @@ ros2 launch kanga_core_bringup core_drive.launch.py
 ros2 service call /drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: true}"
 ```
 
+The bringup selects one versioned drivetrain profile and passes it to
+controller, drive, feedback, and commissioning:
+
+```bash
+ros2 launch kanga_core_bringup core_drive.launch.py \
+  drivetrain_profile:=drivetrain_2025
+```
+
+Add/select a new profile in `kanga_core_description` when the physical
+drivetrain changes; do not duplicate its dimensions, reduction, or motor TPS
+limit in consumer YAML files.
+
 ---
 
 ## Rover test procedure (core drive)
@@ -141,9 +153,9 @@ With CLOSED_LOOP on, the controller publishes zero joint commands when
 `/cmd_vel` is quiet; drive converts them to motor commands for the watchdog.
 
 ```bash
-ros2 topic echo /wheel_fl/joint_velocity_command  # wheel-joint rad/s
-ros2 topic echo /wheel_fl/control_message         # motor-shaft rad/s
-# both should be ≈0 at ~10 Hz
+ros2 topic echo /wheel_joint_velocity_command  # all four wheel-joint rad/s values
+ros2 topic echo /wheel_fl/control_message      # FL motor-shaft rad/s
+# the joint vector and each closed-loop motor command should be ≈0 at ~10 Hz
 ```
 
 Pass criteria: steady `control_message` on each wheel while CLOSED_LOOP.
@@ -163,7 +175,7 @@ Watch:
 
 ```bash
 ros2 topic echo /wheel_fl/control_message    # input_vel should leave 0
-ros2 topic echo /wheel_fl/joint_velocity_command
+ros2 topic echo /wheel_joint_velocity_command
 ros2 topic echo /wheel_joint_states          # estimates should move
 ```
 

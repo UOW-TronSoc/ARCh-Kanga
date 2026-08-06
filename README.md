@@ -43,6 +43,12 @@ package or moving code across package boundaries.
 
 ## Development environment
 
+> **Platform note:** Development, building, and hardware-independent testing can
+> be performed in the Linux Docker environment from Linux, macOS, or Windows.
+> Running against the rover's physical CAN and USB devices requires a Linux host;
+> macOS and Windows Docker installations run Linux containers through a VM and
+> are not supported for direct rover hardware operation.
+
 ### Path A — ROS workspace
 
 Build and enter the development container from the repository root:

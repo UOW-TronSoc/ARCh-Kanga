@@ -1,6 +1,5 @@
 #include "kanga_core_drive/transmission.hpp"
 
-#include <array>
 #include <cmath>
 #include <gtest/gtest.h>
 
@@ -38,19 +37,22 @@ TEST(Transmission, DerivesJointLimitFromMotorTps)
         expected, kEps);
 }
 
-TEST(Transmission, DesaturatesAllWheelsUniformly)
+TEST(Transmission, DerivesMotorLimitInRadiansPerSecond)
 {
-    const std::array<double, 4> input{{1.0, -2.0, 4.0, -0.5}};
-    const auto output = kanga_core_drive::desaturate_joint_velocities(input, 2.0);
-    EXPECT_NEAR(output[0], 0.5, kEps);
-    EXPECT_NEAR(output[1], -1.0, kEps);
-    EXPECT_NEAR(output[2], 2.0, kEps);
-    EXPECT_NEAR(output[3], -0.25, kEps);
+    EXPECT_NEAR(
+        kanga_core_drive::max_motor_velocity_rad_s(kMotorLimitTps),
+        kMotorLimitTps * 2.0 * M_PI, kEps);
 }
 
-TEST(Transmission, RejectsNonFiniteInputWithZeros)
+TEST(Transmission, ClampsEachMotorIndependently)
 {
-    const std::array<double, 4> input{{1.0, NAN, 2.0, 3.0}};
-    const auto output = kanga_core_drive::desaturate_joint_velocities(input, 2.0);
-    EXPECT_EQ(output, (std::array<double, 4>{}));
+    EXPECT_NEAR(kanga_core_drive::clamp_motor_velocity(1.0, 2.0), 1.0, kEps);
+    EXPECT_NEAR(kanga_core_drive::clamp_motor_velocity(4.0, 2.0), 2.0, kEps);
+    EXPECT_NEAR(kanga_core_drive::clamp_motor_velocity(-4.0, 2.0), -2.0, kEps);
+}
+
+TEST(Transmission, InvalidMotorLimitReturnsStop)
+{
+    EXPECT_DOUBLE_EQ(kanga_core_drive::clamp_motor_velocity(NAN, 2.0), 0.0);
+    EXPECT_DOUBLE_EQ(kanga_core_drive::clamp_motor_velocity(1.0, 0.0), 0.0);
 }

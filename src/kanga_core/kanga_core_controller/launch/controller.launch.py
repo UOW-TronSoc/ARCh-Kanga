@@ -15,10 +15,22 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, LogInfo, OpaqueFunction
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
+from kanga_core_description.drivetrain_profile import (
+    DEFAULT_DRIVETRAIN_PROFILE,
+    load_drivetrain_profile,
+)
 
-def generate_launch_description():
+
+# Load the selected profile and create the wheel-command mapper node.
+def _launch_setup(context):
+    profile_ref = LaunchConfiguration("drivetrain_profile").perform(context)
+    profile = load_drivetrain_profile(profile_ref)
+
+
     # Installed copy of config/controller.yaml (share/kanga_core_controller/…).
     params = os.path.join(
         get_package_share_directory("kanga_core_controller"),
@@ -30,12 +42,30 @@ def generate_launch_description():
         package="kanga_core_controller",
         executable="wheel_command_mapper",
         name="wheel_command_mapper",
-        parameters=[params],
+        # Every consumer receives the same shared profile dictionary. The node
+        # declares and reads only the parameters it actually uses.
+        parameters=[params, profile.parameters],
         output="screen",
     )
 
+    return [
+        LogInfo(
+            msg=f"Controller using {profile.profile_id} ({profile.display_name})"
+        ),
+        wheel_command_mapper,
+    ]
+
+
+# Declare the profile argument and defer node creation until launch evaluation.
+def generate_launch_description():
+
     return LaunchDescription(
         [
-            wheel_command_mapper,
+            DeclareLaunchArgument(
+                "drivetrain_profile",
+                default_value=DEFAULT_DRIVETRAIN_PROFILE,
+                description="Drivetrain profile id from kanga_core_description",
+            ),
+            OpaqueFunction(function=_launch_setup),
         ]
     )

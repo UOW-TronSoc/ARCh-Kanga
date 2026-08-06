@@ -11,62 +11,52 @@
  */
 
 #include <algorithm>
-#include <array>
 #include <cmath>
-#include <cstddef>
 
 namespace kanga_core_drive
 {
 
+// Convert a wheel-joint velocity into motor-shaft velocity.
 inline double motor_velocity_from_joint(double joint_rad_s, double gear_ratio)
 {
     return joint_rad_s * gear_ratio;
 }
 
+// Convert motor-shaft velocity feedback into wheel-joint velocity.
 inline double joint_velocity_from_motor(double motor_rad_s, double gear_ratio)
 {
     return motor_rad_s / gear_ratio;
 }
 
+// Convert motor-shaft position feedback into wheel-joint position.
 inline double joint_position_from_motor(double motor_rad, double gear_ratio)
 {
     return motor_rad / gear_ratio;
 }
 
+// Derive the wheel-joint limit from motor TPS and reduction.
 inline double max_joint_velocity(double motor_velocity_limit_tps, double gear_ratio)
 {
     constexpr double two_pi = 6.28318530717958647692;
     return motor_velocity_limit_tps * two_pi / gear_ratio;
 }
 
-// Scale the complete four-wheel vector when any joint exceeds the actuator
-// capability. Uniform scaling preserves the requested mecanum motion direction.
-inline std::array<double, 4> desaturate_joint_velocities(
-    const std::array<double, 4> & input,
-    double max_abs_joint_rad_s)
+// Convert the configured motor limit from turns/s to rad/s.
+inline double max_motor_velocity_rad_s(double motor_velocity_limit_tps)
 {
-    if (!std::isfinite(max_abs_joint_rad_s) || max_abs_joint_rad_s <= 0.0) {
-        return {};
-    }
+    constexpr double two_pi = 6.28318530717958647692;
+    return motor_velocity_limit_tps * two_pi;
+}
 
-    double largest = 0.0;
-    for (const double value : input) {
-        if (!std::isfinite(value)) {
-            return {};
-        }
-        largest = std::max(largest, std::abs(value));
+// Independently clamp one motor command as the final actuator-local safety bound.
+inline double clamp_motor_velocity(double motor_rad_s, double max_abs_motor_rad_s)
+{
+    if (!std::isfinite(motor_rad_s) ||
+        !std::isfinite(max_abs_motor_rad_s) || max_abs_motor_rad_s <= 0.0)
+    {
+        return 0.0;
     }
-
-    if (largest <= max_abs_joint_rad_s) {
-        return input;
-    }
-
-    const double scale = max_abs_joint_rad_s / largest;
-    std::array<double, 4> output{};
-    for (std::size_t i = 0; i < input.size(); ++i) {
-        output[i] = input[i] * scale;
-    }
-    return output;
+    return std::clamp(motor_rad_s, -max_abs_motor_rad_s, max_abs_motor_rad_s);
 }
 
 }  // namespace kanga_core_drive

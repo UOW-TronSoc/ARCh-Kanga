@@ -23,13 +23,22 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, LogInfo, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
+from kanga_core_description.drivetrain_profile import (
+    DEFAULT_DRIVETRAIN_PROFILE,
+    load_drivetrain_profile,
+)
 
-def generate_launch_description():
+
+# Load the shared profile and create all drive-side nodes.
+def _launch_setup(context):
     can_interface = LaunchConfiguration("can_interface")
+    profile_ref = LaunchConfiguration("drivetrain_profile").perform(context)
+    profile = load_drivetrain_profile(profile_ref)
+
 
     # Shared custom_odrive defaults (radians, idle on startup/shutdown, …).
     # Per-Node dicts below only override what differs per wheel.
@@ -117,6 +126,9 @@ def generate_launch_description():
         name="wheel_actuator",
         parameters=[
             drive_params,
+            # Same shared dictionary used by controller and feedback. This node
+            # only declares the reduction and motor limit that it consumes.
+            profile.parameters,
             {
                 "wheel_ids": ["fl", "bl", "br", "fr"],
             },
@@ -134,6 +146,7 @@ def generate_launch_description():
             {
                 "wheel_ids": ["fl", "bl", "br", "fr"],
                 "can_interface": can_interface,
+                "drivetrain_profile": profile_ref,
             },
         ],
         output="screen",
@@ -147,6 +160,7 @@ def generate_launch_description():
         name="wheel_joint_state_publisher",
         parameters=[
             drive_params,
+            profile.parameters,
             {
                 "wheel_ids": ["fl", "bl", "br", "fr"],
                 "joint_names": [
@@ -160,6 +174,20 @@ def generate_launch_description():
         output="screen",
     )
 
+    return [
+        LogInfo(msg=f"Drive using {profile.profile_id} ({profile.display_name})"),
+        wheel_fl,
+        wheel_bl,
+        wheel_br,
+        wheel_fr,
+        wheel_actuator,
+        drive_manager,
+        wheel_joint_state_publisher,
+    ]
+
+
+# Declare selectable CAN and drivetrain launch arguments.
+def generate_launch_description():
     return LaunchDescription(
         [
             DeclareLaunchArgument(
@@ -167,12 +195,11 @@ def generate_launch_description():
                 default_value="can_core",
                 description="Host SocketCAN interface shared by all wheel ODrives",
             ),
-            wheel_fl,
-            wheel_bl,
-            wheel_br,
-            wheel_fr,
-            wheel_actuator,
-            drive_manager,
-            wheel_joint_state_publisher,
+            DeclareLaunchArgument(
+                "drivetrain_profile",
+                default_value=DEFAULT_DRIVETRAIN_PROFILE,
+                description="Drivetrain profile id from kanga_core_description",
+            ),
+            OpaqueFunction(function=_launch_setup),
         ]
     )

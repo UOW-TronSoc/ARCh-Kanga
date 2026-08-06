@@ -18,7 +18,7 @@
  *     Run Fibre FULL_CALIBRATION on that one wheel.
  *     Shells: ros2 run kanga_core_drive commission_wheels -- --wheels <id> --calibrate
  *
- * All handlers share busy_mutex_ (try_lock): a second call while one is running
+ * All handlers share drive_operation_mutex_ (try_lock): a second call while one is running
  * fails immediately with message "busy" instead of queueing long work.
  */
 
@@ -48,20 +48,23 @@ private:
     // Clients we call on each /wheel_<id>/ custom_odrive_node.
     struct WheelClients
     {
-        rclcpp::Client<std_srvs::srv::Empty>::SharedPtr clear_errors;  // wipe sticky faults
-        rclcpp::Client<custom_odrive::srv::AxisState>::SharedPtr axis_state;  // IDLE / CLOSED_LOOP
+        rclcpp::Client<std_srvs::srv::Empty>::SharedPtr clear_errors_client;
+        rclcpp::Client<custom_odrive::srv::AxisState>::SharedPtr axis_state_client;
     };
 
     // Return true if both services for this wheel are advertised (short 2s wait).
     bool wait_for_clients(const std::string & wheel_id, const WheelClients & clients);
 
-    // Synchronous service call from inside a MultiThreadedExecutor callback.
-    // Wait on the future only (other threads process the reply). Do not nest
-    // spin_until_future_complete — illegal while this node is already spinning.
-    template<typename ServiceT>
-    typename ServiceT::Response::SharedPtr call_sync(
-        const typename rclcpp::Client<ServiceT>::SharedPtr & client,
-        const typename ServiceT::Request::SharedPtr & request,
+    // Call one wheel's clear-errors service and wait for its response.
+    std_srvs::srv::Empty::Response::SharedPtr call_clear_errors(
+        const rclcpp::Client<std_srvs::srv::Empty>::SharedPtr & client,
+        const std_srvs::srv::Empty::Request::SharedPtr & request,
+        std::chrono::seconds timeout);
+
+    // Call one wheel's axis-state service and wait for its response.
+    custom_odrive::srv::AxisState::Response::SharedPtr call_axis_state(
+        const rclcpp::Client<custom_odrive::srv::AxisState>::SharedPtr & client,
+        const custom_odrive::srv::AxisState::Request::SharedPtr & request,
         std::chrono::seconds timeout);
 
     // Handler for ~/set_closed_loop — see class comment above.
@@ -77,13 +80,15 @@ private:
 
     std::vector<std::string> wheel_ids_;
     std::string can_interface_;  // forwarded to commission_wheels --can
-    std::mutex busy_mutex_;      // try_lock across CLOSED_LOOP + calibrate handlers
+    std::string drivetrain_profile_;  // forwarded to commission_wheels
+    std::mutex drive_operation_mutex_;
     // Callback group that allows overlapping callbacks (ROS type name:
-    // CallbackGroupType::Reentrant). Needed because handlers block inside
-    // call_sync / std::system; without it the executor can deadlock waiting
+    // CallbackGroupType::Reentrant). Needed because handlers wait for service
+    // responses or std::system; without it the executor can deadlock waiting
     // for a reply that never gets spun. Pair with MultiThreadedExecutor in main.
-    rclcpp::CallbackGroup::SharedPtr cb_group_;
-    std::unordered_map<std::string, WheelClients> clients_;
-    rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr set_closed_loop_srv_;
-    std::vector<rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr> calibrate_srvs_;
+    rclcpp::CallbackGroup::SharedPtr service_callback_group_;
+    std::unordered_map<std::string, WheelClients> wheel_clients_by_id_;
+    rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr set_closed_loop_service_;
+    std::vector<rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr>
+        calibration_services_;
 };

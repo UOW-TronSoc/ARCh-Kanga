@@ -31,21 +31,23 @@ public:
         const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
 
 private:
-    void on_status(
+    void on_controller_status(
         const std::string & wheel_id,
-        const custom_odrive::msg::ControllerStatus & msg);
-    void publish_timer();
+        const custom_odrive::msg::ControllerStatus::SharedPtr msg);
+    void publish_wheel_joint_states();
 
     std::vector<std::string> wheel_ids_;
-    double gear_ratio_{50.0};
-    std::unordered_map<std::string, std::string> joint_by_wheel_;  // id → URDF name
-    std::unordered_map<std::string, double> pos_;  // last pos_estimate (rad)
-    std::unordered_map<std::string, double> vel_;  // last vel_estimate (rad/s)
+    double gear_ratio_{0.0};
+    std::unordered_map<std::string, std::string> joint_name_by_wheel_id_;
+    std::unordered_map<std::string, double> joint_position_by_wheel_id_;
+    std::unordered_map<std::string, double> joint_velocity_by_wheel_id_;
     // Only include a joint once at least one status message has arrived.
-    std::unordered_map<std::string, bool> have_;
-    std::mutex mutex_;  // protects pos_/vel_/have_ across callback + timer
+    std::unordered_map<std::string, bool> status_received_by_wheel_id_;
+    std::mutex joint_feedback_mutex_;
 
-    std::vector<rclcpp::Subscription<custom_odrive::msg::ControllerStatus>::SharedPtr> subs_;
-    rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr pub_;
-    rclcpp::TimerBase::SharedPtr timer_;
+    std::vector<rclcpp::Subscription<custom_odrive::msg::ControllerStatus>::SharedPtr>
+        controller_status_subscriptions_;
+    rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr
+        wheel_joint_state_publisher_;
+    rclcpp::TimerBase::SharedPtr joint_state_publish_timer_;
 };

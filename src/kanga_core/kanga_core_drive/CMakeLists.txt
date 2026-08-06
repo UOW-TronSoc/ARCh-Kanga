@@ -7,10 +7,10 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(custom_odrive REQUIRED)
+find_package(kanga_interfaces REQUIRED)
 
 include_directories(include)
 
@@ -20,8 +20,8 @@ add_executable(wheel_actuator
 )
 ament_target_dependencies(wheel_actuator
   rclcpp
-  std_msgs
   custom_odrive
+  kanga_interfaces
 )
 target_compile_features(wheel_actuator PRIVATE cxx_std_17)
 

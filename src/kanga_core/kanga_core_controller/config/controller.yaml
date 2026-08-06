@@ -3,25 +3,13 @@
 # Loaded by launch/controller.launch.py. After changing values, re-launch
 # (or use `ros2 param set` for a running node).
 #
-# Units reminder:
-#   lengths  → metres
-#   angles   → degrees for theta_deg only
-#   output wheel velocity → wheel-joint rad/s
+# Physical geometry and joint-speed capability are injected from the selected
+# kanga_core_description drivetrain profile. Keep only controller behaviour here.
 
 wheel_command_mapper:
   ros__parameters:
-    # Must match kanga_core_drive wheel namespaces: /wheel_fl, /wheel_bl, …
-    wheel_ids: [fl, bl, br, fr]
-
-    # How often we publish ControlMessage (times per second).
+    # How often we publish wheel-joint commands (times per second).
     # Keep around 10 Hz so the drive actuator receives a steady four-wheel vector.
     publish_rate_hz: 10.0
-
     # If no /cmd_vel arrives for this many seconds, command becomes "stop".
     cmd_vel_timeout_s: 0.5
-
-    # Chassis footprint (overall 110 cm long × 89 cm wide).
-    # half_* = distance from robot centre to the wheel / axle.
-    theta_deg: 51.0       # mecanum roller angle — leave unless hardware changes
-    half_length: 0.55     # 110 cm / 2
-    half_width: 0.445     #  89 cm / 2

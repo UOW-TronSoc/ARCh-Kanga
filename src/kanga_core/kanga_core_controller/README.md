@@ -2,30 +2,33 @@
 
 Turns “drive the robot this way” into “spin each wheel at this speed”.
 
-If you are new to ROS: this package is a **node** that listens on a **topic**
-(`/cmd_vel`) and publishes wheel-joint commands on other topics
-(`/wheel_fl/joint_velocity_command`, …). `kanga_core_drive` converts those
-joint speeds for the physical motors.
+If you are new to ROS: this package is a **node** that listens on `/cmd_vel`
+and publishes one atomic four-wheel command on
+`/wheel_joint_velocity_command`. `kanga_core_drive` converts those joint
+speeds for the physical motors.
 
 ```text
-  /cmd_vel  --->  wheel_command_mapper  --->  /wheel_*/joint_velocity_command
-   (Twist)         (this package)              (wheel-joint rad/s to drive)
+  /cmd_vel  --->  wheel_command_mapper  --->  /wheel_joint_velocity_command
+   (Twist)         (this package)              (four wheel-joint rad/s values)
 ```
 
 ## What lives where
 
 | Package | Job |
 |---------|-----|
-| `kanga_core_drive` | Apply 50:1 reduction/limits, start ODrives, calibrate/save, enter CLOSED_LOOP, publish wheel JointState |
-| `kanga_core_controller` (here) | Map `/cmd_vel` → four wheel speeds and keep streaming them |
+| `kanga_core_drive` | Apply the selected reduction and motor safety limit, start ODrives, calibrate/save, enter CLOSED_LOOP, publish wheel JointState |
+| `kanga_core_controller` (here) | Map `/cmd_vel` → four wheel speeds, proportionally desaturate them, and keep streaming them |
 
 ## How the mapper behaves
 
 1. **Subscribe** to `/cmd_vel` (`geometry_msgs/Twist`).
 2. On a **timer** (~10 Hz), convert that twist to four wheel speeds (kinematics).
-3. **Publish** each result as wheel-joint rad/s. The controller has no motor,
-   gearbox, ODrive-state, or motor-limit knowledge.
-4. If `/cmd_vel` stops for longer than `cmd_vel_timeout_s`, keep publishing
+3. **Uniformly desaturate** the four-wheel vector if any wheel would exceed the
+   selected drivetrain's joint-speed capability. Ratios are preserved: a
+   `[50%, 150%]` mix becomes `[33.3%, 100%]`, not `[50%, 100%]`.
+4. **Publish** all four results together as one `WheelVelocityCommand`. The
+   controller does not perform gearbox conversion or know ODrive/CAN units.
+5. If `/cmd_vel` stops for longer than `cmd_vel_timeout_s`, keep publishing
    zero wheel-joint speed. The drive layer then keeps stopped CLOSED_LOOP axes
    fed without masking a failed controller process.
 
@@ -33,10 +36,27 @@ This node does **not** invert wheel signs, change axis state, or handle e-stop �
 those are single-owner elsewhere (`invert_direction` only in `drive.launch.py`,
 `set_closed_loop` on `drive_manager`, `/drivestop`).
 
-> **Current limitation:** wheel radius is not implemented yet. Directional
-> mixing is testable, but `/cmd_vel` linear values are not yet a calibrated
-> physical m/s command. The command/limit chain is recorded in the
-> [software architecture](../../../docs/architecture/README.md#drive-command-and-limit-model).
+Physical inputs come from the selected `kanga_core_description` drivetrain
+profile. The current profile uses a nominal **0.230 m** wheel diameter to the
+bottom of the grousers. The loader derives wheel radius and wheel-centre
+geometry from the measured outside wheel envelope. Field testing may later
+refine the loaded rolling radius through an explicit profile override.
+
+The wheels are not mecanum wheels. The current transform preserves the legacy
+51° angled-grouser model, which provides only limited holonomic behaviour. A
+future controller mode must allow lateral/holonomic mixing to be disabled for
+normal skid-steer-style operation.
+
+## Tracked future work
+
+- **Synchronised wheel acceleration and deceleration:** every S1 currently uses
+  the same 40 turns/s² velocity-ramp limit, so a faster wheel takes longer to
+  reach zero than a slower wheel and the rover's path can change during a
+  transition. Add the actuator acceleration limit to the selected drivetrain
+  profile when this feature is implemented, calculate one common transition
+  time from the largest wheel-speed change, and shape every wheel command so
+  their speed ratios are preserved throughout acceleration and deceleration.
+  Do not add the profile parameter before a node consumes it.
 
 ## Try it (on the rover)
 
@@ -52,25 +72,28 @@ Useful beginner checks:
 
 ```bash
 ros2 topic list | grep -E 'cmd_vel|joint_velocity_command|control_message'
-ros2 topic echo /wheel_fl/joint_velocity_command --once  # joint rad/s
-ros2 topic echo /wheel_fl/control_message --once          # motor rad/s from drive
+ros2 topic echo /wheel_joint_velocity_command --once  # four joint rad/s values
+ros2 topic echo /wheel_fl/control_message --once      # FL motor rad/s from drive
 ```
 
-## Edit the robot size / limits
+## Configuration
 
-Defaults are in [`config/controller.yaml`](config/controller.yaml):
+Controller behaviour is in [`config/controller.yaml`](config/controller.yaml):
 
-- Footprint: **110 cm long × 89 cm wide** → `half_length: 0.55`, `half_width: 0.445`
 - `cmd_vel_timeout_s`: how long before a quiet `/cmd_vel` becomes “stop”
 - `publish_rate_hz`: how often wheel-joint commands are published
+
+Do not add physical geometry or drivetrain limits there. Those live once in a
+versioned profile under `kanga_core_description/config/drivetrains/` and are
+injected by `controller.launch.py`.
 
 ## Code map (for reading the source)
 
 | File | What it is |
 |------|------------|
-| `include/.../kinematics.hpp` + `src/kinematics.cpp` | Pure math, no ROS |
+| `include/.../kinematics.hpp` + `src/kinematics.cpp` | Testable math using standard ROS messages |
 | `include/.../wheel_command_mapper.hpp` + `src/wheel_command_mapper.cpp` | The ROS node |
-| `launch/controller.launch.py` | Starts the node with the YAML params |
+| `launch/controller.launch.py` | Loads the selected drivetrain profile and starts the node |
 | `test/test_kinematics.cpp` | Offline checks of the math (no hardware) |
 
 ## Offline tests (no rover needed)
@@ -85,7 +108,8 @@ colcon test --packages-select kanga_core_controller --event-handlers console_dir
 
 ## Provenance
 
-Math shape comes from the previous competition `kanga_drive` mapper (roller
-angle 51°). Footprint: current chassis 110×89 cm. Old mapper also inverted
-and auto-requested CLOSED_LOOP — **do not put those back here**; invert is only
+Math shape comes from the previous competition `kanga_drive` mapper (empirical
+grouser angle 51°). The wheels are regular 230 mm × 180 mm wheels with angled
+grousers, not mecanum wheels. Old mapper also inverted and auto-requested
+CLOSED_LOOP — **do not put those back here**; invert is only
 `invert_direction` in drive launch, CLOSED_LOOP is only `drive_manager`.

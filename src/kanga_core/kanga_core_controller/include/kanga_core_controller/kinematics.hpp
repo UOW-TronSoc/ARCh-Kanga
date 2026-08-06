@@ -7,64 +7,42 @@
  * Input:  chassis velocity (forward, sideways, spin) — same idea as /cmd_vel
  * Output: four wheel speeds (front-left, back-left, back-right, front-right)
  *
- * This file has NO ROS code. It is plain C++ so we can unit-test the math
- * without launching nodes or needing motors.
+ * The functions use standard ROS messages but contain no node, topic, or motor
+ * code, so the maths remains directly unit-testable.
  *
  * Sign flip for left-side wheels is NOT done here. That is handled by
  * invert_direction on each custom_odrive node in drive.launch.py.
  */
 
-#include <array>
-#include <cmath>
+#include "geometry_msgs/msg/twist.hpp"
+#include "kanga_interfaces/msg/wheel_velocity_command.hpp"
 
 namespace kanga_core_controller
 {
 
-// Physical size of the rover base (metres). Used by twist_to_wheels().
-//
-// Measure overall length / width of the wheel footprint, then halve them:
-//   110 cm long  → half_length = 0.55
-//    89 cm wide  → half_width  = 0.445
+// One stored set of physical inputs used by every kinematics calculation.
+// geom_ in WheelCommandMapper is an instance populated from profile parameters.
 struct ChassisGeometry
 {
-    // Mecanum roller angle on the wheel (degrees). Keep unless hardware changes.
-    double theta_deg{51.0};
-    // Distance from robot centre to a wheel axle, along the length (front/back).
-    double half_length{0.55};
-    // Distance from robot centre to a wheel, along the width (left/right).
-    double half_width{0.445};
+    // Empirical grouser angle used by the legacy limited-holonomic model.
+    double grouser_angle_deg{0.0};
+    // Distance from rover centre to the front/rear wheel centres.
+    double half_length{0.0};
+    // Distance from rover centre to the left/right wheel centres.
+    double half_width{0.0};
+    // Rolling radius used to convert linear wheel speed into angular speed.
+    double effective_wheel_radius_m{0.0};
 };
 
-// Robot motion in the robot frame (matches geometry_msgs/Twist fields we use).
-struct Twist2D
-{
-    double vx{0.0};     // forward (+) / backward (−), metres per second
-    double vy{0.0};     // left (+) / right (−), metres per second
-    double omega{0.0};  // spin left (+) / right (−), radians per second
-};
+// Convert physical chassis twist → wheel-joint rad/s using Kanga's empirical
+// angled-grouser limited-holonomic map.
+kanga_interfaces::msg::WheelVelocityCommand twist_to_wheels(
+    const geometry_msgs::msg::Twist & twist, const ChassisGeometry & geom);
 
-// One speed command per wheel. Order matches drive: fl, bl, br, fr.
-// These are wheel-joint rad/s consumed by kanga_core_drive. Physical m/s →
-// wheel rad/s still requires the effective wheel radius; see
-// docs/architecture/README.md "Drive command and limit model".
-struct WheelVelocities
-{
-    double fl{0.0};  // front left
-    double bl{0.0};  // back left
-    double br{0.0};  // back right
-    double fr{0.0};  // front right
-
-    // Handy for looping fl → bl → br → fr in the same order as wheel_ids.
-    std::array<double, 4> as_array() const
-    {
-        return {fl, bl, br, fr};
-    }
-};
-
-// Convert chassis twist → four wheel speeds (Kanga mecanum / roller map).
-WheelVelocities twist_to_wheels(const Twist2D & twist, const ChassisGeometry & geom);
-
-// Limit each wheel to ±max_abs. If max_abs is 0 or negative, return all zeros.
-WheelVelocities clamp_wheels(const WheelVelocities & in, double max_abs);
+// Scale the complete vector when any wheel exceeds the joint limit. This
+// preserves the requested chassis-motion ratio. Invalid input returns stop.
+kanga_interfaces::msg::WheelVelocityCommand desaturate_wheel_velocities(
+    const kanga_interfaces::msg::WheelVelocityCommand & in,
+    double max_abs_joint_rad_s);
 
 }  // namespace kanga_core_controller

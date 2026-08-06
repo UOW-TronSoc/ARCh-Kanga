@@ -2,12 +2,12 @@
 # Concatenated before each wheel_*_motor_config.py at commission time.
 # Do not put SERIAL_NUMBER or node_id here (those live in per-wheel overlays).
 #
-# watchdog_timeout = 5 s — kanga_core_controller should stream setpoints at
-# roughly 5–10 Hz while CLOSED_LOOP so the firmware watchdog stays fed.
+# kanga_core_controller normally streams setpoints at roughly 10 Hz while
+# CLOSED_LOOP. The watchdog below is currently disabled; timeout only takes
+# effect if enable_watchdog is set true and the configuration is recommissioned.
 
-# Commissioned motor-shaft velocity limit in turns per second. Keep the
-# drive.yaml runtime actuator limit equal; test_config_merge.py enforces this.
-MOTOR_VELOCITY_LIMIT_TPS = 22.0
+# MOTOR_VELOCITY_LIMIT_TPS is injected ahead of this file by
+# commission_wheels from the selected kanga_core_description drivetrain profile.
 
 odrv.config.dc_bus_overvoltage_trip_level = 36
 odrv.config.dc_bus_undervoltage_trip_level = 21
@@ -47,9 +47,9 @@ odrv.axis0.config.can.torques_msg_rate_ms = 100
 odrv.axis0.config.can.error_msg_rate_ms = 100
 odrv.axis0.config.can.temperature_msg_rate_ms = 100
 odrv.axis0.config.can.bus_voltage_msg_rate_ms = 100
-odrv.axis0.config.enable_watchdog = True
+odrv.axis0.config.enable_watchdog = False
 # Firmware setpoint watchdog (seconds). kanga_core_controller streams ~10 Hz in CLOSED_LOOP.
-odrv.axis0.config.watchdog_timeout = 5
+odrv.axis0.config.watchdog_timeout = 1
 odrv.axis0.config.load_encoder = EncoderId.ONBOARD_ENCODER0
 odrv.axis0.config.commutation_encoder = EncoderId.ONBOARD_ENCODER0
 odrv.config.enable_uart_a = False

@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 
-import re
 import sys
 import unittest
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
+DESCRIPTION = Path(__file__).resolve().parents[2] / "kanga_core_description"
 sys.path.insert(0, str(SCRIPTS))
+sys.path.insert(0, str(DESCRIPTION))
 
 from config_merge import (  # noqa: E402
     WHEEL_IDS,
     merge_motor_configs,
     motor_config_path,
+)
+from kanga_core_description.drivetrain_profile import (  # noqa: E402
+    load_drivetrain_profile,
 )
 
 
@@ -19,7 +23,10 @@ class TestConfigMerge(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.motors = Path(__file__).resolve().parents[1] / "config" / "motors"
-        cls.drive_config = Path(__file__).resolve().parents[1] / "config" / "drive.yaml"
+        profile_path = (
+            DESCRIPTION / "config" / "drivetrains" / "drivetrain_2025.yaml"
+        )
+        cls.profile = load_drivetrain_profile(profile_path)
 
     def test_wheel_ids(self):
         self.assertEqual(WHEEL_IDS, ("fl", "bl", "br", "fr"))
@@ -27,10 +34,11 @@ class TestConfigMerge(unittest.TestCase):
     def test_merge_contains_shared_bus_config_and_wheel_identity(self):
         shared = self.motors / "shared_motor_config.py"
         wheel = motor_config_path(self.motors, "fl")
-        text = merge_motor_configs(shared, wheel)
-        self.assertIn("MOTOR_VELOCITY_LIMIT_TPS =", text)
+        text = merge_motor_configs(
+            shared, wheel, self.profile.parameters["motor_velocity_limit_tps"]
+        )
+        self.assertIn("MOTOR_VELOCITY_LIMIT_TPS = 22.0", text)
         self.assertIn("vel_limit = MOTOR_VELOCITY_LIMIT_TPS", text)
-        self.assertIn("watchdog_timeout = 5", text)
         self.assertIn('SERIAL_NUMBER = "394D353B3231"', text)
         self.assertIn("node_id = 1", text)
         self.assertIn("baud_rate = 250000", text)
@@ -51,39 +59,32 @@ class TestConfigMerge(unittest.TestCase):
     def test_all_wheels_have_serial(self):
         shared = self.motors / "shared_motor_config.py"
         for wid in WHEEL_IDS:
-            merged = merge_motor_configs(shared, motor_config_path(self.motors, wid))
+            merged = merge_motor_configs(
+                shared,
+                motor_config_path(self.motors, wid),
+                self.profile.parameters["motor_velocity_limit_tps"],
+            )
             self.assertIn("SERIAL_NUMBER", merged)
             self.assertIn("node_id", merged)
 
-    def test_commissioned_and_runtime_motor_velocity_limits_match(self):
+    def test_motor_velocity_limit_has_one_profile_source(self):
         shared_text = (self.motors / "shared_motor_config.py").read_text(
             encoding="utf-8"
         )
-        drive_text = self.drive_config.read_text(encoding="utf-8")
+        wheel = motor_config_path(self.motors, "fl")
+        merged = merge_motor_configs(
+            self.motors / "shared_motor_config.py",
+            wheel,
+            self.profile.parameters["motor_velocity_limit_tps"],
+        )
+        self.assertNotIn("MOTOR_VELOCITY_LIMIT_TPS = 22", shared_text)
+        self.assertIn("MOTOR_VELOCITY_LIMIT_TPS = 22.0", merged)
 
-        commissioned = re.search(
-            r"^MOTOR_VELOCITY_LIMIT_TPS\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*$",
-            shared_text,
-            re.MULTILINE,
+    def test_profile_supplies_drive_reduction(self):
+        self.assertEqual(
+            self.profile.parameters["motor_revolutions_per_wheel_revolution"],
+            50.0,
         )
-        runtime = re.search(
-            r"^\s*motor_velocity_limit_tps:\s*([0-9]+(?:\.[0-9]+)?)\s*$",
-            drive_text,
-            re.MULTILINE,
-        )
-        self.assertIsNotNone(commissioned)
-        self.assertIsNotNone(runtime)
-        self.assertEqual(float(commissioned.group(1)), float(runtime.group(1)))
-
-    def test_drive_reduction_is_configured(self):
-        drive_text = self.drive_config.read_text(encoding="utf-8")
-        ratio = re.search(
-            r"^\s*gear_ratio:\s*([0-9]+(?:\.[0-9]+)?)\s*$",
-            drive_text,
-            re.MULTILINE,
-        )
-        self.assertIsNotNone(ratio)
-        self.assertEqual(float(ratio.group(1)), 50.0)
 
 
 if __name__ == "__main__":

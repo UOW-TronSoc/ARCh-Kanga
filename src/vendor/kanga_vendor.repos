@@ -6,4 +6,4 @@ repositories:
   custom_ros_odrive:
     type: git
     url: https://github.com/UOW-TronSoc/custom-ros-odrive.git
-    version: adf5005098fb44191e3bad4d1d61ea1488ad1400
+    version: a0c0e4d71403513750d57aef5d784d16059d78b9

@@ -35,7 +35,7 @@ odrv.axis0.controller.config.spinout_electrical_power_threshold = 30
 odrv.axis0.config.torque_soft_min = -math.inf
 odrv.axis0.config.torque_soft_max = math.inf
 odrv.axis0.trap_traj.config.accel_limit = 40
-odrv.axis0.controller.config.vel_ramp_rate = 40
+odrv.axis0.controller.config.vel_ramp_rate = 80
 odrv.can.config.protocol = Protocol.SIMPLE
 odrv.can.config.baud_rate = 250000
 # Keep state feedback responsive at 50 Hz while retaining bus headroom.

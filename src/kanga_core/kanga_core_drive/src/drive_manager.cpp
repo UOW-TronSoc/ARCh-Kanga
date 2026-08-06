@@ -3,6 +3,7 @@
 #include <cctype>
 #include <chrono>
 #include <cstdlib>
+#include <future>
 #include <sstream>
 #include <sys/wait.h>
 
@@ -33,6 +34,19 @@ std::string shell_quote(const std::string & value)
   }
   out += '\'';
   return out;
+}
+
+// Join per-wheel failures into one service response message.
+std::string join_messages(const std::vector<std::string> & messages)
+{
+  std::ostringstream joined;
+  for (const auto & message : messages) {
+    if (!joined.str().empty()) {
+      joined << ", ";
+    }
+    joined << message;
+  }
+  return joined.str();
 }
 
 }  // namespace
@@ -87,6 +101,14 @@ DriveManager::DriveManager(const rclcpp::NodeOptions & options)
       std::placeholders::_2),
     rmw_qos_profile_services_default, service_callback_group_);
 
+  // Service: clear sticky errors on every wheel without changing axis state.
+  clear_errors_service_ = this->create_service<std_srvs::srv::Trigger>(
+    "~/clear_errors",
+    std::bind(
+      &DriveManager::handle_clear_errors, this, std::placeholders::_1,
+      std::placeholders::_2),
+    rmw_qos_profile_services_default, service_callback_group_);
+
   // One Trigger per wheel — basestation can bind one button → one service.
   for (const auto & wheel_id : wheel_ids_) {
     const std::string service_name = "~/calibrate_" + wheel_id;
@@ -102,77 +124,84 @@ DriveManager::DriveManager(const rclcpp::NodeOptions & options)
   RCLCPP_INFO(this->get_logger(), "drive_manager ready (%zu wheels)", wheel_ids_.size());
 }
 
-bool DriveManager::wait_for_clients(
-  const std::string & wheel_id,
-  const WheelClients & wheel_clients)
+std::vector<std::string> DriveManager::clear_errors_for_all_wheels()
 {
-  // Helper: confirm this wheel's clear_errors + request_axis_state exist.
-  // Short wait — if custom_odrive_node is down, fail the request, don't hang.
-  const std::string wheel_namespace = "/wheel_" + wheel_id;
-  if (!wheel_clients.clear_errors_client->wait_for_service(2s)) {
-    RCLCPP_ERROR(
-      this->get_logger(), "Service not available: %s/clear_errors",
-      wheel_namespace.c_str());
-    return false;
+  using ClearErrorsFuture =
+    rclcpp::Client<std_srvs::srv::Empty>::SharedFuture;
+  std::vector<std::pair<std::string, ClearErrorsFuture>> pending_requests;
+  std::vector<std::string> failures;
+
+  // Dispatch every available request before waiting for any response.
+  for (const auto & wheel_id : wheel_ids_) {
+    auto & client = wheel_clients_by_id_.at(wheel_id).clear_errors_client;
+    if (!client->wait_for_service(2s)) {
+      failures.push_back(wheel_id + ":service unavailable");
+      continue;
+    }
+    auto request = std::make_shared<std_srvs::srv::Empty::Request>();
+    pending_requests.emplace_back(
+      wheel_id, client->async_send_request(request).share());
   }
-  if (!wheel_clients.axis_state_client->wait_for_service(2s)) {
-    RCLCPP_ERROR(
-      this->get_logger(), "Service not available: %s/request_axis_state",
-      wheel_namespace.c_str());
-    return false;
+
+  // All requests share one five-second response window.
+  const auto deadline = std::chrono::steady_clock::now() + 5s;
+  for (auto & pending_request : pending_requests) {
+    if (pending_request.second.wait_until(deadline) !=
+      std::future_status::ready)
+    {
+      failures.push_back(pending_request.first + ":timeout");
+    }
   }
-  return true;
+  return failures;
 }
 
-std_srvs::srv::Empty::Response::SharedPtr DriveManager::call_clear_errors(
-  const rclcpp::Client<std_srvs::srv::Empty>::SharedPtr & client,
-  const std_srvs::srv::Empty::Request::SharedPtr & request,
-  std::chrono::seconds timeout)
+std::vector<std::string> DriveManager::request_axis_state_for_all_wheels(
+  uint32_t requested_state)
 {
-  auto response_future = client->async_send_request(request);
-  if (response_future.wait_for(timeout) != std::future_status::ready) {
-    return nullptr;
-  }
-  return response_future.get();
-}
+  using AxisStateFuture =
+    rclcpp::Client<custom_odrive::srv::AxisState>::SharedFuture;
+  std::vector<std::pair<std::string, AxisStateFuture>> pending_requests;
+  std::vector<std::string> failures;
 
-custom_odrive::srv::AxisState::Response::SharedPtr DriveManager::call_axis_state(
-  const rclcpp::Client<custom_odrive::srv::AxisState>::SharedPtr & client,
-  const custom_odrive::srv::AxisState::Request::SharedPtr & request,
-  std::chrono::seconds timeout)
-{
-  auto response_future = client->async_send_request(request);
-  if (response_future.wait_for(timeout) != std::future_status::ready) {
-    return nullptr;
+  // Dispatch every available request before waiting for any response.
+  for (const auto & wheel_id : wheel_ids_) {
+    auto & client = wheel_clients_by_id_.at(wheel_id).axis_state_client;
+    if (!client->wait_for_service(2s)) {
+      failures.push_back(wheel_id + ":service unavailable");
+      continue;
+    }
+    auto request =
+      std::make_shared<custom_odrive::srv::AxisState::Request>();
+    request->axis_requested_state = requested_state;
+    pending_requests.emplace_back(
+      wheel_id, client->async_send_request(request).share());
   }
-  return response_future.get();
+
+  // All requests share one 15-second response window.
+  const auto deadline = std::chrono::steady_clock::now() + 15s;
+  for (auto & pending_request : pending_requests) {
+    if (pending_request.second.wait_until(deadline) !=
+      std::future_status::ready)
+    {
+      failures.push_back(pending_request.first + ":timeout");
+      continue;
+    }
+    if (!pending_request.second.get()->success) {
+      failures.push_back(pending_request.first + ":request failed");
+    }
+  }
+  return failures;
 }
 
 bool DriveManager::request_idle_for_all_wheels()
 {
-  bool all_wheels_idle = true;
-  for (const auto & wheel_id : wheel_ids_) {
-    auto & wheel_clients = wheel_clients_by_id_.at(wheel_id);
-    if (!wheel_clients.axis_state_client->wait_for_service(2s)) {
-      RCLCPP_ERROR(
-        this->get_logger(), "Cannot request IDLE; service missing for %s",
-        wheel_id.c_str());
-      all_wheels_idle = false;
-      continue;
-    }
-
-    auto axis_state_request =
-      std::make_shared<custom_odrive::srv::AxisState::Request>();
-    axis_state_request->axis_requested_state = kAxisIdle;
-    const auto axis_state_response = call_axis_state(
-      wheel_clients.axis_state_client, axis_state_request, 15s);
-    if (!axis_state_response || !axis_state_response->success) {
-      RCLCPP_ERROR(
-        this->get_logger(), "IDLE request failed for %s", wheel_id.c_str());
-      all_wheels_idle = false;
-    }
+  const auto failures = request_axis_state_for_all_wheels(kAxisIdle);
+  if (!failures.empty()) {
+    RCLCPP_ERROR(
+      this->get_logger(), "IDLE failures: %s",
+      join_messages(failures).c_str());
   }
-  return all_wheels_idle;
+  return failures.empty();
 }
 
 void DriveManager::report_closed_loop_failure(
@@ -207,48 +236,53 @@ void DriveManager::handle_set_closed_loop(
     return;
   }
 
+  // Clear all wheels together before requesting CLOSED_LOOP together.
+  const auto clear_errors_failures = clear_errors_for_all_wheels();
+  if (!clear_errors_failures.empty()) {
+    report_closed_loop_failure(
+      response, "clear_errors failed: " +
+      join_messages(clear_errors_failures));
+    return;
+  }
+
+  const auto closed_loop_failures =
+    request_axis_state_for_all_wheels(kAxisClosedLoop);
+  if (!closed_loop_failures.empty()) {
+    report_closed_loop_failure(
+      response, "CLOSED_LOOP failed: " +
+      join_messages(closed_loop_failures));
+    return;
+  }
+
   std::ostringstream result_messages;
-
-  // Fail the whole request if any wheel cannot transition, then request IDLE
-  // for all wheels so a partial CLOSED_LOOP sequence cannot remain armed.
   for (const auto & wheel_id : wheel_ids_) {
-    auto & wheel_clients = wheel_clients_by_id_.at(wheel_id);
-    if (!wait_for_clients(wheel_id, wheel_clients)) {
-      report_closed_loop_failure(
-        response, "services missing for " + wheel_id);
-      return;
-    }
-
-    // Clear sticky faults before CLOSED_LOOP so a prior trip does not
-    // immediately bounce the axis back out.
-    auto clear_errors_request =
-      std::make_shared<std_srvs::srv::Empty::Request>();
-    const auto clear_errors_response = call_clear_errors(
-      wheel_clients.clear_errors_client, clear_errors_request, 5s);
-    if (!clear_errors_response) {
-      report_closed_loop_failure(
-        response, "clear_errors timed out for " + wheel_id);
-      return;
-    }
-
-    auto axis_state_request =
-      std::make_shared<custom_odrive::srv::AxisState::Request>();
-    axis_state_request->axis_requested_state = kAxisClosedLoop;
-    const auto axis_state_response = call_axis_state(
-      wheel_clients.axis_state_client, axis_state_request, 15s);
-    if (!axis_state_response || !axis_state_response->success) {
-      report_closed_loop_failure(
-        response, "CLOSED_LOOP failed for " + wheel_id);
-      return;
-    }
     if (!result_messages.str().empty()) {
       result_messages << ", ";
     }
     result_messages << wheel_id << ":closed_loop";
   }
-
   response->success = true;
   response->message = result_messages.str();
+}
+
+void DriveManager::handle_clear_errors(
+  const std::shared_ptr<std_srvs::srv::Trigger::Request>/*request*/,
+  std::shared_ptr<std_srvs::srv::Trigger::Response> response)
+{
+  // Refuse overlapping state, calibration, or error-clearing operations.
+  std::unique_lock<std::mutex> operation_lock(
+    drive_operation_mutex_, std::try_to_lock);
+  if (!operation_lock.owns_lock()) {
+    response->success = false;
+    response->message = "busy";
+    return;
+  }
+
+  const auto failures = clear_errors_for_all_wheels();
+  response->success = failures.empty();
+  response->message = response->success ?
+    "cleared errors on all wheels" :
+    "clear_errors failed: " + join_messages(failures);
 }
 
 void DriveManager::handle_calibrate(

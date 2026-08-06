@@ -1,0 +1,10 @@
+# Conservative limits for off-ground joystick testing. Each joystick axis is a
+# percentage from -1 to 1 and is multiplied by the corresponding maximum.
+bench_teleop:
+  ros__parameters:
+    max_vx_m_s: 0.28
+    max_vy_m_s: 0.10
+    max_wz_rad_s: 0.28
+    publish_rate_hz: 20.0
+    joy_timeout_s: 0.25
+    neutral_threshold: 0.05

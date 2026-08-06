@@ -15,7 +15,8 @@ kinematics here.
   motor safety clamp, CLOSED_LOOP-gated motor-shaft `ControlMessage`
 - Shared + per-wheel Fibre motor configs (merged at commission time)
 - `commission_wheels` CLI (Python) wrapping `custom_odrive commission`
-- `drive_manager` (C++) — `set_closed_loop` + per-wheel `calibrate_<id>` services
+- `drive_manager` (C++) — drive state, all-wheel error clearing, and per-wheel
+  calibration services
 - `wheel_joint_state_publisher` (C++) — `/wheel_*/controller_status` → `wheel_joint_states`
 
 ## Does not own
@@ -78,6 +79,9 @@ The optional `drivetrain_profile` argument defaults to `drivetrain_2025`.
 # Enter / leave CLOSED_LOOP on all wheels
 ros2 service call /drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: true}"
 ros2 service call /drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: false}"
+
+# Clear sticky errors on every wheel without changing axis state
+ros2 service call /drive_manager/clear_errors std_srvs/srv/Trigger "{}"
 
 # Calibrate one wheel (basestation motor-status button target)
 ros2 service call /drive_manager/calibrate_fl std_srvs/srv/Trigger "{}"

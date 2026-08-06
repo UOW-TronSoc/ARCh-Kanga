@@ -1,7 +1,7 @@
 #pragma once
 
 /*
- * DriveManager — CLOSED_LOOP / IDLE requests and single-wheel calibration.
+ * DriveManager — drive state, all-wheel error clearing, and calibration.
  *
  * Owns ROS services only; does not stream setpoints (that is kanga_core_controller)
  * and does not talk Fibre/CAN itself (commission_wheels → custom_odrive commission).
@@ -13,6 +13,9 @@
  *     data=true  → clear_errors, then CLOSED_LOOP (state 8) on each wheel
  *     data=false → IDLE (state 1) on each wheel
  *     Does NOT call set_enabled / start_enabled — use /drivestop for global stop.
+ *
+ *   ~/clear_errors  (std_srvs/Trigger)
+ *     Clear sticky errors on every wheel without changing requested axis state.
  *
  *   ~/calibrate_fl, ~/calibrate_bl, ~/calibrate_br, ~/calibrate_fr  (std_srvs/Trigger)
  *     Run Fibre FULL_CALIBRATION on that one wheel.
@@ -52,22 +55,12 @@ private:
     rclcpp::Client<custom_odrive::srv::AxisState>::SharedPtr axis_state_client;
   };
 
-  // Return true if both services for this wheel are advertised (short 2s wait).
-  bool wait_for_clients(
-    const std::string & wheel_id,
-    const WheelClients & wheel_clients);
+  // Send clear-errors requests to every wheel together and return any failures.
+  std::vector<std::string> clear_errors_for_all_wheels();
 
-  // Call one wheel's clear-errors service and wait for its response.
-  std_srvs::srv::Empty::Response::SharedPtr call_clear_errors(
-    const rclcpp::Client<std_srvs::srv::Empty>::SharedPtr & client,
-    const std_srvs::srv::Empty::Request::SharedPtr & request,
-    std::chrono::seconds timeout);
-
-  // Call one wheel's axis-state service and wait for its response.
-  custom_odrive::srv::AxisState::Response::SharedPtr call_axis_state(
-    const rclcpp::Client<custom_odrive::srv::AxisState>::SharedPtr & client,
-    const custom_odrive::srv::AxisState::Request::SharedPtr & request,
-    std::chrono::seconds timeout);
+  // Send one requested axis state to every wheel together and return failures.
+  std::vector<std::string> request_axis_state_for_all_wheels(
+    uint32_t requested_state);
 
   // Attempt to leave every wheel safe in IDLE, even if an earlier one fails.
   bool request_idle_for_all_wheels();
@@ -81,6 +74,11 @@ private:
   void handle_set_closed_loop(
     const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
     std::shared_ptr<std_srvs::srv::SetBool::Response> response);
+
+  // Handler for ~/clear_errors — attempt every wheel even if one call fails.
+  void handle_clear_errors(
+    const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+    std::shared_ptr<std_srvs::srv::Trigger::Response> response);
 
   // Shared body for ~/calibrate_<id> Trigger services.
   void handle_calibrate(
@@ -99,6 +97,7 @@ private:
   rclcpp::CallbackGroup::SharedPtr service_callback_group_;
   std::unordered_map<std::string, WheelClients> wheel_clients_by_id_;
   rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr set_closed_loop_service_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr clear_errors_service_;
   std::vector<rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr>
   calibration_services_;
 };

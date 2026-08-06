@@ -11,6 +11,9 @@ services:
     network_mode: host
     ipc: host
     privileged: true
+    # SDL-based ROS joy reads /dev/input/event*, which are owned by this host group.
+    group_add:
+      - "${KANGA_INPUT_GID:-107}"
     stdin_open: true
     tty: true
     working_dir: /workspace

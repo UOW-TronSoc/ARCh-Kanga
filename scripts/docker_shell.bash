@@ -10,6 +10,8 @@ set -euo pipefail
 # remain editable by the host user. Defaults in Compose still cover UID/GID 1000.
 export KANGA_UID="${KANGA_UID:-$(id -u)}"
 export KANGA_GID="${KANGA_GID:-$(id -g)}"
+# Let ROS joy read the host's /dev/input/event* devices from inside Docker.
+export KANGA_INPUT_GID="${KANGA_INPUT_GID:-$(stat -c '%g' /dev/input/event0 2>/dev/null || echo 107)}"
 
 # docker compose run --rm gives the development user a fresh home directory on
 # every invocation. Persist odrivetool's device descriptor cache from the host;

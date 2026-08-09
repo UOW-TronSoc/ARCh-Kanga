@@ -3,11 +3,15 @@
 <package format="3">
   <name>kanga_whs</name>
   <version>0.0.0</version>
-  <description>Whole-robot motion-stop state and software coordination for Kanga</description>
+  <description>Whole-robot software motion-stop for Kanga (publishes /drivestop)</description>
   <maintainer email="uow-tronsoc@users.noreply.github.com">UOW TronSoc</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
 
   <export>
     <build_type>ament_cmake</build_type>

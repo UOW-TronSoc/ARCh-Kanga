@@ -1,39 +1,77 @@
 # kanga_whs
 
-Whole-robot motion-stop software for Kanga.
+Software whole-robot motion-stop for Kanga. This package owns the **command**
+published on `/drivestop`. It does not cut motor power and is not a hardwired
+or safety-rated e-stop.
 
-The minimum 2027 goal is deliberately simple: a physical stop switch connected
-to an NVIDIA Jetson GPIO, plus a software override script for exceptional
-mid-competition recovery. The stop applies to every motor on the rover core and
-attached payloads, so interfaces should not call it a drive-only stop.
+## Model
 
-## Owns
+One control API, one output:
 
-- Reading and publishing the GPIO stop-switch state
-- A whole-robot motion-inhibit state used by core and payload controllers
-- The deliberate competition override command or script
-- Clear operator-visible indication when the override is active
+```text
+  CLI / future GPIO watcher / GUI / …
+           |
+           v
+  ~/set_drivestop   (std_srvs/SetBool)
+           |
+        whs_node
+           |
+           v
+      /drivestop    (std_msgs/Bool, reliable + transient_local)
+           |
+           v
+  consumers (custom_odrive, …) latch and enforce locally
+```
 
-## Initial behaviour
+- `data: true` → request stop (inhibit motion)
+- `data: false` → allow motion again
 
-- An active GPIO switch inhibits core and payload motor commands.
-- Controllers reject motion while the inhibit is active.
-- The override explicitly bypasses the GPIO-triggered software inhibit.
-- The override is a manual competition recovery action, not an automatic fault
-  response or general operating mode.
-- The override state should be obvious to the operator and cleared deliberately
-  when it is no longer required.
+GPIO, joystick, and GUI are **clients of the service**, not separate inputs
+inside this package. When a GPIO watcher exists, it should call
+`~/set_drivestop` the same way a human does from the CLI.
 
-## Safety boundary
+Motor latching, IDLE requests, and per-axis enable stay in each consumer
+(e.g. `custom_odrive`). This node only remembers and publishes the last
+software-stop command so late subscribers still see it.
 
-In this initial design the physical switch is an input to software; it does not
-directly interrupt motor power or hardware enables. Stopping therefore depends
-on the Jetson, GPIO monitoring, and motor-control software functioning. Do not
-describe this implementation as a hardwired or safety-rated emergency stop.
+No custom `kanga_interfaces` messages. No joy/polarity logic here. Battery-based
+stop and power interruption are out of scope for this iteration.
 
-A future hardwired interruption can be added if competition rules or risk
-assessment require one, but it is outside the minimum implementation.
+## Who triggers stop
 
-Transport-neutral state and override interfaces belong in `kanga_interfaces`.
-Exact GPIO electrical configuration, default state, startup behaviour, and
-controller response must be defined and tested during implementation.
+`kanga_whs` does **not** subscribe to battery, drive, or other domain topics to
+decide when to stop. Domain packages (or CLI/GUI/future GPIO watchers) decide
+and call `~/set_drivestop`. This package only owns publishing `/drivestop`.
+
+If several automatic sources later need to assert stop, do not use bare
+last-writer-wins `SetBool` clears. Prefer named inhibit sources ORed inside
+WHS, or a small policy node that is the sole caller of `set_drivestop`.
+
+## GPIO stub
+
+`include/kanga_whs/gpio_stop_input.hpp` is a placeholder for a future Jetson
+GPIO reader. It is not wired into `whs_node` yet.
+
+## Run
+
+```bash
+ros2 launch kanga_whs whs.launch.py
+
+# assert stop
+ros2 service call /whs_node/set_drivestop std_srvs/srv/SetBool "{data: true}"
+
+# clear stop (allow)
+ros2 service call /whs_node/set_drivestop std_srvs/srv/SetBool "{data: false}"
+
+ros2 topic echo /drivestop
+```
+
+## Virtual test (no hardware)
+
+Inside the kanga-dev container (after vendor import + build):
+
+```bash
+./scripts/test_whs_drivestop.bash
+```
+
+Uses `vcan0` so `custom_odrive` can start without a physical CAN adapter.

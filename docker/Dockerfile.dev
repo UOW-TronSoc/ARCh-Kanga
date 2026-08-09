@@ -16,12 +16,15 @@ ARG USER_GID=1000
 COPY docker/apt-packages.txt /tmp/apt-packages.txt
 COPY docker/pip-packages.txt /tmp/pip-packages.txt
 
+# Strip CR so Windows-checkout CRLF package lists still install cleanly.
 RUN apt-get update \
-    && xargs -r apt-get install -y --no-install-recommends < /tmp/apt-packages.txt \
+    && tr -d '\r' < /tmp/apt-packages.txt \
+        | xargs -r apt-get install -y --no-install-recommends \
     && rm -f /tmp/apt-packages.txt \
     && rm -rf /var/lib/apt/lists/* \
-    && pip3 install --no-cache-dir -r /tmp/pip-packages.txt \
-    && rm -f /tmp/pip-packages.txt
+    && tr -d '\r' < /tmp/pip-packages.txt > /tmp/pip-packages.lf.txt \
+    && pip3 install --no-cache-dir -r /tmp/pip-packages.lf.txt \
+    && rm -f /tmp/pip-packages.txt /tmp/pip-packages.lf.txt
 
 # Match the development user to the host so bind-mounted build files are not
 # owned by root. sudo is retained for rosdep to install declared dependencies.

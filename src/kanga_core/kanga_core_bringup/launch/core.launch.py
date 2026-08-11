@@ -33,9 +33,13 @@ def generate_launch_description():
     use_drive = LaunchConfiguration("use_drive")
     use_controller = LaunchConfiguration("use_controller")
     use_suspension_state = LaunchConfiguration("use_suspension_state")
+    use_body_pose_tf = LaunchConfiguration("use_body_pose_tf")
+    body_pose_parent_frame = LaunchConfiguration("body_pose_parent_frame")
+    body_pose_child_frame = LaunchConfiguration("body_pose_child_frame")
     use_joint_state_publisher = LaunchConfiguration("use_joint_state_publisher")
     use_gui = LaunchConfiguration("use_gui")
     use_rviz = LaunchConfiguration("use_rviz")
+    rviz_fixed_frame = LaunchConfiguration("rviz_fixed_frame")
     use_onboard_control = LaunchConfiguration("use_onboard_control")
     device_id = LaunchConfiguration("device_id")
     joint_state_sources = LaunchConfiguration("joint_state_sources")
@@ -48,6 +52,7 @@ def generate_launch_description():
             "use_joint_state_publisher": use_joint_state_publisher,
             "use_gui": use_gui,
             "use_rviz": use_rviz,
+            "rviz_fixed_frame": rviz_fixed_frame,
             "joint_state_sources": joint_state_sources,
         },
     )
@@ -72,7 +77,18 @@ def generate_launch_description():
     suspension_state = _include(
         "kanga_core_microcontroller",
         "suspension_state.launch.py",
+        arguments={"drivetrain_profile": drivetrain_profile},
         condition=IfCondition(use_suspension_state),
+    )
+
+    body_pose_tf = _include(
+        "kanga_core_microcontroller",
+        "body_pose_tf.launch.py",
+        arguments={
+            "body_pose_parent_frame": body_pose_parent_frame,
+            "body_pose_child_frame": body_pose_child_frame,
+        },
+        condition=IfCondition(use_body_pose_tf),
     )
 
     # Temporary local-control implementation until kanga_onboard_control gains
@@ -112,6 +128,21 @@ def generate_launch_description():
                 description="Start differential-bar suspension state mapping",
             ),
             DeclareLaunchArgument(
+                "use_body_pose_tf",
+                default_value="false",
+                description="Broadcast body/pose as a visualization transform",
+            ),
+            DeclareLaunchArgument(
+                "body_pose_parent_frame",
+                default_value="body_origin",
+                description="Reference frame expected on body/pose",
+            ),
+            DeclareLaunchArgument(
+                "body_pose_child_frame",
+                default_value="base_link",
+                description="Body frame driven by body/pose",
+            ),
+            DeclareLaunchArgument(
                 "use_joint_state_publisher",
                 default_value="false",
                 description=(
@@ -139,6 +170,11 @@ def generate_launch_description():
                 description="Start RViz with the core_2026 configuration",
             ),
             DeclareLaunchArgument(
+                "rviz_fixed_frame",
+                default_value="base_link",
+                description="Fixed frame passed to RViz",
+            ),
+            DeclareLaunchArgument(
                 "use_onboard_control",
                 default_value="false",
                 description="Start the provisional local gamepad control path",
@@ -152,6 +188,7 @@ def generate_launch_description():
             drive,
             controller,
             suspension_state,
+            body_pose_tf,
             onboard_control,
         ]
     )

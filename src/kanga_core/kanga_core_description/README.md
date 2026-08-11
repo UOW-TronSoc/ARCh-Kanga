@@ -55,6 +55,10 @@ The launch starts `robot_state_publisher`, the joint-state slider GUI, and RViz.
 RViz uses `base_link` as its fixed frame and displays the visual meshes. Enable
 the disabled TF display when frame debugging is useful.
 
+Override the RViz fixed frame when a development adapter provides a parent for
+`base_link`, for example `rviz_fixed_frame:=body_origin` with the preliminary
+ESP32 body-pose transform.
+
 On hosts where `XAUTHORITY` is not set, provide the Xauthority file explicitly:
 
 ```bash
@@ -119,6 +123,12 @@ differential-bar joint has a symmetrical ±70° range. Measured diff-bar state i
 mapped to the suspension joints by `kanga_core_microcontroller`; the description
 only owns the link/joint geometry and limits.
 
+The detailed STL files are visual geometry only. Collision geometry is kept
+deliberately lightweight for simulation: main-chassis and rear LED/e-stop
+boxes, an antenna cylinder, a differential-bar box, one cylinder per wheel,
+and separate cylinders for the two linkage arms, their pivot barrel, and two
+drivetrain housings on each suspension side.
+
 Only the detailed core model was migrated. The old `kanga_core_simple` variant
 is intentionally excluded.
 
@@ -133,11 +143,12 @@ not copies of consumer-specific derived values:
 - grouser angle and limited-holonomic hardware capability
 - motor revolutions per wheel revolution
 - commissioned motor velocity and acceleration limits in turns/s and turns/s²
+- suspension linkage L1/L2/L3 dimensions and physical theta at beta = 0
 
 The profile loader derives wheel radius, wheel-centre half-length/half-width,
 and maximum wheel-joint velocity and acceleration. It then produces one shared
-ROS-parameter dictionary used by controller, drive, and joint feedback. Each
-node declares and reads only the entries it needs.
+ROS-parameter dictionary used by controller, drive, wheel feedback, and
+suspension state. Each node declares and reads only the entries it needs.
 
 Ordinary new profile values are forwarded automatically: add the value to a
 group in the YAML, then declare it in whichever node needs it. The loader only

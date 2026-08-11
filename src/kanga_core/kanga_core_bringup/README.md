@@ -14,6 +14,7 @@ core stack. It currently composes:
 - the physical ODrive stack;
 - the `/cmd_vel` wheel controller;
 - differential-bar suspension state mapping;
+- optional visualization of ESP32 `body/pose` as TF;
 - optional wheel/suspension JointState aggregation;
 - optional joint sliders and RViz; and
 - the existing bench gamepad launch as provisional onboard control.
@@ -52,6 +53,31 @@ The headless joint-state publisher merges `wheel_joint_states` and
 `suspension_joint_states` into `/joint_states`. To use manual sliders instead,
 also pass `use_gui:=true`. The GUI option is ignored when
 `use_joint_state_publisher:=false`.
+
+To visualize preliminary ESP32 body pose, start the pose-to-TF adapter and make
+RViz use its reference frame:
+
+```bash
+ros2 launch kanga_core_bringup core.launch.py \
+  use_drive:=false \
+  use_controller:=false \
+  use_joint_state_publisher:=true \
+  use_body_pose_tf:=true \
+  use_rviz:=true \
+  rviz_fixed_frame:=body_origin
+```
+
+The adapter consumes `body/pose`; `body/twist` remains published by the future
+CAN bridge but is intentionally unused for now. Do not enable
+`use_body_pose_tf` alongside a localisation system that also parents
+`base_link`.
+
+With no ESP32 connected, bringup starts in a neutral visual state: the body
+transform is identity and the differential-bar and suspension joint positions
+are zero. After the first valid body pose, the visualization adapter republishes
+that last accepted pose so its dynamic TF does not expire. This is visual state,
+not proof that fresh IMU data is arriving; use the source topic timestamp for
+freshness and fault handling.
 
 To enable the current local controller test path, connect the gamepad and pass
 `use_onboard_control:=true`. This presently includes

@@ -140,6 +140,10 @@ def load_drivetrain_profile(profile: str | Path) -> DrivetrainProfile:
     overall_length = _positive_number(parameters, "overall_wheel_envelope_length_m")
     overall_width = _positive_number(parameters, "overall_wheel_envelope_width_m")
     grouser_angle = _positive_number(parameters, "grouser_angle_deg")
+    _positive_number(parameters, "suspension_linkage_l1_mm")
+    _positive_number(parameters, "suspension_linkage_l2_mm")
+    _positive_number(parameters, "suspension_linkage_l3_mm")
+    _positive_number(parameters, "suspension_theta_at_beta_zero_deg")
     _boolean(parameters, "limited_holonomic")
 
     if overall_length <= wheel_diameter:

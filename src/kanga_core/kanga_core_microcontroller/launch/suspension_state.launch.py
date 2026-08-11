@@ -1,12 +1,20 @@
-"""Start differential-bar to suspension JointState mapping."""
+"""Start drivetrain-profiled differential-bar suspension state mapping."""
 
 from launch import LaunchDescription
-from launch.substitutions import PathJoinSubstitution
+from launch.actions import DeclareLaunchArgument, LogInfo, OpaqueFunction
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
+from kanga_core_description.drivetrain_profile import (
+    DEFAULT_DRIVETRAIN_PROFILE,
+    load_drivetrain_profile,
+)
 
-def generate_launch_description():
+
+def _launch_setup(context):
+    profile_ref = LaunchConfiguration("drivetrain_profile").perform(context)
+    profile = load_drivetrain_profile(profile_ref)
     parameters = PathJoinSubstitution(
         [
             FindPackageShare("kanga_core_microcontroller"),
@@ -15,14 +23,31 @@ def generate_launch_description():
         ]
     )
 
+    return [
+        LogInfo(
+            msg=(
+                f"Suspension using {profile.profile_id} "
+                f"({profile.display_name})"
+            )
+        ),
+        Node(
+            package="kanga_core_microcontroller",
+            executable="suspension_joint_state_publisher",
+            name="suspension_joint_state_publisher",
+            parameters=[parameters, profile.parameters],
+            output="screen",
+        ),
+    ]
+
+
+def generate_launch_description():
     return LaunchDescription(
         [
-            Node(
-                package="kanga_core_microcontroller",
-                executable="suspension_joint_state_publisher",
-                name="suspension_joint_state_publisher",
-                parameters=[parameters],
-                output="screen",
-            )
+            DeclareLaunchArgument(
+                "drivetrain_profile",
+                default_value=DEFAULT_DRIVETRAIN_PROFILE,
+                description="Drivetrain profile id from kanga_core_description",
+            ),
+            OpaqueFunction(function=_launch_setup),
         ]
     )

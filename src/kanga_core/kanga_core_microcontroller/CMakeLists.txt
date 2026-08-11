@@ -6,9 +6,11 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
+find_package(geometry_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
 
 add_library(suspension_kinematics src/suspension_kinematics.cpp)
 target_include_directories(suspension_kinematics PUBLIC
@@ -28,9 +30,20 @@ ament_target_dependencies(suspension_joint_state_publisher
 )
 target_compile_features(suspension_joint_state_publisher PRIVATE cxx_std_17)
 
+add_executable(body_pose_tf_broadcaster
+  src/body_pose_tf_broadcaster.cpp
+)
+ament_target_dependencies(body_pose_tf_broadcaster
+  geometry_msgs
+  rclcpp
+  tf2_ros
+)
+target_compile_features(body_pose_tf_broadcaster PRIVATE cxx_std_17)
+
 install(TARGETS
   suspension_kinematics
   suspension_joint_state_publisher
+  body_pose_tf_broadcaster
   EXPORT export_suspension_kinematics
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib

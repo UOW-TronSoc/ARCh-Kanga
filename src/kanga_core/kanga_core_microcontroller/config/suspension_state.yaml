@@ -1,7 +1,7 @@
 suspension_joint_state_publisher:
   ros__parameters:
-    # Linear placeholder: ±70° differential bar maps to equal ±30° suspension.
-    # Replace the mapping implementation when measured kinematics are available.
+    # Nonlinear linkage model using the measured L1/L2/L3 geometry. The
+    # differential bar is limited to ±70° and suspension output to ±30°.
     diff_bar_limit_rad: 1.2217304763960306
     suspension_limit_rad: 0.5235987755982988
     diff_bar_joint_name: diff_bar_joint

@@ -33,6 +33,7 @@ kanga_core_microcontroller/
 ├── include/                    Testable host-side C++ libraries
 ├── src/
 │   ├── esp32_can_bridge.cpp    Future CAN-to-ROS executable
+│   ├── body_pose_tf_*.cpp      Visualization-only pose-to-TF adapter
 │   └── suspension_*.cpp        Suspension mapping executable and library
 ├── config/                     Host-side ROS parameters
 ├── launch/                     Host-side ROS launch files
@@ -50,6 +51,7 @@ code can live beside it as `.h` and `.cpp` files.
 |---|---|---|
 | ESP32 firmware | Sensor sampling, encoder counts, IMU access, servo I/O, CAN framing, device timestamps and status | ROS, TF, URDF geometry, or suspension kinematics |
 | ESP32 CAN bridge | SocketCAN transport, protocol validation, unit conversion/calibration, typed ROS topics and servo command forwarding | Robot geometry or TF |
+| Body pose TF node | Mirror an already-processed `body/pose` sample into a development TF | Pose estimation, sensor fusion, twist processing, or production odometry |
 | Suspension state node | Diff-bar angle limits and the replaceable diff-bar-to-suspension equation | CAN framing, encoder drivers, or TF |
 
 The intended state path is:
@@ -129,22 +131,81 @@ tare/startup reference suitable for diagnostics and visualization. The CAN
 bridge must not publish `odom -> base_link`; ownership of that transform remains
 with the future localisation estimator.
 
+### Preliminary pose visualization
+
+`body_pose_tf_broadcaster` subscribes to `body/pose` and broadcasts its existing
+translation and quaternion as `body_origin -> base_link`. It does not subscribe
+to `body/twist`, calculate pose, integrate velocity, or perform IMU processing.
+It rejects non-finite poses, unexpected parent frames, and badly formed
+quaternions; the small final quaternion normalization is only TF input hygiene.
+While waiting for its first valid pose after launch, it publishes an identity
+`body_origin -> base_link` transform. It then republishes the latest accepted
+pose at 10 Hz so a one-shot test message remains visible and the dynamic TF does
+not expire. This last-known TF deliberately does not represent sensor freshness;
+consumers that need freshness must inspect the timestamped `body/pose` topic.
+
+Start it directly:
+
+```bash
+ros2 launch kanga_core_microcontroller body_pose_tf.launch.py
+```
+
+Publish a preliminary pose one metre forward with 90° yaw:
+
+```bash
+ros2 topic pub /body/pose geometry_msgs/msg/PoseWithCovarianceStamped \
+  "{header: {frame_id: body_origin}, pose: {pose: {position: {x: 1.0}, orientation: {z: 0.7071067811865475, w: 0.7071067811865476}}}}" \
+  --rate 10
+```
+
+Use `Ctrl+C` to stop the simulated stream. The real ESP32 bridge will publish
+continuously with its measurement timestamps.
+
+This broadcaster is disabled by default in unified bringup. It must not run at
+the same time as another TF authority publishing a different parent for
+`base_link`.
+
+### Future closed-loop use
+
+The ESP32 body state is not inherently limited to visualization. Roll, pitch,
+angular velocity, and later fused motion estimates may support terrain-aware
+drive control, slope compensation, rollover limits, slip handling, payload
+stabilization, or a controller that no longer assumes perfectly planar motion.
+
+Controllers should normally consume the timestamped `body/pose`, `body/twist`,
+or a later fused `nav_msgs/msg/Odometry` topic directly rather than reading TF
+as their feedback interface. Topics preserve covariance and make freshness and
+failure handling explicit. TF remains the shared geometric representation for
+visualization and frame conversion.
+
+Before this state becomes authoritative control feedback, it needs measured
+axis alignment, latency, update rate, covariance, dropout/staleness handling,
+and fusion with the appropriate wheel, visual, SLAM, or other position source.
+The BNO086-only pose cannot provide reliable translational position, and its
+magnetometer-free relative yaw will drift. Once a fused estimator is selected,
+that estimator—not `body_pose_tf_broadcaster`—should own `odom -> base_link`.
+
 ## Suspension joint state
 
 `suspension_joint_state_publisher` currently subscribes to a calibrated
 `std_msgs/msg/Float64` angle in radians on `diff_bar_angle`. Raw encoder counts,
 calibration, and ESP32 CAN transport are deferred to the future bridge node.
 
-The temporary linear model clamps the differential bar to ±70°, maps that
-range to ±30°, and assigns the same angle to both suspension joints:
-
-```text
-left_suspension_joint = right_suspension_joint = diff_bar_joint × 30/70
-```
+The linkage model clamps the differential bar (`beta`) to ±70°, solves the
+three-link closure equation using the drivetrain profile's L1/L2/L3 geometry
+and beta-zero theta reference, and returns
+the suspension displacement from the 30° physical reference. The returned
+suspension angle uses the opposite sign to physical `theta` and is limited to
+±30°. The same solved angle is assigned to both suspension joints. The current
+values live in `kanga_core_description/config/drivetrains/drivetrain_2025.yaml`
+so a later drivetrain iteration can replace them in its own profile.
 
 It publishes the three positions as `sensor_msgs/msg/JointState` on
 `suspension_joint_states`. Replace the pure kinematics implementation when the
-physical relationship is solved; the ROS node boundary can remain unchanged.
+linkage geometry changes; the ROS node boundary can remain unchanged.
+While waiting for the first valid encoder angle after launch, it publishes all
+three joints at zero. The neutral fallback stops once encoder data arrives and
+is not reinstated after a subsequent sensor dropout.
 
 Run without hardware in three terminals after sourcing the workspace:
 
@@ -159,3 +220,14 @@ ros2 topic echo /suspension_joint_states --once
 ros2 topic pub /diff_bar_angle std_msgs/msg/Float64 \
   "{data: 1.2217304763960306}" --once
 ```
+
+For a continuous visualization test, run the manual sweep publisher from the
+workspace source tree:
+
+```bash
+python3 src/kanga_core/kanga_core_microcontroller/test/sweep_diff_bar_angle.py
+```
+
+It publishes a triangle wave on `/diff_bar_angle` from -60° to +60° in five
+seconds and back to -60° in another five seconds. The ten-second cycle repeats
+until stopped with `Ctrl+C`.

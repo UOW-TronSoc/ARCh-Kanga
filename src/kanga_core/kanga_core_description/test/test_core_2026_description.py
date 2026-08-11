@@ -3,6 +3,7 @@ import math
 import subprocess
 import xml.etree.ElementTree as ET
 
+import pytest
 import yaml
 
 
@@ -109,6 +110,93 @@ def test_core_2026_meshes_resolve_inside_package() -> None:
         assert uri.startswith(package_prefix)
         relative_path = uri.removeprefix(package_prefix)
         assert (PACKAGE_ROOT / relative_path).is_file(), uri
+
+
+def test_collision_model_uses_only_simplified_primitives() -> None:
+    result = _expand()
+    assert result.returncode == 0, result.stderr
+    robot = ET.fromstring(result.stdout)
+
+    def collision_shapes(link_name: str) -> list[ET.Element]:
+        link = robot.find(f"./link[@name='{link_name}']")
+        assert link is not None
+        shapes = []
+        for collision in link.findall("collision"):
+            geometry = collision.find("geometry")
+            assert geometry is not None
+            assert len(geometry) == 1
+            shapes.append(geometry[0])
+        return shapes
+
+    core_shapes = collision_shapes("kanga_core")
+    assert [shape.tag for shape in core_shapes] == ["box", "box", "cylinder"]
+    assert core_shapes[0].attrib["size"] == "0.683 0.3822 0.1228"
+    assert core_shapes[1].attrib["size"] == "0.070 0.2583 0.1838"
+
+    core_link = robot.find("./link[@name='kanga_core']")
+    assert core_link is not None
+    core_collisions = core_link.findall("collision")
+    main_body_origin = core_collisions[0].find("origin")
+    rear_body_origin = core_collisions[1].find("origin")
+    assert main_body_origin is not None
+    assert rear_body_origin is not None
+    assert main_body_origin.attrib["xyz"] == "0.03833 0 0.0614"
+    assert rear_body_origin.attrib["xyz"] == "-0.24116 -0.00339 0.2147"
+
+    # The main box keeps the existing body bottom at zero; the rear box begins
+    # at its top and reaches the original core-mesh maximum height.
+    assert 0.0614 - 0.1228 / 2.0 == pytest.approx(0.0)
+    assert 0.2147 - 0.1838 / 2.0 == pytest.approx(0.1228)
+    assert 0.2147 + 0.1838 / 2.0 == pytest.approx(0.3066)
+
+    antenna_origin = core_collisions[2].find("origin")
+    antenna_cylinder = core_collisions[2].find("geometry/cylinder")
+    assert antenna_origin is not None
+    assert antenna_cylinder is not None
+    antenna_center_z = float(antenna_origin.attrib["xyz"].split()[2])
+    antenna_length = float(antenna_cylinder.attrib["length"])
+    assert antenna_center_z - antenna_length / 2.0 == pytest.approx(0.0541)
+    assert antenna_center_z + antenna_length / 2.0 == pytest.approx(1.1851)
+
+    for wheel_name in ("wheel_fl", "wheel_bl", "wheel_fr", "wheel_br"):
+        wheel_shapes = collision_shapes(wheel_name)
+        assert [shape.tag for shape in wheel_shapes] == ["cylinder"]
+        assert float(wheel_shapes[0].attrib["radius"]) == pytest.approx(0.125)
+        assert float(wheel_shapes[0].attrib["length"]) == pytest.approx(0.18)
+
+    for suspension_name in ("left_suspension", "right_suspension"):
+        suspension_link = robot.find(f"./link[@name='{suspension_name}']")
+        assert suspension_link is not None
+        suspension_collisions = suspension_link.findall("collision")
+        suspension_shapes = collision_shapes(suspension_name)
+        assert [shape.tag for shape in suspension_shapes] == ["cylinder"] * 5
+        radii = [float(shape.attrib["radius"]) for shape in suspension_shapes]
+        assert radii == pytest.approx([0.025, 0.025, 0.026, 0.065, 0.065])
+
+        # The two arms are straight, parallel to the suspension plane, and
+        # offset from the joint frame. They must not tilt toward wheel centres.
+        for arm_collision in suspension_collisions[:2]:
+            origin = arm_collision.find("origin")
+            assert origin is not None
+            xyz = [float(value) for value in origin.attrib["xyz"].split()]
+            rpy = [float(value) for value in origin.attrib["rpy"].split()]
+            assert xyz[2] == pytest.approx(-0.0334)
+            assert rpy[1] == pytest.approx(math.pi / 2.0, abs=1e-5)
+
+        pivot_collision = suspension_collisions[2]
+        pivot_origin = pivot_collision.find("origin")
+        pivot_cylinder = pivot_collision.find("geometry/cylinder")
+        assert pivot_origin is not None
+        assert pivot_cylinder is not None
+        assert pivot_origin.attrib["xyz"] == "0 -0.00286 0.0026"
+        assert pivot_origin.attrib["rpy"] == "0 0 0"
+        assert float(pivot_cylinder.attrib["radius"]) == pytest.approx(0.026)
+        assert float(pivot_cylinder.attrib["length"]) == pytest.approx(0.112)
+
+    diff_bar_shapes = collision_shapes("diff_bar")
+    assert [shape.tag for shape in diff_bar_shapes] == ["box"]
+    assert diff_bar_shapes[0].attrib["size"] == "0.4055 0.033 0.0625"
+    assert not robot.findall(".//collision/geometry/mesh")
 
 
 def test_core_2026_accepts_prefix() -> None:

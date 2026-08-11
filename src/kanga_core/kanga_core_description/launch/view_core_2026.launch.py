@@ -22,6 +22,7 @@ def generate_launch_description():
     use_joint_state_publisher = LaunchConfiguration("use_joint_state_publisher")
     use_gui = LaunchConfiguration("use_gui")
     use_rviz = LaunchConfiguration("use_rviz")
+    rviz_fixed_frame = LaunchConfiguration("rviz_fixed_frame")
     joint_state_sources = ParameterValue(
         LaunchConfiguration("joint_state_sources"), value_type=List[str]
     )
@@ -65,6 +66,11 @@ def generate_launch_description():
                 "use_rviz",
                 default_value="true",
                 description="Start RViz with the core_2026 view",
+            ),
+            DeclareLaunchArgument(
+                "rviz_fixed_frame",
+                default_value="base_link",
+                description="RViz fixed frame override",
             ),
             DeclareLaunchArgument(
                 "joint_state_sources",
@@ -114,7 +120,7 @@ def generate_launch_description():
                 package="rviz2",
                 executable="rviz2",
                 name="rviz2",
-                arguments=["-d", rviz_config],
+                arguments=["-d", rviz_config, "-f", rviz_fixed_frame],
                 condition=IfCondition(use_rviz),
                 output="screen",
             ),

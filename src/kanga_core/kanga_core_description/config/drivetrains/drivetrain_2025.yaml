@@ -26,6 +26,14 @@ wheel_geometry:
   overall_wheel_envelope_width_m: 0.890
   grouser_angle_deg: 51.0
 
+suspension_geometry:
+  # Three-link geometry and physical theta reference used to solve suspension
+  # displacement from the differential-bar angle beta.
+  suspension_linkage_l1_mm: 545.5
+  suspension_linkage_l2_mm: 287.75
+  suspension_linkage_l3_mm: 194.7375
+  suspension_theta_at_beta_zero_deg: 30.0
+
 capabilities:
   # Hardware capability only. Whether it is enabled is controller policy.
   limited_holonomic: true

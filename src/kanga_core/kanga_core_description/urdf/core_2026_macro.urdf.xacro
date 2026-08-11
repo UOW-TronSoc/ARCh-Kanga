@@ -3,10 +3,12 @@
   <!-- Reusable 2026 rover-core model with suspension.
        Params:
        - prefix: optional name prefix to avoid link/joint collisions
-       - drivetrain_profile: compatible physical drivetrain profile -->
+       - drivetrain_profile: compatible physical drivetrain profile
+       - wheel_joint_effort_limit_nm: high simulation effort ceiling
+       - wheel_joint_velocity_limit_rad_s: profile-derived wheel speed limit -->
   <xacro:macro
     name="core_2026"
-    params="prefix:='' drivetrain_profile:='drivetrain_2025'"
+    params="wheel_joint_effort_limit_nm wheel_joint_velocity_limit_rad_s prefix:='' drivetrain_profile:='drivetrain_2025'"
   >
     <!-- core_2026 describes the physical 2026 core, which retained the 2025
          drivetrain. Reject mismatched composition instead of silently
@@ -180,7 +182,7 @@
       <parent link="${prefix}left_suspension"/>
       <child link="${prefix}wheel_fl"/>
       <axis xyz="0 0 1"/>
-      <limit effort="0" velocity="0"/>
+      <limit effort="${wheel_joint_effort_limit_nm}" velocity="${wheel_joint_velocity_limit_rad_s}"/>
     </joint>
 
     <link name="${prefix}wheel_bl">
@@ -210,7 +212,7 @@
       <parent link="${prefix}left_suspension"/>
       <child link="${prefix}wheel_bl"/>
       <axis xyz="0 0 1"/>
-      <limit effort="0" velocity="0"/>
+      <limit effort="${wheel_joint_effort_limit_nm}" velocity="${wheel_joint_velocity_limit_rad_s}"/>
     </joint>
 
     <!-- Physical articulation range; state mapping lives in kanga_core_microcontroller. -->
@@ -299,7 +301,7 @@
       <parent link="${prefix}right_suspension"/>
       <child link="${prefix}wheel_fr"/>
       <axis xyz="0 0 1"/>
-      <limit effort="0" velocity="0"/>
+      <limit effort="${wheel_joint_effort_limit_nm}" velocity="${wheel_joint_velocity_limit_rad_s}"/>
     </joint>
 
     <link name="${prefix}wheel_br">
@@ -329,7 +331,7 @@
       <parent link="${prefix}right_suspension"/>
       <child link="${prefix}wheel_br"/>
       <axis xyz="0 0 1"/>
-      <limit effort="0" velocity="0"/>
+      <limit effort="${wheel_joint_effort_limit_nm}" velocity="${wheel_joint_velocity_limit_rad_s}"/>
     </joint>
 
     <!-- Physical articulation range; state mapping lives in kanga_core_microcontroller. -->

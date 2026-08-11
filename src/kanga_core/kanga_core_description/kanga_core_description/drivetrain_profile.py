@@ -1,7 +1,8 @@
 """Load one drivetrain YAML into one shared ROS-parameter dictionary.
 
 Most values are copied through automatically. Only values that are genuinely
-derived (wheel centres, radius, and joint velocity limit) are calculated here.
+derived (wheel centres, radius, and joint velocity/acceleration limits) are
+calculated here.
 """
 
 from __future__ import annotations
@@ -135,6 +136,7 @@ def load_drivetrain_profile(profile: str | Path) -> DrivetrainProfile:
     motor_acceleration_limit_tps_s = _positive_number(
         parameters, "motor_acceleration_limit_tps_s"
     )
+    _positive_number(parameters, "wheel_joint_effort_limit_nm")
     wheel_diameter = _positive_number(parameters, "wheel_diameter_m")
     wheel_width = _positive_number(parameters, "wheel_width_m")
     overall_length = _positive_number(parameters, "overall_wheel_envelope_length_m")

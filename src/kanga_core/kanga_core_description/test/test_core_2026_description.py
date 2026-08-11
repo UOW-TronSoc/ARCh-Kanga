@@ -57,7 +57,7 @@ def test_core_2026_expands_to_expected_tree() -> None:
     assert joints["diff_bar_joint"] == "revolute"
 
 
-def test_wheels_are_unbounded_continuous_joints() -> None:
+def test_wheels_use_profile_limits_and_unbounded_continuous_position() -> None:
     result = _expand()
     assert result.returncode == 0, result.stderr
     robot = ET.fromstring(result.stdout)
@@ -75,6 +75,10 @@ def test_wheels_are_unbounded_continuous_joints() -> None:
         assert limit is not None
         assert "lower" not in limit.attrib
         assert "upper" not in limit.attrib
+        assert float(limit.attrib["effort"]) == pytest.approx(1000.0)
+        assert float(limit.attrib["velocity"]) == pytest.approx(
+            22.0 * 2.0 * math.pi / 50.0
+        )
 
 
 def test_articulated_suspension_has_expected_travel() -> None:

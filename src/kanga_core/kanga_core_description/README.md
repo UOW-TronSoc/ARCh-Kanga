@@ -143,12 +143,17 @@ not copies of consumer-specific derived values:
 - grouser angle and limited-holonomic hardware capability
 - motor revolutions per wheel revolution
 - commissioned motor velocity and acceleration limits in turns/s and turns/s²
+- a deliberately high wheel-joint effort ceiling for simulation (not a
+  measured drivetrain torque limit)
 - suspension linkage L1/L2/L3 dimensions and physical theta at beta = 0
 
 The profile loader derives wheel radius, wheel-centre half-length/half-width,
-and maximum wheel-joint velocity and acceleration. It then produces one shared
-ROS-parameter dictionary used by controller, drive, wheel feedback, and
-suspension state. Each node declares and reads only the entries it needs.
+and maximum wheel-joint velocity and acceleration. Xacro derives the same wheel
+velocity limit from the selected profile and applies it with the configured
+effort ceiling to all four continuous wheel joints. Continuous joints have no
+position bounds. The loader produces one shared ROS-parameter dictionary used
+by controller, drive, wheel feedback, and suspension state. Each node declares
+and reads only the entries it needs.
 
 Ordinary new profile values are forwarded automatically: add the value to a
 group in the YAML, then declare it in whichever node needs it. The loader only
@@ -183,7 +188,6 @@ check, removal of the old simple variant, and a minimal standalone RViz view.
 Payload models, raw Onshape exports, legacy launch/RViz files, and simulation
 integration were not imported.
 
-Outstanding description work includes validating inertial data, replacing
-expensive collision meshes where appropriate, replacing zero effort/velocity
-limits with measured values, and optionally replacing STL visual meshes with
-coloured DAE assets.
+Outstanding description work includes validating inertial data, replacing the
+temporary wheel effort ceiling when a physical torque limit is established,
+and optionally replacing STL visual meshes with coloured DAE assets.

@@ -5,10 +5,32 @@
   <xacro:arg name="prefix" default=""/>
   <xacro:arg name="drivetrain_profile" default="drivetrain_2025"/>
 
+  <!-- Validate compatibility before trying to load the selected profile. -->
+  <xacro:unless value="${'$(arg drivetrain_profile)' == 'drivetrain_2025'}">
+    <xacro:property
+      name="unsupported_drivetrain_profile"
+      value="${xacro.fatal('core_2026 requires drivetrain_2025; got', '$(arg drivetrain_profile)')}"
+      lazy_eval="false"
+    />
+  </xacro:unless>
+
+  <!-- Keep Gazebo joint limits tied to the selected physical drivetrain
+       profile. Continuous wheel joints deliberately have no position bounds. -->
+  <xacro:property
+    name="drivetrain_config_path"
+    value="../config/drivetrains/$(arg drivetrain_profile).yaml"
+  />
+  <xacro:property
+    name="drivetrain_config"
+    value="${xacro.load_yaml(drivetrain_config_path)}"
+  />
+
   <xacro:include filename="core_2026_macro.urdf.xacro"/>
 
   <xacro:core_2026
     prefix="$(arg prefix)"
     drivetrain_profile="$(arg drivetrain_profile)"
+    wheel_joint_effort_limit_nm="${drivetrain_config.drivetrain.wheel_joint_effort_limit_nm}"
+    wheel_joint_velocity_limit_rad_s="${drivetrain_config.drivetrain.motor_velocity_limit_tps * 2.0 * pi / drivetrain_config.drivetrain.motor_revolutions_per_wheel_revolution}"
   />
 </robot>

@@ -43,6 +43,7 @@ def test_one_shared_dictionary_contains_raw_and_derived_values():
     assert params["motor_revolutions_per_wheel_revolution"] == pytest.approx(50.0)
     assert params["motor_velocity_limit_tps"] == pytest.approx(22.0)
     assert params["motor_acceleration_limit_tps_s"] == pytest.approx(80.0)
+    assert params["wheel_joint_effort_limit_nm"] == pytest.approx(1000.0)
     assert params["suspension_linkage_l1_mm"] == pytest.approx(545.5)
     assert params["suspension_linkage_l2_mm"] == pytest.approx(287.75)
     assert params["suspension_linkage_l3_mm"] == pytest.approx(194.7375)
@@ -72,6 +73,7 @@ drivetrain:
   motor_revolutions_per_wheel_revolution: 50
   motor_acceleration_limit_tps_s: 80
   motor_velocity_limit_tps: 22
+  wheel_joint_effort_limit_nm: 1000
 wheel_geometry:
   wheel_diameter_m: 0.23
   wheel_width_m: 0.18

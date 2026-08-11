@@ -1,0 +1,11 @@
+services:
+  kanga-dev:
+    environment:
+      - DISPLAY=${DISPLAY}
+      - LIBGL_ALWAYS_SOFTWARE=1
+      - MESA_SHADER_CACHE_DIR=/tmp/kanga-mesa-cache
+      - XAUTHORITY=/tmp/kanga-xauthority
+      - QT_X11_NO_MITSHM=1
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${KANGA_XAUTHORITY:-${XAUTHORITY}}:/tmp/kanga-xauthority:ro

@@ -5,7 +5,60 @@ Standalone launch entry points for the physical Kanga rover base (no payload).
 This package only **composes** other core packages. It does not own drive math,
 Fibre configs, or battery logic.
 
-## Current (initial)
+## Unified development bringup
+
+`core.launch.py` is the development and testing entry point for the available
+core stack. It currently composes:
+
+- the `core_2026` description and `robot_state_publisher`;
+- the physical ODrive stack;
+- the `/cmd_vel` wheel controller;
+- differential-bar suspension state mapping;
+- optional wheel/suspension JointState aggregation;
+- optional joint sliders and RViz; and
+- the existing bench gamepad launch as provisional onboard control.
+
+Battery and the ESP32 CAN bridge will be added when those packages have launchable
+implementations. A separate, lightweight production launch should be created
+later; keep this file useful as a diagnostic and integration surface.
+
+The ordinary hardware-oriented defaults start drive, controller, description,
+and suspension mapping. Joint-state aggregation, its GUI, RViz, and onboard
+gamepad control default to off:
+
+```bash
+ros2 launch kanga_core_bringup core.launch.py
+```
+
+For a hardware-free suspension/RViz test:
+
+```bash
+ros2 launch kanga_core_bringup core.launch.py \
+  use_drive:=false \
+  use_controller:=false \
+  use_joint_state_publisher:=true \
+  use_rviz:=true
+```
+
+Then publish a simulated +70° differential-bar angle from another sourced
+shell:
+
+```bash
+ros2 topic pub /diff_bar_angle std_msgs/msg/Float64 \
+  "{data: 1.2217304763960306}" --once
+```
+
+The headless joint-state publisher merges `wheel_joint_states` and
+`suspension_joint_states` into `/joint_states`. To use manual sliders instead,
+also pass `use_gui:=true`. The GUI option is ignored when
+`use_joint_state_publisher:=false`.
+
+To enable the current local controller test path, connect the gamepad and pass
+`use_onboard_control:=true`. This presently includes
+`kanga_joy/bench_teleop.launch.py`; it will switch to
+`kanga_onboard_control` when that package gains its production implementation.
+
+## Drive-only bringup
 
 `core_drive.launch.py` starts:
 
@@ -233,8 +286,9 @@ Pass criteria: idle service succeeds; setpoint stream stops when not CLOSED_LOOP
 
 ## Later
 
-Expect this package to also pull in description, battery, microcontroller, and
-core-only RViz. Keep new includes small and obvious until that lands.
+Add battery and the ESP32 CAN bridge to the unified development launch once
+those packages have launchable implementations. Keep `core_drive.launch.py`
+available for focused drivetrain testing.
 
 ## Boundary
 

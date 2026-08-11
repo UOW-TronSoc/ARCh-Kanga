@@ -72,6 +72,12 @@ Then build the workspace (inside the container):
 The shell helper checks the image build before starting. Docker reuses cached
 layers when `Dockerfile.dev` and `apt-packages.txt` have not changed.
 
+From a graphical Linux desktop, the helper also applies
+`docker/compose.gui.yaml` automatically. It forwards the current X11 display
+and Xauthority cookie so RViz and other Qt applications can open on the host.
+Headless and SSH sessions without a usable `DISPLAY` continue with the base
+development Compose file only.
+
 The image uses a non-root `kanga` user whose UID and GID are matched to the host
 by `docker_shell.bash`. This prevents colcon's bind-mounted `build/`, `install/`,
 and `log/` directories from becoming root-owned. When building the image

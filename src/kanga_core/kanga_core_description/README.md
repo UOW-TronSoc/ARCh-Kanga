@@ -74,6 +74,10 @@ ros2 launch kanga_core_description view_core_2026.launch.py \
   use_gui:=false use_rviz:=false
 ```
 
+The headless publisher listens for `wheel_joint_states` and
+`suspension_joint_states` by default. Either source may be absent during a
+standalone test; its movable joints remain at their neutral positions.
+
 ### Native and networked RViz
 
 The RViz model display subscribes to the transient-local

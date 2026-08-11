@@ -300,7 +300,9 @@
       <origin xyz="-0.279914 -0.333589 -0.204625" rpy="0 0 0"/>
       <parent link="${prefix}right_suspension"/>
       <child link="${prefix}wheel_fr"/>
-      <axis xyz="0 0 1"/>
+      <!-- The mirrored right-suspension frame reverses local Z. Use -Z so
+           positive joint velocity means rover-forward on every wheel. -->
+      <axis xyz="0 0 -1"/>
       <limit effort="${wheel_joint_effort_limit_nm}" velocity="${wheel_joint_velocity_limit_rad_s}"/>
     </joint>
 
@@ -330,7 +332,8 @@
       <origin xyz="0.578642 -0.334079 -0.204625" rpy="0 0 0"/>
       <parent link="${prefix}right_suspension"/>
       <child link="${prefix}wheel_br"/>
-      <axis xyz="0 0 1"/>
+      <!-- Match the positive-forward wheel convention used by drive feedback. -->
+      <axis xyz="0 0 -1"/>
       <limit effort="${wheel_joint_effort_limit_nm}" velocity="${wheel_joint_velocity_limit_rad_s}"/>
     </joint>
 

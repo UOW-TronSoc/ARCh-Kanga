@@ -74,8 +74,13 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "joint_state_sources",
-                default_value="[]",
-                description="JointState topics merged by joint_state_publisher",
+                default_value=(
+                    '["wheel_joint_states", "suspension_joint_states"]'
+                ),
+                description=(
+                    "JointState topics merged by joint_state_publisher; missing "
+                    "sources leave their joints at the neutral default"
+                ),
             ),
             Node(
                 package="robot_state_publisher",

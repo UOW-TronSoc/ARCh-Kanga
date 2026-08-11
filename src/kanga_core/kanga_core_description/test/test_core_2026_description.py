@@ -81,6 +81,78 @@ def test_wheels_use_profile_limits_and_unbounded_continuous_position() -> None:
         )
 
 
+def test_positive_wheel_rotation_uses_one_forward_axle_convention() -> None:
+    result = _expand()
+    assert result.returncode == 0, result.stderr
+    robot = ET.fromstring(result.stdout)
+
+    def rotation_from_rpy(rpy: list[float]) -> list[list[float]]:
+        roll, pitch, yaw = rpy
+        cr, sr = math.cos(roll), math.sin(roll)
+        cp, sp = math.cos(pitch), math.sin(pitch)
+        cy, sy = math.cos(yaw), math.sin(yaw)
+        return [
+            [cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr],
+            [sy * cp, sy * sp * sr + cy * cr, sy * sp * cr - cy * sr],
+            [-sp, cp * sr, cp * cr],
+        ]
+
+    def multiply(left: list[list[float]], right: list[list[float]]):
+        return [
+            [sum(left[row][k] * right[k][column] for k in range(3))
+             for column in range(3)]
+            for row in range(3)
+        ]
+
+    rotations = {"base_link": [[1.0, 0.0, 0.0],
+                               [0.0, 1.0, 0.0],
+                               [0.0, 0.0, 1.0]]}
+    unresolved = list(robot.findall("joint"))
+    while unresolved:
+        resolved_one = False
+        for joint in unresolved.copy():
+            parent = joint.find("parent")
+            child = joint.find("child")
+            assert parent is not None
+            assert child is not None
+            parent_name = parent.attrib["link"]
+            if parent_name not in rotations:
+                continue
+            origin = joint.find("origin")
+            rpy = [0.0, 0.0, 0.0]
+            if origin is not None:
+                rpy = [float(value) for value in origin.attrib["rpy"].split()]
+            rotations[child.attrib["link"]] = multiply(
+                rotations[parent_name], rotation_from_rpy(rpy)
+            )
+            unresolved.remove(joint)
+            resolved_one = True
+        assert resolved_one, "URDF joint tree could not be resolved"
+
+    # The right suspension frame is mirrored relative to the left. Its wheel
+    # axes use local -Z so all positive wheel velocities resolve to the same
+    # -Y axle direction in base_link, matching the drive convention.
+    for joint_name in (
+        "wheel_fl_joint",
+        "wheel_bl_joint",
+        "wheel_br_joint",
+        "wheel_fr_joint",
+    ):
+        joint = robot.find(f"./joint[@name='{joint_name}']")
+        assert joint is not None
+        axis = joint.find("axis")
+        child = joint.find("child")
+        assert axis is not None
+        assert child is not None
+        local_axis = [float(value) for value in axis.attrib["xyz"].split()]
+        rotation = rotations[child.attrib["link"]]
+        base_axis = [
+            sum(rotation[row][column] * local_axis[column] for column in range(3))
+            for row in range(3)
+        ]
+        assert base_axis == pytest.approx([0.0, -1.0, 0.0], abs=1e-5)
+
+
 def test_articulated_suspension_has_expected_travel() -> None:
     result = _expand()
     assert result.returncode == 0, result.stderr

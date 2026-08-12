@@ -22,7 +22,6 @@ def generate_launch_description():
     use_joint_state_publisher = LaunchConfiguration("use_joint_state_publisher")
     use_gui = LaunchConfiguration("use_gui")
     use_rviz = LaunchConfiguration("use_rviz")
-    rviz_fixed_frame = LaunchConfiguration("rviz_fixed_frame")
     joint_state_sources = ParameterValue(
         LaunchConfiguration("joint_state_sources"), value_type=List[str]
     )
@@ -32,6 +31,9 @@ def generate_launch_description():
     )
     rviz_config = PathJoinSubstitution(
         [FindPackageShare("kanga_core_description"), "rviz", "core_2026.rviz"]
+    )
+    visualization_parameters = PathJoinSubstitution(
+        [FindPackageShare("kanga_core_description"), "config", "visualization.yaml"]
     )
     robot_description = ParameterValue(
         Command(
@@ -68,11 +70,6 @@ def generate_launch_description():
                 description="Start RViz with the core_2026 view",
             ),
             DeclareLaunchArgument(
-                "rviz_fixed_frame",
-                default_value="base_link",
-                description="RViz fixed frame override",
-            ),
-            DeclareLaunchArgument(
                 "joint_state_sources",
                 default_value=(
                     '["wheel_joint_states", "suspension_joint_states"]'
@@ -86,7 +83,10 @@ def generate_launch_description():
                 package="robot_state_publisher",
                 executable="robot_state_publisher",
                 name="robot_state_publisher",
-                parameters=[{"robot_description": robot_description}],
+                parameters=[
+                    visualization_parameters,
+                    {"robot_description": robot_description},
+                ],
                 output="screen",
             ),
             Node(
@@ -94,6 +94,7 @@ def generate_launch_description():
                 executable="joint_state_publisher_gui",
                 name="joint_state_publisher",
                 parameters=[
+                    visualization_parameters,
                     {
                         "robot_description": robot_description,
                         "source_list": joint_state_sources,
@@ -109,6 +110,7 @@ def generate_launch_description():
                 executable="joint_state_publisher",
                 name="joint_state_publisher",
                 parameters=[
+                    visualization_parameters,
                     {
                         "robot_description": robot_description,
                         "source_list": joint_state_sources,
@@ -125,7 +127,7 @@ def generate_launch_description():
                 package="rviz2",
                 executable="rviz2",
                 name="rviz2",
-                arguments=["-d", rviz_config, "-f", rviz_fixed_frame],
+                arguments=["-d", rviz_config],
                 condition=IfCondition(use_rviz),
                 output="screen",
             ),

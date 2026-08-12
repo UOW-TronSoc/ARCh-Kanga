@@ -50,12 +50,15 @@ ros2 topic pub /diff_bar_angle std_msgs/msg/Float64 \
 ```
 
 The headless joint-state publisher merges `wheel_joint_states` and
-`suspension_joint_states` into `/joint_states`. To use manual sliders instead,
+`suspension_joint_states` into the visualization-only `/joint_states` topic at
+50 Hz. `robot_state_publisher` publishes dynamic TF at up to the same rate.
+Subsystem controllers and estimators continue to consume their owning feedback
+topics at whatever rate each system requires. To use manual sliders instead,
 also pass `use_gui:=true`. The GUI option is ignored when
 `use_joint_state_publisher:=false`.
 
-To visualize preliminary ESP32 body pose, start the pose-to-TF adapter and make
-RViz use its reference frame:
+To visualize preliminary ESP32 body pose, start the pose-to-TF adapter. The
+core RViz configuration permanently uses `body_origin` as its fixed frame:
 
 ```bash
 ros2 launch kanga_core_bringup core.launch.py \
@@ -63,8 +66,7 @@ ros2 launch kanga_core_bringup core.launch.py \
   use_controller:=false \
   use_joint_state_publisher:=true \
   use_body_pose_tf:=true \
-  use_rviz:=true \
-  rviz_fixed_frame:=body_origin
+  use_rviz:=true
 ```
 
 The adapter consumes `body/pose`; `body/twist` remains published by the future

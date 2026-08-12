@@ -1,0 +1,10 @@
+# Visualization is deliberately sampled independently of subsystem feedback.
+# Controllers and estimators consume their owning subsystem topics directly;
+# this 50 Hz path only drives robot_state_publisher, TF, and RViz.
+robot_state_publisher:
+  ros__parameters:
+    publish_frequency: 50.0
+
+joint_state_publisher:
+  ros__parameters:
+    rate: 50

@@ -10,6 +10,7 @@ import yaml
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 DESCRIPTION = PACKAGE_ROOT / "urdf" / "core_2026.urdf.xacro"
 RVIZ_CONFIG = PACKAGE_ROOT / "rviz" / "core_2026.rviz"
+VISUALIZATION_CONFIG = PACKAGE_ROOT / "config" / "visualization.yaml"
 
 
 def _expand(*mappings: str) -> subprocess.CompletedProcess[str]:
@@ -130,8 +131,8 @@ def test_positive_wheel_rotation_uses_one_forward_axle_convention() -> None:
         assert resolved_one, "URDF joint tree could not be resolved"
 
     # The right suspension frame is mirrored relative to the left. Its wheel
-    # axes use local -Z so all positive wheel velocities resolve to the same
-    # -Y axle direction in base_link, matching the drive convention.
+    # axes therefore use the opposite local sign so all positive wheel
+    # velocities resolve to the same +Y axle direction in base_link.
     for joint_name in (
         "wheel_fl_joint",
         "wheel_bl_joint",
@@ -150,7 +151,7 @@ def test_positive_wheel_rotation_uses_one_forward_axle_convention() -> None:
             sum(rotation[row][column] * local_axis[column] for column in range(3))
             for row in range(3)
         ]
-        assert base_axis == pytest.approx([0.0, -1.0, 0.0], abs=1e-5)
+        assert base_axis == pytest.approx([0.0, 1.0, 0.0], abs=1e-5)
 
 
 def test_articulated_suspension_has_expected_travel() -> None:
@@ -309,6 +310,7 @@ def test_core_2026_is_valid_urdf(tmp_path: Path) -> None:
 
 def test_rviz_reads_network_robot_description() -> None:
     config = yaml.safe_load(RVIZ_CONFIG.read_text(encoding="utf-8"))
+    global_options = config["Visualization Manager"]["Global Options"]
     displays = config["Visualization Manager"]["Displays"]
     robot_model = next(
         display
@@ -316,6 +318,7 @@ def test_rviz_reads_network_robot_description() -> None:
         if display["Class"] == "rviz_default_plugins/RobotModel"
     )
 
+    assert global_options["Fixed Frame"] == "body_origin"
     assert robot_model["Description Source"] == "Topic"
     assert robot_model["Description Topic"] == {
         "Depth": 1,
@@ -324,3 +327,12 @@ def test_rviz_reads_network_robot_description() -> None:
         "Reliability Policy": "Reliable",
         "Value": "/robot_description",
     }
+
+
+def test_visualization_pipeline_runs_at_50_hz() -> None:
+    config = yaml.safe_load(VISUALIZATION_CONFIG.read_text(encoding="utf-8"))
+
+    assert config["joint_state_publisher"]["ros__parameters"]["rate"] == 50
+    assert config["robot_state_publisher"]["ros__parameters"][
+        "publish_frequency"
+    ] == 50.0

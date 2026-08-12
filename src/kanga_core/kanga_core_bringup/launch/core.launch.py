@@ -39,7 +39,6 @@ def generate_launch_description():
     use_joint_state_publisher = LaunchConfiguration("use_joint_state_publisher")
     use_gui = LaunchConfiguration("use_gui")
     use_rviz = LaunchConfiguration("use_rviz")
-    rviz_fixed_frame = LaunchConfiguration("rviz_fixed_frame")
     use_onboard_control = LaunchConfiguration("use_onboard_control")
     device_id = LaunchConfiguration("device_id")
     joint_state_sources = LaunchConfiguration("joint_state_sources")
@@ -52,7 +51,6 @@ def generate_launch_description():
             "use_joint_state_publisher": use_joint_state_publisher,
             "use_gui": use_gui,
             "use_rviz": use_rviz,
-            "rviz_fixed_frame": rviz_fixed_frame,
             "joint_state_sources": joint_state_sources,
         },
     )
@@ -168,11 +166,6 @@ def generate_launch_description():
                 "use_rviz",
                 default_value="false",
                 description="Start RViz with the core_2026 configuration",
-            ),
-            DeclareLaunchArgument(
-                "rviz_fixed_frame",
-                default_value="base_link",
-                description="Fixed frame passed to RViz",
             ),
             DeclareLaunchArgument(
                 "use_onboard_control",

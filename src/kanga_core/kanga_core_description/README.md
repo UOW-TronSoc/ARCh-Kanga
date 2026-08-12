@@ -52,12 +52,10 @@ docker compose \
 ```
 
 The launch starts `robot_state_publisher`, the joint-state slider GUI, and RViz.
-RViz uses `base_link` as its fixed frame and displays the visual meshes. Enable
+RViz permanently uses `body_origin` as its fixed frame and displays the visual
+meshes once a `body_origin -> base_link` transform is available. The preliminary
+ESP32 body-pose adapter can provide that transform during development. Enable
 the disabled TF display when frame debugging is useful.
-
-Override the RViz fixed frame when a development adapter provides a parent for
-`base_link`, for example `rviz_fixed_frame:=body_origin` with the preliminary
-ESP32 body-pose transform.
 
 On hosts where `XAUTHORITY` is not set, provide the Xauthority file explicitly:
 
@@ -76,7 +74,11 @@ ros2 launch kanga_core_description view_core_2026.launch.py \
 
 The headless publisher listens for `wheel_joint_states` and
 `suspension_joint_states` by default. Either source may be absent during a
-standalone test; its movable joints remain at their neutral positions.
+standalone test; its movable joints remain at their neutral positions. It
+samples the latest subsystem states into `/joint_states` at 50 Hz, and
+`robot_state_publisher` publishes dynamic TF at up to 50 Hz. Subsystem control
+and estimation must consume their owning feedback topics directly rather than
+the visualization-only merged topic.
 
 ### Native and networked RViz
 

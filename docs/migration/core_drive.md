@@ -25,7 +25,7 @@ Old reference (mapper / launch): `ARCH2026-Kanga` → `src/kanga_drive`.
 | Stream | Controller publishes wheel-joint commands at ~10 Hz. Drive publishes motor commands only while CLOSED_LOOP. Stale `/cmd_vel` → continuously streamed zero. |
 | Firmware watchdog | Shared Fibre config is authoritative; verify enable/timeout policy before rover operation. |
 | Invert | Launch `invert_direction` only. URDF sign check later. |
-| Deferred | Synchronised wheel acceleration/deceleration shaping, diff-bar JointState, odom, errors/UX, WHS, and loaded/field qualification. |
+| Deferred | Synchronised wheel acceleration/deceleration shaping, ESP32/CAN ingestion of the diff-bar encoder, odom, errors/UX, WHS, and loaded/field qualification. |
 
 ```mermaid
 flowchart LR

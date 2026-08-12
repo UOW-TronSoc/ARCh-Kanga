@@ -5,7 +5,88 @@ Standalone launch entry points for the physical Kanga rover base (no payload).
 This package only **composes** other core packages. It does not own drive math,
 Fibre configs, or battery logic.
 
-## Current (initial)
+## Unified development bringup
+
+`core.launch.py` is the development and testing entry point for the available
+core stack. It currently composes:
+
+- the `core_2026` description and `robot_state_publisher`;
+- the physical ODrive stack;
+- the `/cmd_vel` wheel controller;
+- differential-bar suspension state mapping;
+- optional visualization of ESP32 `body/pose` as TF;
+- optional wheel/suspension JointState aggregation;
+- optional joint sliders and RViz; and
+- the existing bench gamepad launch as provisional onboard control.
+
+Battery and the ESP32 CAN bridge will be added when those packages have launchable
+implementations. A separate, lightweight production launch should be created
+later; keep this file useful as a diagnostic and integration surface.
+
+The ordinary hardware-oriented defaults start drive, controller, description,
+and suspension mapping. Joint-state aggregation, its GUI, RViz, and onboard
+gamepad control default to off:
+
+```bash
+ros2 launch kanga_core_bringup core.launch.py
+```
+
+For a hardware-free suspension/RViz test:
+
+```bash
+ros2 launch kanga_core_bringup core.launch.py \
+  use_drive:=false \
+  use_controller:=false \
+  use_joint_state_publisher:=true \
+  use_rviz:=true
+```
+
+Then publish a simulated +70° differential-bar angle from another sourced
+shell:
+
+```bash
+ros2 topic pub /diff_bar_angle std_msgs/msg/Float64 \
+  "{data: 1.2217304763960306}" --once
+```
+
+The headless joint-state publisher merges `wheel_joint_states` and
+`suspension_joint_states` into the visualization-only `/joint_states` topic at
+50 Hz. `robot_state_publisher` publishes dynamic TF at up to the same rate.
+Subsystem controllers and estimators continue to consume their owning feedback
+topics at whatever rate each system requires. To use manual sliders instead,
+also pass `use_gui:=true`. The GUI option is ignored when
+`use_joint_state_publisher:=false`.
+
+To visualize preliminary ESP32 body pose, start the pose-to-TF adapter. The
+core RViz configuration permanently uses `body_origin` as its fixed frame:
+
+```bash
+ros2 launch kanga_core_bringup core.launch.py \
+  use_drive:=false \
+  use_controller:=false \
+  use_joint_state_publisher:=true \
+  use_body_pose_tf:=true \
+  use_rviz:=true
+```
+
+The adapter consumes `body/pose`; `body/twist` remains published by the future
+CAN bridge but is intentionally unused for now. Do not enable
+`use_body_pose_tf` alongside a localisation system that also parents
+`base_link`.
+
+With no ESP32 connected, bringup starts in a neutral visual state: the body
+transform is identity and the differential-bar and suspension joint positions
+are zero. After the first valid body pose, the visualization adapter republishes
+that last accepted pose so its dynamic TF does not expire. This is visual state,
+not proof that fresh IMU data is arriving; use the source topic timestamp for
+freshness and fault handling.
+
+To enable the current local controller test path, connect the gamepad and pass
+`use_onboard_control:=true`. This presently includes
+`kanga_joy/bench_teleop.launch.py`; it will switch to
+`kanga_onboard_control` when that package gains its production implementation.
+
+## Drive-only bringup
 
 `core_drive.launch.py` starts:
 
@@ -233,8 +314,9 @@ Pass criteria: idle service succeeds; setpoint stream stops when not CLOSED_LOOP
 
 ## Later
 
-Expect this package to also pull in description, battery, microcontroller, and
-core-only RViz. Keep new includes small and obvious until that lands.
+Add battery and the ESP32 CAN bridge to the unified development launch once
+those packages have launchable implementations. Keep `core_drive.launch.py`
+available for focused drivetrain testing.
 
 ## Boundary
 

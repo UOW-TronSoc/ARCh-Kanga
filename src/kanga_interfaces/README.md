@@ -28,6 +28,12 @@ Add an interface only when standard ROS interfaces cannot express the contract
 clearly. Keep definitions transport-neutral and document units in field
 comments.
 
+Core body feedback intentionally uses standard interfaces rather than a custom
+Kanga message: `geometry_msgs/PoseWithCovarianceStamped` on `body/pose` and
+`geometry_msgs/TwistWithCovarianceStamped` on `body/twist`. Their shared sample
+timestamp, frame conventions, and unavailable-component rules are documented
+in `kanga_core_microcontroller`.
+
 ## Migrated from ARCH2026-Kanga
 
 | Message | Source path | Merged |

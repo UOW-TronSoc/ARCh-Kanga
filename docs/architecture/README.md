@@ -79,8 +79,7 @@ safety-rated emergency stop.
   ODrive estimates. Invert direction is configured in launch only.
 - `kanga_core_controller` owns chassis-to-wheel velocity mapping, drive limits,
   and the `/cmd_vel` setpoint stream to ODrive (streams only while CLOSED_LOOP).
-  Differential-bar / suspension JointState from the core microcontroller and
-  optional low-confidence wheel odometry are deferred. `robot_state_publisher`
+  Optional low-confidence wheel odometry remains deferred. `robot_state_publisher`
   generates link transforms from the robot description. A visual, inertial,
   SLAM, or fused estimator owns the authoritative `odom` to `base_link`
   transform.
@@ -91,7 +90,12 @@ safety-rated emergency stop.
   payload.
 - `kanga_core_microcontroller` owns the rover-base microcontroller firmware and
   its protocol, including ROO release, drive lock, differential-bar encoder
-  sampling, and core internal status. The stop switch connects directly to the
+  sampling, IMU and servo interfaces, core internal status, and host-side
+  suspension JointState mapping. CAN translation and suspension kinematics are
+  separate executables within that package. Its preliminary body-pose TF is a
+  non-authoritative visualization adapter; future controllers may consume the
+  timestamped pose/twist topics, while a fused estimator owns the authoritative
+  `odom` to `base_link` transform. The stop switch connects directly to the
   Jetson and is owned by `kanga_whs`.
 - `kanga_core_battery` owns Daly BMS communication and battery diagnostics.
 - `kanga_core_simulation` provides standalone simulated hardware and launch

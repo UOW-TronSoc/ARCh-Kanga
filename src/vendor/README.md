@@ -7,8 +7,13 @@ Use the version-controlled `kanga_vendor.repos` manifest in this directory and
 `vcs import` so each dependency is pinned to an intentional revision. Do not
 manually copy third-party source trees into this repository.
 
+`scripts/build_workspace.bash` imports repositories that are missing from a
+fresh checkout before running rosdep and colcon. Existing vendor directories
+are not fetched or overwritten, so routine builds can still run offline and
+preserve intentional local vendor work.
+
 ```bash
-# From the repository root (host or container):
+# Optional manual import from the repository root (host or container):
 vcs import src/vendor < src/vendor/kanga_vendor.repos
 ```
 

@@ -12,8 +12,8 @@ payload. This folder is not itself a ROS package.
 - `kanga_core_bringup`: core-only launch composition (starts with drive +
   controller; grows later).
 - `kanga_core_description`: chassis, wheel, and core rover geometry.
-- `kanga_core_microcontroller`: `.ino` firmware and protocol for core
-  mechanisms, encoders, and status.
+- `kanga_core_microcontroller`: ESP32 firmware, CAN/ROS interface for core
+  mechanisms, IMU, encoders and servos, plus suspension JointState mapping.
 - `kanga_core_battery`: Daly BMS communication and battery diagnostics.
 - `kanga_core_simulation`: standalone simulation of the rover base.
 

@@ -14,6 +14,8 @@
   <exec_depend>kanga_core_drive</exec_depend>
   <exec_depend>kanga_core_controller</exec_depend>
   <exec_depend>kanga_core_description</exec_depend>
+  <exec_depend>kanga_core_microcontroller</exec_depend>
+  <exec_depend>kanga_joy</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

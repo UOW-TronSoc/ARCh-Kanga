@@ -3,11 +3,24 @@
 <package format="3">
   <name>kanga_core_microcontroller</name>
   <version>0.0.0</version>
-  <description>Firmware and communication protocol for the Kanga rover-base microcontroller</description>
+  <description>Firmware, ROS interface, and mechanism state for the Kanga rover-base microcontroller</description>
   <maintainer email="uow-tronsoc@users.noreply.github.com">UOW TronSoc</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>geometry_msgs</depend>
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>tf2_ros</depend>
+
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>kanga_core_description</exec_depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>rclpy</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

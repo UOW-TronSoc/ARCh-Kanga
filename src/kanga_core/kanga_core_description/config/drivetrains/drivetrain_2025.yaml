@@ -8,7 +8,7 @@ display_name: "2025 drivetrain design"
 #
 # To add an ordinary shared parameter, put it in the most appropriate group.
 # The Python loader only needs changing when a new value must be calculated
-# from other values, as is done for radius, wheel centres, and joint limit.
+# from other values, as is done for radius, wheel centres, and joint limits.
 
 drivetrain:
   # Explicit convention: motor revolutions per one wheel-joint revolution.
@@ -16,6 +16,9 @@ drivetrain:
   # ODrive vel_ramp_rate in motor turns/s²; used as the final actuator limit.
   motor_acceleration_limit_tps_s: 80.0
   motor_velocity_limit_tps: 22.0
+  # The drivetrain currently has no defined wheel-torque limit. This is a high
+  # simulation ceiling in N·m, not a measured or commissioned actuator limit.
+  wheel_joint_effort_limit_nm: 1000.0
 
 wheel_geometry:
   # Store measured primitives here. Do not manually add the derived radius,
@@ -25,6 +28,14 @@ wheel_geometry:
   overall_wheel_envelope_length_m: 1.100
   overall_wheel_envelope_width_m: 0.890
   grouser_angle_deg: 51.0
+
+suspension_geometry:
+  # Three-link geometry and physical theta reference used to solve suspension
+  # displacement from the differential-bar angle beta.
+  suspension_linkage_l1_mm: 545.5
+  suspension_linkage_l2_mm: 287.75
+  suspension_linkage_l3_mm: 194.7375
+  suspension_theta_at_beta_zero_deg: 30.0
 
 capabilities:
   # Hardware capability only. Whether it is enabled is controller policy.

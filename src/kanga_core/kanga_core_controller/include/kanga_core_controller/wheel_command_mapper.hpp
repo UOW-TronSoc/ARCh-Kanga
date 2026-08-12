@@ -44,9 +44,10 @@
  *   - own the emergency stop topic /drivestop
  */
 
-#include <chrono>
 #include <mutex>
+#include <memory>
 
+#include "kanga_core_controller/control_time_step.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 #include "kanga_core_controller/kinematics.hpp"
 #include "kanga_interfaces/msg/wheel_velocity_command.hpp"
@@ -75,7 +76,7 @@ private:
   double max_angular_acceleration_rad_s2_{0.0};
   geometry_msgs::msg::Twist previous_limited_twist_;
   kanga_interfaces::msg::WheelVelocityCommand previous_wheel_command_;
-  std::chrono::steady_clock::time_point previous_publish_time_;
+  std::unique_ptr<kanga_core_controller::ControlTimeStep> control_time_step_;
 
   // Shared state touched by topic callbacks and the timer. Lock before use.
   std::mutex twist_mutex_;

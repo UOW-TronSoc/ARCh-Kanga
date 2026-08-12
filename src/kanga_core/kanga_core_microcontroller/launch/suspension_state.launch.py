@@ -14,6 +14,7 @@ from kanga_core_description.drivetrain_profile import (
 
 def _launch_setup(context):
     profile_ref = LaunchConfiguration("drivetrain_profile").perform(context)
+    use_sim_time = LaunchConfiguration("use_sim_time")
     profile = load_drivetrain_profile(profile_ref)
     parameters = PathJoinSubstitution(
         [
@@ -34,7 +35,11 @@ def _launch_setup(context):
             package="kanga_core_microcontroller",
             executable="suspension_joint_state_publisher",
             name="suspension_joint_state_publisher",
-            parameters=[parameters, profile.parameters],
+            parameters=[
+                parameters,
+                profile.parameters,
+                {"use_sim_time": use_sim_time},
+            ],
             output="screen",
         ),
     ]
@@ -47,6 +52,11 @@ def generate_launch_description():
                 "drivetrain_profile",
                 default_value=DEFAULT_DRIVETRAIN_PROFILE,
                 description="Drivetrain profile id from kanga_core_description",
+            ),
+            DeclareLaunchArgument(
+                "use_sim_time",
+                default_value="false",
+                description="Use the ROS simulation clock",
             ),
             OpaqueFunction(function=_launch_setup),
         ]

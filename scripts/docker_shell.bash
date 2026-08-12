@@ -22,6 +22,8 @@ export KANGA_UID="${KANGA_UID:-$(id -u)}"
 export KANGA_GID="${KANGA_GID:-$(id -g)}"
 # Let ROS joy read the host's /dev/input/event* devices from inside Docker.
 export KANGA_INPUT_GID="${KANGA_INPUT_GID:-$(stat -c '%g' /dev/input/event0 2>/dev/null || echo 107)}"
+# Let the non-root container user open the host's direct-rendering nodes.
+export KANGA_RENDER_GID="${KANGA_RENDER_GID:-$(stat -c '%g' /dev/dri/renderD128 2>/dev/null || echo 109)}"
 
 # docker compose run --rm gives the development user a fresh home directory on
 # every invocation. Persist odrivetool's device descriptor cache from the host;
@@ -55,6 +57,59 @@ if [ -n "${DISPLAY:-}" ]; then
         export KANGA_XAUTHORITY="${GUI_XAUTHORITY}"
         COMPOSE_ARGUMENTS+=(-f docker/compose.gui.yaml)
         echo "Docker GUI forwarding enabled for DISPLAY=${DISPLAY}."
+
+        # KANGA_GPU=auto (default) uses NVIDIA when both the host driver and
+        # Docker runtime are ready. KANGA_GPU=nvidia makes a missing runtime a
+        # hard error; KANGA_GPU=none leaves GPU selection to Mesa / the host.
+        KANGA_GPU_MODE="${KANGA_GPU:-auto}"
+        case "${KANGA_GPU_MODE}" in
+            auto|nvidia|none)
+                ;;
+            *)
+                echo "ERROR: KANGA_GPU must be one of: auto, nvidia, none." >&2
+                exit 1
+                ;;
+        esac
+
+        HOST_HAS_NVIDIA=false
+        if command -v nvidia-smi >/dev/null 2>&1 \
+            && nvidia-smi -L >/dev/null 2>&1
+        then
+            HOST_HAS_NVIDIA=true
+        fi
+
+        DOCKER_HAS_NVIDIA=false
+        if docker info --format '{{json .Runtimes}}' 2>/dev/null \
+            | grep -q '"nvidia"'
+        then
+            DOCKER_HAS_NVIDIA=true
+        fi
+
+        if [ "${KANGA_GPU_MODE}" != "none" ] \
+            && [ "${HOST_HAS_NVIDIA}" = true ] \
+            && [ "${DOCKER_HAS_NVIDIA}" = true ]
+        then
+            COMPOSE_ARGUMENTS+=(-f docker/compose.nvidia.yaml)
+            echo "NVIDIA GPU passthrough enabled."
+        elif [ "${KANGA_GPU_MODE}" = "nvidia" ]; then
+            cat >&2 <<'EOF'
+ERROR: NVIDIA GPU passthrough was requested but is not ready.
+
+The host must have a working NVIDIA driver and Docker must register the NVIDIA
+runtime. Run ./scripts/setup_nvidia_container_toolkit.bash, then restart Docker
+after closing active containers.
+EOF
+            exit 1
+        elif [ "${KANGA_GPU_MODE}" = "auto" ] \
+            && [ "${HOST_HAS_NVIDIA}" = true ] \
+            && [ "${DOCKER_HAS_NVIDIA}" = false ]
+        then
+            cat >&2 <<'EOF'
+WARNING: The host NVIDIA GPU is working, but Docker's NVIDIA runtime is absent.
+The GUI will use an available Mesa renderer. To enable the NVIDIA GPU, run:
+  ./scripts/setup_nvidia_container_toolkit.bash
+EOF
+        fi
     else
         echo "WARNING: DISPLAY is set but no Xauthority file was found; starting headless." >&2
     fi

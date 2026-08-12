@@ -1,0 +1,13 @@
+surface:
+  # Preliminary rigid-terrain approximation for loose sand. fdir1 is aligned
+  # with the wheel axle, so lateral maps to mu1 and longitudinal maps to mu2.
+  # The low lateral force ceiling and high lateral compliance let the nearly
+  # square skid-steer footprint scrub sideways during differential turns.
+  # At mu=0.40 the lateral scrub moment was close to the maximum longitudinal
+  # yaw moment, so the preliminary turning baseline uses a lower lateral cap.
+  friction_coefficient_lateral: 0.25
+  friction_coefficient_longitudinal: 0.55
+  contact_stiffness_n_m: 1000000.0
+  contact_damping_n_s_m: 50.0
+  slip_compliance_lateral: 0.7
+  slip_compliance_longitudinal: 0.20

@@ -1,153 +1,173 @@
 # kanga_core_simulation
 
-Standalone simulation integration for the Kanga rover base.
-
-## Owns
-
-- Core simulated-hardware configuration
-- Core-only simulation launch entry points
-- Simulator adapters specific to the rover base
-
-## Boundary
-
-The top-level `kanga_sim` package owns worlds and composes this package with a
-selected payload simulation. Canonical geometry remains in
-`kanga_core_description`.
-
-## Planned Gazebo integration
-
-This section records the current simulation direction. It is a design note;
-the Gazebo runtime, launch files, and plugins described below are not yet
-implemented. The development Docker image currently contains ROS 2 Humble but
-does not contain a Gazebo runtime.
-
-Use Gazebo Fortress initially because it is the officially supported Gazebo
-pairing for ROS 2 Humble. Simulation-specific systems should use Gazebo system
-plugins and the ROS/Gazebo bridge directly; this project does not plan to use
-`ros2_control`.
-
-### State and TF ownership
-
-Gazebo must be the sole authority for simulated physical state:
-
-- Gazebo, or a simulation pose adapter, publishes `world`/`odom` to
-  `base_link`.
-- Gazebo publishes simulated wheel, differential-bar, and suspension joint
-  state.
-- `robot_state_publisher` consumes that joint state and publishes the remaining
-  link transforms.
-- An RViz instance on another ROS 2 host consumes `/robot_description`,
-  `/joint_states`, `/tf`, and `/tf_static`; it does not run hardware feedback
-  adapters.
-
-The simulation launch must therefore disable physical-hardware state sources:
+Gazebo Fortress hardware boundary for the Kanga rover base. The top-level
+`kanga_sim` package provides the standalone world/spawn launch. This package
+deliberately replaces `kanga_core_drive`, while preserving
+the shared controller, WHS, description, joint-state aggregation, and ROS API:
 
 ```text
-use_body_pose_tf:=false
-use_suspension_state:=false
-use_joint_state_publisher:=false
-use_drive:=false
+rover:      kanga_core_controller -> kanga_core_drive      -> ODrive
+simulation: kanga_core_controller -> kanga_core_simulation -> Gazebo
 ```
 
-The controller may be enabled after a Gazebo drive adapter exists to consume
-its wheel commands. The simulation adapter must respect the drivetrain
-profile's wheel velocity and acceleration limits. The current 1000 N·m URDF
-wheel effort value is deliberately a non-binding simulation ceiling, not a
-motor torque model.
+It does not use `ros2_control`. `CoreHardwareSystem` reads and writes Gazebo
+entity/component state directly, and `ros_gz` provides the process, spawn, and
+`/clock` integration in the top-level launch. Body orientation follows the same
+path as the real robot: the plugin publishes the Game-Rotation-Vector contract
+on `/body/pose`, and `body_pose_tf_broadcaster` converts that into
+`body_origin -> base_link` for RViz. Suspension feedback is the same: the
+plugin publishes only `/diff_bar_angle`, and `suspension_joint_state_publisher`
+maps it through the shared kinematics into `/suspension_joint_states`. Gazebo's
+`PassiveSuspensionSystem` still uses that kinematics library for physics
+constraint torques; it does not own the ROS joint-state topic.
 
-External RViz should use `world` or `odom` as its fixed frame when global rover
-motion needs to be visible. The RViz-only launch in `kanga_core_description`
-is the intended remote visualization entry point.
+## Run
 
-### Reduced-order passive suspension
+Build and enter the development image, then build the workspace:
 
-For the initial terrain simulation, use a reduced-order passive model instead
-of either prescribing joint positions or reproducing every RSSR linkage body.
-Keep these three simulated revolute joints dynamic:
-
-- `diff_bar_joint`
-- `left_suspension_joint`
-- `right_suspension_joint`
-
-A `kanga_core_simulation` Gazebo system plugin should reuse the tested nonlinear
-kinematic relationship from differential-bar angle `beta` to the two
-suspension angles. It should enforce the two closure errors
-
-```text
-C_left  = theta_left  - f(beta)
-C_right = theta_right - f(beta)
+```bash
+docker compose -f docker/compose.dev.yaml build
+./scripts/docker_shell.bash
+./scripts/build_workspace.bash
+source install/setup.bash
 ```
 
-with constraint reaction torques and damping. It must not simply overwrite the
-joint positions. Contact forces from wheels on rocks or terrain must be able to
-move the passive suspension and differential bar, while the constraint
-transfers the reaction to the other joints. Apply the corresponding reaction
-to `diff_bar_joint` so the plugin does not inject unbalanced energy.
+Launch the flat world with the GUI:
 
-Retain the existing ±70° differential-bar and ±30° suspension limits. Add
-only enough joint damping or bearing friction for stable simulation; do not add
-a centring spring unless one exists on the physical rover. Gazebo owns and
-publishes the resulting joint positions. The real encoder-facing suspension
-state publisher remains disabled in simulation.
+```bash
+ros2 launch kanga_sim core_simulation.launch.py
+```
 
-This model should provide useful passive articulation over berms, rocks, and
-mounds without the numerical and maintenance cost of a complete RSSR model.
-If its wheel paths or load transfer prove visibly wrong, the later high-fidelity
-option is an SDFormat model with the actual closed linkage. URDF itself must
-remain a tree, while SDFormat can represent a kinematic graph with closed
-loops. Prototype any closed-loop model separately before replacing the reduced
-model because solver support and stability depend on the selected physics
-engine, joint placement, inertias, and time step.
+Headless validation-course examples:
 
-References:
+```bash
+ros2 launch kanga_sim core_simulation.launch.py \
+  gui:=false world:=core_validation.sdf
 
-- [SDFormat model kinematics](https://sdformat.org/tutorials/specification/spec_model_kinematics/)
-- [Gazebo physics concepts](https://gazebosim.org/api/physics/8/physicsconcepts.html)
-- [ROS and Gazebo version compatibility](https://gazebosim.org/docs/harmonic/ros_installation/)
+ros2 launch kanga_sim core_simulation.launch.py \
+  gui:=false paused:=true use_rviz:=false
+```
 
-### PLA wheel interaction with sand
+The system always starts IDLE. Clear WHS and explicitly enable it before
+commanding motion:
 
-The first Gazebo implementation should approximate sand with rigid terrain,
-not particle simulation:
+```bash
+ros2 service call /whs_node/set_drivestop std_srvs/srv/SetBool "{data: false}"
+ros2 service call /drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: true}"
+ros2 topic pub /cmd_vel geometry_msgs/msg/Twist \
+  "{linear: {x: 0.25}, angular: {z: 0.0}}" -r 10
+```
 
-1. Represent berms and mounds with a heightmap or simplified collision mesh.
-2. Represent important rocks with individual simplified collision geometry.
-3. Give sand regions an appropriate visual material and tuned contact
-   properties.
-4. Configure longitudinal and lateral wheel-slip compliance for all four
-   wheels.
-5. Tune friction, slip, contact stiffness, and contact damping against simple
-   measurements from the physical rover.
+The launch accepts `world`, `gui`, `paused`, `drivetrain_profile`,
+`surface_preset`, `spawn_{x,y,z,roll,pitch,yaw}`, `use_controller`, `use_whs`,
+and `use_rviz`. The default settling clearance is 0.02 m.
 
-Gazebo has no built-in material pair named "PLA on sand". Treat the parameters
-as an effective interaction model for the particular wheel geometry, sand grain
-size, moisture, and compaction. Keep named presets such as `hard_ground`,
-`compacted_sand`, and `loose_sand` in simulation configuration rather than in
-the canonical robot description.
+With a headless simulation running, exercise the graph, QoS, frame, ordering,
+50 Hz publication, controller direction mapping, IDLE isolation, forward
+motion, drivestop, no-op management services, and explicit IDLE transition.
+The checker commands a short forward movement, so use the flat world or clear
+space around the spawn pose:
 
-Useful calibration tests are:
+```bash
+ros2 run kanga_sim core_simulation_contract_check
+```
 
-- an incline test, using the initial sliding angle for a rough Coulomb-friction
-  estimate (`mu ~= tan(angle)`);
-- a powered wheel or rover drawbar-pull test to tune longitudinal traction and
-  slip;
-- a lateral drag test to tune sideways friction; and
-- comparison against a known slope, block, berm, or rock traversal.
+## Operational interface contract
 
-The current smooth-cylinder wheel collision cannot mechanically engage the
-ground with the wheel grousers. Begin with it and the wheel-slip model. If rock
-and berm climbing looks unrealistic, add a simulation-only compound wheel
-collision made from the cylinder and a modest number of primitive grouser
-shapes. Do not use the detailed visual mesh as the default collision mesh.
+| Direction | ROS interface | Simulation behaviour |
+|---|---|---|
+| Input | `/wheel_joint_velocity_command` (`kanga_interfaces/WheelVelocityCommand`) | Atomic FL, BL, BR, FR wheel-joint rad/s |
+| Input | `/drivestop` (`std_msgs/Bool`) | Reliable/transient-local; true immediately returns to IDLE; false never re-enables |
+| Service | `/drive_manager/set_closed_loop` (`std_srvs/SetBool`) | Explicit IDLE/CLOSED_LOOP transition; enable is rejected while stopped |
+| Service | `/drive_manager/clear_errors` (`std_srvs/Trigger`) | Deterministic successful no-op |
+| Services | `/drive_manager/calibrate_{fl,bl,br,fr}` (`std_srvs/Trigger`) | Successful no-op; simulation needs no calibration |
+| Output | `/wheel_joint_states` (`sensor_msgs/JointState`) | Actual Gazebo positions/velocities in FL, BL, BR, FR order at 50 Hz |
+| Output | `/suspension_joint_states` (`sensor_msgs/JointState`) | Produced by `suspension_joint_state_publisher` from `/diff_bar_angle` |
+| Output | `/diff_bar_angle` (`std_msgs/Float64`) | Actual Gazebo differential-bar joint angle |
+| Output | `/body/pose`, `/body/twist` | IMU-contract stand-in: orientation and angular velocity only; translation/linear marked unavailable |
+| Output | `/odom` | Privileged Gazebo ground truth for diagnostics; not used for visualization TF |
+| Shared | `/joint_states`, `/robot_description`, `/tf`, `/tf_static` | Aggregator, `robot_state_publisher`, and `body_pose_tf_broadcaster` (`body_origin -> base_link`) |
+| Simulation only | `/clock` and Gazebo transport topics | Never required by control or autonomy code directly |
 
-Rigid Gazebo terrain will not reproduce sinkage, ruts, bulldozing, or displaced
-soil. Those effects would justify evaluating a terramechanics simulator such as
-Project Chrono, which provides SCM deformable soil and DEM granular terrain.
-That is a separate high-fidelity path and is not required for the initial
-suspension and navigation showcase.
+Per-wheel `custom_odrive` telemetry, currents, temperatures, and raw faults are
+not emulated. They are hardware-operation details outside the v1 operational
+boundary.
 
-References:
+## Drive and reset behaviour
 
-- [Gazebo Fortress wheel-slip system](https://gazebosim.org/api/gazebo/6/WheelSlip_8hh.html)
-- [Gazebo friction and contact parameters](https://get.gazebosim.org/tutorials?cat=physics&tut=physics_params)
-- [Project Chrono terrain models](https://api.projectchrono.org/development/vehicle_terrain.html)
+The drive system clamps targets to the selected shared drivetrain profile and
+uses conservative simulation-only velocity PID gains and an 8 N.m torque cap.
+Zero commands actively hold zero velocity in CLOSED_LOOP. IDLE and drivestop
+apply no motor effort, so the configured wheel bearing damping determines
+coast-down.
+
+A missing four-wheel command for more than 0.5 simulated seconds removes
+effort, returns to IDLE, and requires another `set_closed_loop` call. Gazebo
+pause freezes the timeout. A backwards clock jump or world reset clears
+controller history and unsafe commands.
+
+## Passive suspension
+
+`PassiveSuspensionSystem` reuses the exported nonlinear linkage mapping and its
+tested derivative from `kanga_core_microcontroller` for Gazebo physics only. It
+enforces `theta_left/right - f(beta)` with stiffness and damping torques and
+applies the Jacobian-scaled reaction to `diff_bar_joint`. Torque saturation
+scales all three reactions together, preserving virtual-work balance. It never
+writes joint positions, has no centring spring, and does not publish ROS
+suspension joint states.
+
+The canonical limits remain +/-70 degrees on the differential bar and +/-30
+degrees on both suspension pivots. Starting gains, damping, bearing losses, and
+torque caps live in `config/core_simulation.yaml`; tune them against the closure
+targets of less than 1 degree steady-state and 3 degrees transient error.
+
+## Terrain presets and calibration
+
+`hard_ground`, `compacted_sand`, and `loose_sand` tune friction, contact, and
+longitudinal/lateral wheel-slip compliance. They are effective rigid-terrain
+models through Fortress's
+[WheelSlip system](https://gazebosim.org/api/gazebo/6/WheelSlip_8hh.html), not
+deformable soil. `kanga_sim` owns the flat smoke-test world and the course
+containing alternating wheel blocks, a berm, incline, and primitive rocks.
+
+`loose_sand` is the project default for every world. Its preliminary values
+assume the wheel-local first friction direction is parallel to the axle. The
+model uses lateral `mu=0.20`, longitudinal `mu=0.55`, lateral compliance
+`0.90`, and longitudinal compliance `0.20`. This deliberately makes lateral
+scrub easier than longitudinal slip so the nearly square differential-drive
+footprint can turn without unrealistic tyre binding. The flat and validation
+world planes also use an isotropic `mu=0.55`; wheel-local settings provide the
+directional behaviour at rover contacts.
+
+These are plausible starting values, not measured soil parameters. In
+Fortress, higher slip compliance reduces the pre-saturation force slope; it
+does not model sinkage, bulldozing, ruts, or displaced soil. The other presets
+remain available only as explicit diagnostic overrides.
+
+The smooth cylinder collision is sufficient for basic differential turning,
+where wheel spin supplies longitudinal force and lateral compliance permits
+scrub. It cannot reproduce the 51-degree physical grousers' discrete soil
+engagement or their lateral-force generation. Grouser collision geometry is
+therefore important for believable holonomic strafing and obstacle bite, but
+adding the detailed CAD mesh would increase contact count without making DART's
+rigid surface behave like loose sand. If that fidelity is needed, prefer a
+small compound collision made from repeated primitive grouser bars rather than
+the full visual mesh.
+
+Before claiming physical fidelity, record and reproduce:
+
+1. incline sliding angle (`mu` starts near `tan(angle)`);
+2. drawbar pull and longitudinal wheel slip;
+3. lateral drag; and
+4. traversal speed and articulation over a measured block or berm.
+
+Change one named preset at a time and retain the raw rover and simulation
+measurements. The smooth collision remains 0.125 m radius while the shared
+controller currently uses a 0.115 m effective rolling radius. Treat that as a
+visible calibration difference. Do not change canonical geometry merely to
+hide it. Primitive compound grousers are a later option if obstacle engagement
+is demonstrably unrealistic.
+
+Noise, latency, cameras, battery/BMS, payloads, raw IMU diagnostics, low-level
+ODrive telemetry, sinkage, ruts, and displaced soil are intentionally deferred.
+Body and odometry covariance is zero until measured noise and latency exist.

@@ -67,3 +67,32 @@ stale. After entering CLOSED_LOOP, all mapped axes must pass through neutral
 before motion is enabled. There is intentionally no deadman button in this
 bench mapping. Releasing button 7 also requires the axes to pass through
 neutral before motion resumes.
+
+### Keyboard bench teleop
+
+When a gamepad is unavailable, run the keyboard adapter and the same bench
+teleop safety node in a separate interactive terminal:
+
+```bash
+ros2 run kanga_joy keyboard_bench_teleop
+```
+
+Controls:
+
+- `W` / `S`: forward / reverse
+- `Q` / `E`: strafe left / right
+- `A` / `D`: yaw left / right
+- `Space`: zero motion
+- `I`: toggle CLOSED_LOOP / IDLE
+- `X`: assert drivestop
+- `R`: release drivestop; this does not re-enable CLOSED_LOOP
+- `C`: clear drive errors
+- `L`: briefly simulate command loss
+- `Esc`: exit
+
+The command opens a small keyboard-capture window. Keep that window focused
+while driving. It tracks real key-down and key-up events, so multiple motion
+keys can be held together for combined forward/strafe/yaw commands. Losing
+focus, closing the window, or pressing `Space` immediately publishes neutral.
+The adapter only publishes the established `/joy` layout; `bench_teleop`
+retains ownership of safety services and `/cmd_vel`.

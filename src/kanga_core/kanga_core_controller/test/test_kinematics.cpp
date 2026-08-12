@@ -8,12 +8,14 @@
  */
 
 #include "kanga_core_controller/acceleration_limiter.hpp"
+#include "kanga_core_controller/control_time_step.hpp"
 #include "kanga_core_controller/kinematics.hpp"
 
 #include <cmath>
 #include <gtest/gtest.h>
 
 using kanga_core_controller::ChassisGeometry;
+using kanga_core_controller::ControlTimeStep;
 using kanga_core_controller::desaturate_wheel_velocities;
 using kanga_core_controller::limit_body_velocity_change;
 using kanga_core_controller::limit_wheel_acceleration;
@@ -249,4 +251,33 @@ TEST(AccelerationLimiter, CompleteStopBypassesWheelLimit)
   EXPECT_NEAR(output.back_left_rad_s, 0.0, kEps);
   EXPECT_NEAR(output.back_right_rad_s, 0.0, kEps);
   EXPECT_NEAR(output.front_right_rad_s, 0.0, kEps);
+}
+
+TEST(ControlTimeStep, UsesOnlyPositiveBoundedNodeClockIntervals)
+{
+  ControlTimeStep timing(0.25);
+
+  EXPECT_FALSE(timing.update(1'000'000'000).has_value());
+  const auto ordinary = timing.update(1'020'000'000);
+  ASSERT_TRUE(ordinary.has_value());
+  EXPECT_NEAR(ordinary.value(), 0.02, 1e-12);
+
+  // A paused clock produces no controller step.
+  EXPECT_FALSE(timing.update(1'020'000'000).has_value());
+  // The reset baseline is the repeated timestamp, so normal time can resume.
+  const auto after_pause = timing.update(1'040'000'000);
+  ASSERT_TRUE(after_pause.has_value());
+  EXPECT_NEAR(after_pause.value(), 0.02, 1e-12);
+}
+
+TEST(ControlTimeStep, RejectsBackwardsAndOversizedJumps)
+{
+  ControlTimeStep timing(0.25);
+  EXPECT_FALSE(timing.update(2'000'000'000).has_value());
+  EXPECT_FALSE(timing.update(1'000'000'000).has_value());
+  EXPECT_FALSE(timing.update(2'000'000'000).has_value());
+
+  const auto recovered = timing.update(2'020'000'000);
+  ASSERT_TRUE(recovered.has_value());
+  EXPECT_NEAR(recovered.value(), 0.02, 1e-12);
 }

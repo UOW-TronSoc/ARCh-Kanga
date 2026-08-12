@@ -166,6 +166,27 @@ TEST(SuspensionKinematics, RejectsInvalidConfigurationAndInput)
   const kanga_core_microcontroller::LinearSuspensionKinematics kinematics(
     kDiffBarLimitRad, kSuspensionLimitRad, k2025Geometry);
   EXPECT_THROW(kinematics.map_diff_bar_angle(NAN), std::invalid_argument);
+  EXPECT_THROW(kinematics.suspension_angle_derivative(NAN), std::invalid_argument);
+}
+
+TEST(SuspensionKinematics, DerivativeMatchesTheClosureMapping)
+{
+  const kanga_core_microcontroller::LinearSuspensionKinematics kinematics(
+    kDiffBarLimitRad, kSuspensionLimitRad, k2025Geometry);
+  constexpr double reference_step = 1e-4;
+
+  for (const double beta_deg : {-60.0, -30.0, 0.0, 30.0, 60.0}) {
+    const double beta = degrees_to_radians(beta_deg);
+    const double finite_difference =
+      (kinematics.map_diff_bar_angle(beta + reference_step).left_suspension_rad -
+      kinematics.map_diff_bar_angle(beta - reference_step).left_suspension_rad) /
+      (2.0 * reference_step);
+    EXPECT_NEAR(
+      kinematics.suspension_angle_derivative(beta), finite_difference, 1e-6);
+  }
+
+  EXPECT_TRUE(std::isfinite(
+      kinematics.suspension_angle_derivative(kDiffBarLimitRad)));
 }
 
 }  // namespace

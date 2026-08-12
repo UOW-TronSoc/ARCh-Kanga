@@ -1,0 +1,14 @@
+services:
+  kanga-dev:
+    # Requires NVIDIA Container Toolkit on the host. docker_shell.bash only
+    # applies this overlay after confirming that Docker registered the runtime.
+    gpus: all
+    environment:
+      # The default toolkit capabilities do not include OpenGL / X11. Gazebo
+      # needs graphics and display; utility makes nvidia-smi available.
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,graphics,display,utility
+      # Select the discrete NVIDIA GPU on PRIME / hybrid-graphics laptops.
+      - __NV_PRIME_RENDER_OFFLOAD=1
+      - __GLX_VENDOR_LIBRARY_NAME=nvidia
+      - __VK_LAYER_NV_optimus=NVIDIA_only

@@ -7,8 +7,13 @@ Use the version-controlled `kanga_vendor.repos` manifest in this directory and
 `vcs import` so each dependency is pinned to an intentional revision. Do not
 manually copy third-party source trees into this repository.
 
+`scripts/build_workspace.bash` imports repositories that are missing from a
+fresh checkout before running rosdep and colcon. Existing vendor directories
+are not fetched or overwritten, so routine builds can still run offline and
+preserve intentional local vendor work.
+
 ```bash
-# From the kanga_wip repository root (host or container):
+# Optional manual import from the repository root (host or container):
 vcs import src/vendor < src/vendor/kanga_vendor.repos
 ```
 
@@ -33,12 +38,16 @@ builds the same revision on every machine.
 
 ## ODrive
 
-The reusable ODrive ROS integration lives in its own repository and is imported
-here once that repository and its stable interface exist. It must remain
-independent of Kanga-specific packages so other club projects can reuse it.
+Upstream lineage: [odriverobotics/ros_odrive](https://github.com/odriverobotics/ros_odrive)
 
-That repository owns its direct SocketCAN path and any epoll / socket helpers
-internally. It must not depend on `kanga_canbus` or other Kanga packages. Its
-public API should stay generic. Document upstream origin (expanded from
-[odriverobotics/ros_odrive](https://github.com/odriverobotics/ros_odrive)),
-local modifications, hardware compatibility, and release process.
+Club fork: [`UOW-TronSoc/custom-ros-odrive`](https://github.com/UOW-TronSoc/custom-ros-odrive)
+— reusable per-motor ROS 2 integration with internal SocketCAN/epoll helpers.
+Independent of Kanga packages.
+
+Pinned in `kanga_vendor.repos` (see manifest for the exact revision). Import
+with the command above as part of `feat/drive-system` /
+[`kanga_core_drive`](../kanga_core/kanga_core_drive/README.md). Drive-specific
+Fibre motor configs and launch live in `kanga_core_drive`, not in this vendor
+tree.
+
+See [core drive next steps](../../docs/migration/core_drive.md).

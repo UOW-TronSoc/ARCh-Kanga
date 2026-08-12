@@ -1,0 +1,13 @@
+# Runtime behaviour for Kanga's actuator adapter. Physical reduction and motor
+# limits are injected from the selected kanga_core_description profile.
+
+wheel_actuator:
+  ros__parameters:
+    # Forward the latest motor command at the controller's 50 Hz rate.
+    publish_rate_hz: 50.0
+    joint_command_timeout_s: 0.5
+
+wheel_joint_state_publisher:
+  ros__parameters:
+    # Publish stable four-wheel snapshots; ODrive encoder feedback arrives at 100 Hz.
+    publish_rate_hz: 50.0

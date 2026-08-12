@@ -38,8 +38,8 @@ Run from the repo root **on the host**:
 
 ```bash
 ./scripts/check_devices.bash
-./scripts/setup_can.bash can_core 500000
-./scripts/setup_can.bash can_payload 500000
+./scripts/setup_can.bash can_core 250000
+./scripts/setup_can.bash can_payload 250000
 ./scripts/check_can.bash can_core
 ./scripts/check_can.bash can_payload
 
@@ -72,6 +72,12 @@ Then build the workspace (inside the container):
 The shell helper checks the image build before starting. Docker reuses cached
 layers when `Dockerfile.dev` and `apt-packages.txt` have not changed.
 
+From a graphical Linux desktop, the helper also applies
+`docker/compose.gui.yaml` automatically. It forwards the current X11 display
+and Xauthority cookie so RViz and other Qt applications can open on the host.
+Headless and SSH sessions without a usable `DISPLAY` continue with the base
+development Compose file only.
+
 The image uses a non-root `kanga` user whose UID and GID are matched to the host
 by `docker_shell.bash`. This prevents colcon's bind-mounted `build/`, `install/`,
 and `log/` directories from becoming root-owned. When building the image
@@ -83,9 +89,46 @@ KANGA_UID="$(id -u)" KANGA_GID="$(id -g)" \
 ```
 
 Reusable operating-system dependencies are listed in
-`docker/apt-packages.txt`. Add a package there and rebuild the image. Declare
-ROS package dependencies in the relevant `package.xml` so rosdep can resolve
-them.
+`docker/apt-packages.txt`. Add a package there and rebuild the image.
+
+Python packages used inside the dev container (e.g. `odrive` for Fibre-over-CAN
+commissioning) are listed in `docker/pip-packages.txt` and installed during the
+image build. Rebuild after changing either file:
+
+```bash
+docker compose -f docker/compose.dev.yaml build
+```
+
+Declare ROS package dependencies in the relevant `package.xml` so rosdep can
+resolve them.
+
+## ODrive Fibre commissioning
+
+`commission_wheels` and `custom_odrive commission` run inside the dev container
+like the rest of the stack.
+
+`docker_shell.bash` bind-mounts the host odrivetool cache at
+`/home/kanga/.cache/odrivetool`. Without it, each disposable `docker compose run
+--rm` shell must re-download the firmware device descriptor over CAN; on a busy
+bus that can look like a serial discovery failure.
+
+```bash
+# default: ~/.cache/odrivetool on the host
+./scripts/docker_shell.bash
+
+# optional override:
+KANGA_ODRIVE_CACHE=/path/to/odrivetool-cache ./scripts/docker_shell.bash
+```
+
+Inside the container:
+
+```bash
+ros2 run kanga_core_drive commission_wheels -- --wheels fl --can can0 --save
+# with drive.launch running (parks /wheel_fl via ROS):
+ros2 run kanga_core_drive commission_wheels -- --wheels fl --can can0 --save
+# drive.launch stopped:
+ros2 run kanga_core_drive commission_wheels -- --wheels fl --can can0 --save --bench
+```
 
 ## Important
 

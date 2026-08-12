@@ -1,0 +1,19 @@
+# Parameters for the wheel_command_mapper node.
+#
+# Loaded by launch/controller.launch.py. After changing values, re-launch
+# (or use `ros2 param set` for a running node).
+#
+# Physical geometry and joint-speed capability are injected from the selected
+# kanga_core_description drivetrain profile. Keep only controller behaviour here.
+
+wheel_command_mapper:
+  ros__parameters:
+    # How often we publish wheel-joint commands (times per second).
+    # Stream smooth wheel commands to the drive adapter at 50 Hz.
+    publish_rate_hz: 50.0
+    # If no /cmd_vel arrives for this many seconds, command becomes "stop".
+    cmd_vel_timeout_s: 0.5
+    # Starting traction limits; combined body changes keep one shared progress.
+    # A complete stop bypasses these limits and uses the full S1 ramp rate.
+    max_linear_acceleration_m_s2: 0.35
+    max_angular_acceleration_rad_s2: 0.35

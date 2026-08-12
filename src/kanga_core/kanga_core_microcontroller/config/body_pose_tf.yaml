@@ -1,0 +1,5 @@
+body_pose_tf_broadcaster:
+  ros__parameters:
+    parent_frame_id: body_origin
+    child_frame_id: base_link
+    quaternion_norm_tolerance: 0.01

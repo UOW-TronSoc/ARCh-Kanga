@@ -22,6 +22,7 @@ Why was this change needed?
 
 - [ ] kanga_core_battery
 - [ ] kanga_core_bringup
+- [ ] kanga_core_controller
 - [ ] kanga_core_description
 - [ ] kanga_core_drive
 - [ ] kanga_core_microcontroller

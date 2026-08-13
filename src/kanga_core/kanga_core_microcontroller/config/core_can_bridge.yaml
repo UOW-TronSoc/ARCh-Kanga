@@ -1,0 +1,12 @@
+core_can_bridge:
+  ros__parameters:
+    # Frame names are set from launch arguments, not here, so that this node
+    # and the TF broadcaster cannot drift apart. See core_frames.py.
+
+    # Placeholder calibration until the real encoder is characterised.
+    diff_bar_encoder_zero_count: 0
+    diff_bar_encoder_counts_per_rad: 1000.0
+
+    orientation_variance: 0.01
+    angular_velocity_variance: 0.001
+    linear_acceleration_variance: 0.01

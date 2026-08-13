@@ -1,0 +1,3 @@
+# PlatformIO and Arduino IDE build output.
+.pio/
+build/

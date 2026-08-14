@@ -1,7 +1,7 @@
 body_pose_tf_broadcaster:
   ros__parameters:
     # Frame names are set from launch arguments, not here, so that this node
-    # and whatever publishes body/pose cannot drift apart. See core_frames.py.
+    # and whatever publishes body/pose cannot drift apart. See config/core_frames.py.
 
     # How far the incoming quaternion may be from unit length before the
     # sample is rejected as malformed.

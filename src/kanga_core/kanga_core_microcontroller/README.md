@@ -35,9 +35,8 @@ kanga_core_microcontroller/
 │   ├── core_can_bridge.cpp     CAN-to-ROS executable
 │   ├── body_pose_tf_*.cpp      Visualization-only pose-to-TF adapter
 │   └── suspension_*.cpp        Suspension mapping executable and library
-├── config/                     Host-side ROS parameters
+├── config/                     Host-side ROS parameters and launch-time frame constants
 ├── launch/                     Host-side ROS launch files
-├── kanga_core_microcontroller/ Launch-time Python constants (frame contract)
 └── test/                       Host-side unit and protocol tests
 ```
 
@@ -80,7 +79,7 @@ fighting over the same topics.
 
 Whoever publishes the pose has to stamp it with the frame the TF broadcaster is
 expecting, or the broadcaster quietly drops every sample. That is why
-`body_origin` and `base_link` live in `kanga_core_microcontroller/core_frames.py`
+`body_origin` and `base_link` live in `config/core_frames.py`
 and are applied as launch-argument defaults instead of being written into each
 node's parameter file: overriding a frame in bringup then moves the publisher
 and the subscriber together.

@@ -28,6 +28,7 @@ def generate_launch_description():
     launch_socketcan = LaunchConfiguration("launch_socketcan")
     body_pose_parent_frame = LaunchConfiguration("body_pose_parent_frame")
     body_pose_child_frame = LaunchConfiguration("body_pose_child_frame")
+    receiver_interval_sec = LaunchConfiguration("receiver_interval_sec")
 
     socketcan_launch = PathJoinSubstitution(
         [FindPackageShare("ros2_socketcan"), "launch", "socket_can_bridge.launch.xml"]
@@ -65,10 +66,21 @@ def generate_launch_description():
                 default_value=DEFAULT_BODY_POSE_CHILD_FRAME,
                 description="Body frame stamped on body/twist and imu/data",
             ),
+            DeclareLaunchArgument(
+                "receiver_interval_sec",
+                default_value="0.05",
+                description=(
+                    "SocketCAN receiver poll timeout in seconds when "
+                    "launch_socketcan is true"
+                ),
+            ),
             IncludeLaunchDescription(
                 AnyLaunchDescriptionSource(socketcan_launch),
                 condition=IfCondition(launch_socketcan),
-                launch_arguments={"interface": can_interface}.items(),
+                launch_arguments={
+                    "interface": can_interface,
+                    "receiver_interval_sec": receiver_interval_sec,
+                }.items(),
             ),
             Node(
                 package="kanga_core_microcontroller",

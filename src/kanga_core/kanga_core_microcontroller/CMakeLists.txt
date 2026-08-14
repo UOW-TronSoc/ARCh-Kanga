@@ -14,7 +14,8 @@ find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 
-ament_python_install_package(${PROJECT_NAME})
+# Launch-time frame constants; imported as kanga_core_microcontroller.core_frames
+ament_python_install_module(config/core_frames.py DESTINATION_SUFFIX ${PROJECT_NAME})
 
 add_library(suspension_kinematics src/suspension_kinematics.cpp)
 set_target_properties(suspension_kinematics PROPERTIES POSITION_INDEPENDENT_CODE ON)

@@ -16,8 +16,15 @@ constexpr int kCanRxPin = 4;
 // Bitrate in kbit/s. Must match can_core on the host (250 kbit/s).
 constexpr int kCanBitrateKbps = 250;
 
+// MPU6050 IMU over I2C (bench HW-123 clone; tasks_imu.cpp emulates until unset)
 // -----------------------------------------------------------------------------
-// BNO086 IMU over SPI (planned; tasks_imu.cpp emulates until configured)
+
+constexpr int kImuI2cSdaPin = 21;
+constexpr int kImuI2cSclPin = 22;
+constexpr int kMpu6050I2cAddress = 0x68;
+
+// -----------------------------------------------------------------------------
+// BNO086 IMU over SPI (planned production IMU; not used while MPU6050 is wired)
 // -----------------------------------------------------------------------------
 
 constexpr int kBno086SpiCsPin = -1;

@@ -1,9 +1,12 @@
 #include "tasks_imu.h"
 
 #include <Arduino.h>
+#include <Wire.h>
 #include <math.h>
 #include <string.h>
 
+#include "I2Cdev.h"
+#include "MPU6050_6Axis_MotionApps20.h"
 #include "can_bus.h"
 #include "kanga_core_microcontroller/can_ids.hpp"
 #include "kanga_core_microcontroller/can_protocol.hpp"
@@ -15,6 +18,8 @@ namespace
 {
 
 constexpr uint32_t kImuPublishPeriodMs = 20;  // 50 Hz
+constexpr float kEarthGravityMs2 = 9.80665f;
+constexpr float kDegToRad = 0.01745329251994329577f;
 
 void publishImuOrientation(float qw, float qx, float qy, float qz)
 {
@@ -108,18 +113,115 @@ void generateEmulatedImuSample(
   az = 9.81f + 0.10f * sinf(t * 0.45f);
 }
 
-void vImuTask(void *pvParameters)
+bool initMpu6050(MPU6050 &mpu, uint16_t &packetSize)
 {
-  (void)pvParameters;
+  Wire.begin(kImuI2cSdaPin, kImuI2cSclPin);
+  Wire.setClock(400000);
+  delay(100);
 
-  if (kBno086SpiCsPin < 0)
+  Serial.println("Initializing MPU6050...");
+
+  mpu.initialize();
+
+  const uint8_t deviceId = mpu.getDeviceID();
+  Serial.printf("MPU6050 library device ID: 0x%02X\n", deviceId);
+
+  Wire.beginTransmission(kMpu6050I2cAddress);
+  Wire.write(0x75);
+  const uint8_t i2cStatus = Wire.endTransmission(false);
+  if (i2cStatus == 0)
   {
-    Serial.println("BNO086 SPI not configured; publishing emulated IMU samples");
+    Wire.requestFrom(static_cast<uint16_t>(kMpu6050I2cAddress), static_cast<uint8_t>(1));
+    if (Wire.available())
+    {
+      const uint8_t whoAmI = Wire.read();
+      Serial.printf("MPU6050 raw WHO_AM_I: 0x%02X\n", whoAmI);
+    }
   }
   else
   {
-    Serial.println("BNO086 SPI task placeholder (driver not implemented yet)");
+    Serial.println("MPU6050 WHO_AM_I read failed");
+    return false;
   }
+
+  if (mpu.testConnection())
+  {
+    Serial.println("MPU6050 testConnection(): PASS");
+  }
+  else
+  {
+    Serial.println("MPU6050 testConnection(): FAIL");
+    Serial.println("Continuing: HW-123 clones may report an unsupported ID");
+  }
+
+  const uint8_t dmpStatus = mpu.dmpInitialize();
+  if (dmpStatus != 0)
+  {
+    Serial.printf("MPU6050 DMP initialization failed: %u\n", dmpStatus);
+    return false;
+  }
+
+  mpu.setXGyroOffset(0);
+  mpu.setYGyroOffset(0);
+  mpu.setZGyroOffset(0);
+
+  Serial.println("Calibrating MPU6050 gyro; keep the sensor still...");
+  delay(1000);
+  mpu.CalibrateGyro(6);
+  Serial.println("MPU6050 gyro calibration complete");
+  mpu.PrintActiveOffsets();
+
+  mpu.setDMPEnabled(true);
+  packetSize = mpu.dmpGetFIFOPacketSize();
+  Serial.printf("MPU6050 DMP ready, packet size %u\n", packetSize);
+  return true;
+}
+
+bool readMpu6050Sample(
+  MPU6050 &mpu,
+  uint8_t *fifoBuffer,
+  float &qw, float &qx, float &qy, float &qz,
+  float &wx, float &wy, float &wz,
+  float &ax, float &ay, float &az)
+{
+  if (!mpu.dmpGetCurrentFIFOPacket(fifoBuffer))
+  {
+    return false;
+  }
+
+  Quaternion q;
+  VectorInt16 rawAccel;
+  VectorInt16 linearAccel;
+  VectorInt16 gyro;
+  VectorFloat gravity;
+
+  mpu.dmpGetQuaternion(&q, fifoBuffer);
+  mpu.dmpGetGravity(&gravity, &q);
+  mpu.dmpGetAccel(&rawAccel, fifoBuffer);
+  mpu.dmpGetLinearAccel(&linearAccel, &rawAccel, &gravity);
+  mpu.dmpGetGyro(&gyro, fifoBuffer);
+
+  qw = q.w;
+  qx = q.x;
+  qy = q.y;
+  qz = q.z;
+
+  const float gyroResolution = mpu.get_gyro_resolution();
+  const float accelResolution = mpu.get_acce_resolution();
+
+  wx = gyro.x * gyroResolution * kDegToRad;
+  wy = gyro.y * gyroResolution * kDegToRad;
+  wz = gyro.z * gyroResolution * kDegToRad;
+
+  ax = linearAccel.x * accelResolution * kEarthGravityMs2;
+  ay = linearAccel.y * accelResolution * kEarthGravityMs2;
+  az = linearAccel.z * accelResolution * kEarthGravityMs2;
+  return true;
+}
+
+void runEmulatedImuTask()
+{
+  Serial.println("MPU6050 I2C not configured; publishing emulated IMU samples");
 
   uint8_t sequence = 0;
   const uint32_t startMs = millis();
@@ -139,7 +241,6 @@ void vImuTask(void *pvParameters)
     float ay = 0.0f;
     float az = 0.0f;
 
-    // TODO: replace with BNO086 Game Rotation Vector + gyro + accel reads.
     generateEmulatedImuSample(t, qw, qx, qy, qz, wx, wy, wz, ax, ay, az);
 
     publishImuOrientation(qw, qx, qy, qz);
@@ -151,6 +252,58 @@ void vImuTask(void *pvParameters)
   }
 }
 
+void runMpu6050ImuTask()
+{
+  MPU6050 mpu(kMpu6050I2cAddress);
+  uint16_t packetSize = 0;
+  if (!initMpu6050(mpu, packetSize))
+  {
+    Serial.println("MPU6050 init failed; falling back to emulated IMU samples");
+    runEmulatedImuTask();
+    return;
+  }
+
+  uint8_t fifoBuffer[64];
+  uint8_t sequence = 0;
+
+  for (;;)
+  {
+    float qw = 0.0f;
+    float qx = 0.0f;
+    float qy = 0.0f;
+    float qz = 0.0f;
+    float wx = 0.0f;
+    float wy = 0.0f;
+    float wz = 0.0f;
+    float ax = 0.0f;
+    float ay = 0.0f;
+    float az = 0.0f;
+
+    if (readMpu6050Sample(mpu, fifoBuffer, qw, qx, qy, qz, wx, wy, wz, ax, ay, az))
+    {
+      publishImuOrientation(qw, qx, qy, qz);
+      publishImuAngularVelocity(sequence, wx, wy, wz);
+      publishImuLinearAccel(sequence, ax, ay, az);
+      sequence++;
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(kImuPublishPeriodMs));
+  }
+}
+
+void vImuTask(void *pvParameters)
+{
+  (void)pvParameters;
+
+  if (kImuI2cSdaPin < 0 || kImuI2cSclPin < 0)
+  {
+    runEmulatedImuTask();
+    return;
+  }
+
+  runMpu6050ImuTask();
+}
+
 }  // namespace
 
 void startImuTask()
@@ -158,7 +311,7 @@ void startImuTask()
   xTaskCreatePinnedToCore(
     vImuTask,
     "imu",
-    4096,
+    8192,
     nullptr,
     2,
     nullptr,

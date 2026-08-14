@@ -27,8 +27,9 @@ pio run -t upload        # flash (set upload_port in platformio.ini if needed)
 pio device monitor       # serial log at 115200 baud
 ```
 
-Future BNO086 support will use SPI (pins not assigned yet). Servo PWM and
-encoder pins are placeholders (`-1` in `pin_config.h`).
+Future BNO086 support will use SPI (pins not assigned yet). The bench IMU is an
+MPU6050-compatible HW-123 on I2C (GPIO 21/22). Servo PWM and encoder pins are
+placeholders (`-1` in `pin_config.h`).
 
 ## RTOS layout
 
@@ -37,7 +38,7 @@ encoder pins are placeholders (`-1` in `pin_config.h`).
 | `can_read` | 0 | Host → ESP32 commands | Active |
 | `gimbal` | 1 | CAN gimbal command placeholder | Inactive (logs only) |
 | `servo_pwm` | 1 | CAN auxiliary servo placeholder | Inactive (logs only) |
-| `imu` | 1 | ESP32 → CAN body IMU samples | Emulated |
+| `imu` | 1 | ESP32 → CAN body IMU samples | MPU6050 DMP when I2C configured |
 | `encoder` | 1 | ESP32 → CAN diff-bar count | Emulated |
 
 `ros2_socketcan` on the host will bridge these frames to ROS topics. The future
@@ -85,7 +86,7 @@ last year's firmware but are not transmitted yet.
 | `can_bus.*` | TWAI init and read/write wrapper |
 | `tasks_can.*` | Core 0 command ingress |
 | `tasks_servos.*` | Gimbal + PWM servo placeholders |
-| `tasks_imu.*` | IMU publisher (emulated until BNO086 SPI) |
+| `tasks_imu.*` | MPU6050 DMP publisher (emulated when I2C unset) |
 | `tasks_encoder.*` | Encoder publisher (emulated until wired) |
 
 ## Planned BNO086 mode

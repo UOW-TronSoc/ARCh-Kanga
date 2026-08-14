@@ -2,7 +2,7 @@
 //
 // Initializes TWAI (CAN) and starts FreeRTOS tasks defined in tasks_*.cpp:
 //   Core 0 — CAN command reception (gimbal + auxiliary servos)
-//   Core 1 — emulated IMU/encoder publishers, inactive servo actuation
+//   Core 1 — MPU6050 IMU + emulated encoder publishers, inactive servo actuation
 //
 // Hardware pin assignments live in pin_config.h. CAN identifiers and payload
 // layouts live in include/kanga_core_microcontroller/can_{ids,protocol}.hpp.

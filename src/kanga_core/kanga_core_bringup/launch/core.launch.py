@@ -52,6 +52,7 @@ def generate_launch_description():
     joint_state_sources = LaunchConfiguration("joint_state_sources")
     launch_socketcan = LaunchConfiguration("launch_socketcan")
     use_core_can_bridge = LaunchConfiguration("use_core_can_bridge")
+    receiver_interval_sec = LaunchConfiguration("receiver_interval_sec")
 
     socketcan_launch = PathJoinSubstitution(
         [FindPackageShare("ros2_socketcan"), "launch", "socket_can_bridge.launch.xml"]
@@ -117,7 +118,10 @@ def generate_launch_description():
     socketcan = IncludeLaunchDescription(
         AnyLaunchDescriptionSource(socketcan_launch),
         condition=IfCondition(launch_socketcan),
-        launch_arguments={"interface": can_interface}.items(),
+        launch_arguments={
+            "interface": can_interface,
+            "receiver_interval_sec": receiver_interval_sec,
+        }.items(),
     )
 
     # Temporary local-control implementation until kanga_onboard_control gains
@@ -221,6 +225,14 @@ def generate_launch_description():
                 "use_core_can_bridge",
                 default_value="true",
                 description="Start the ESP32 core CAN protocol bridge node",
+            ),
+            DeclareLaunchArgument(
+                "receiver_interval_sec",
+                default_value="0.05",
+                description=(
+                    "SocketCAN receiver poll timeout in seconds. ESP32 telemetry "
+                    "arrives in ~20 ms bursts, so 0.05 avoids spurious timeouts."
+                ),
             ),
             socketcan,
             description,

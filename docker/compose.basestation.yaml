@@ -12,6 +12,7 @@ services:
       dockerfile: docker/Dockerfile.basestation-python
     image: kanga-basestation-python:humble
     container_name: basestation-server
+    restart: unless-stopped
     network_mode: host
     ipc: host
     working_dir: /workspace/basestation

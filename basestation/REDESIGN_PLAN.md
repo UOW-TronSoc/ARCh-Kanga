@@ -488,7 +488,10 @@ rest.
    camera placeholders; battery widgets static; arm/science hidden.
 8. Rover deployment: same compose file started on boot (restart policy or a
    thin systemd wrapper), brought up after robot bringup; legacy stack retired
-   from the rover once parity is verified.
+   from the rover once parity is verified. **In progress 2026-08-24** —
+   `restart: unless-stopped` on `basestation-server`; `basestation/deploy/
+   kanga-basestation.service` + `scripts/basestation_install_service.bash`.
+   Legacy stack retirement is manual once physical bringup is verified.
 
 Carried requirement: **done** — the drive stack zeroes the wheels after 0.5 s
 of `/cmd_vel` silence (`cmd_vel_timeout_s` in `kanga_core_controller`); the

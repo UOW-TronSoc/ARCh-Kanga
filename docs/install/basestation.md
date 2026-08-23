@@ -54,6 +54,24 @@ Stop:
 ./scripts/basestation_down.bash
 ```
 
+## Rover (systemd)
+
+After workspace build and a one-time frontend build on the rover:
+
+```bash
+./scripts/build_frontend.bash          # or SKIP_FRONTEND_BUILD=1 if already built
+sudo ./scripts/basestation_install_service.bash
+sudo systemctl enable --now kanga-basestation
+```
+
+The compose service uses `restart: unless-stopped`. Boot-time starts skip
+frontend rebuild (`SKIP_FRONTEND_BUILD=1`). Edit the unit if the repo path or
+robot bringup unit name differs:
+
+```bash
+sudo systemctl edit kanga-basestation
+```
+
 ## Workflows
 
 - **Path A (ROS only):** `docker_shell.bash` + `build_workspace.bash`

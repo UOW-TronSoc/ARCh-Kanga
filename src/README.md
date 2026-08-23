@@ -16,7 +16,7 @@ src/
 │
 ├── kanga_core/                   Rover-base domain
 │   ├── kanga_core_drive/
-│   ├── kanga_core_controller/    (planned)
+│   ├── kanga_core_controller/
 │   ├── kanga_core_description/
 │   ├── kanga_core_bringup/
 │   ├── kanga_core_microcontroller/

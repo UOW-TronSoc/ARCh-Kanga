@@ -1,9 +1,13 @@
 #include "kanga_core_controller/wheel_command_mapper.hpp"
 #include "kanga_core_controller/acceleration_limiter.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <memory>
 #include <stdexcept>
+
+#include "rclcpp/create_timer.hpp"
 
 using kanga_core_controller::ChassisGeometry;
 using kanga_core_controller::desaturate_wheel_velocities;
@@ -106,13 +110,15 @@ WheelCommandMapper::WheelCommandMapper(const rclcpp::NodeOptions & options)
       &WheelCommandMapper::on_cmd_vel, this,
       std::placeholders::_1));
 
-  // Steady publish rate (default 50 times per second).
-  const auto publish_period =
-    std::chrono::duration<double>(1.0 / publish_rate_hz);
-  wheel_command_publish_timer_ = this->create_wall_timer(
-    std::chrono::duration_cast<std::chrono::nanoseconds>(publish_period),
+  // ROS-clock publish rate (default 50 times per simulated or real second).
+  const double publish_period_s = 1.0 / publish_rate_hz;
+  // Five missed publications is treated as a clock discontinuity rather than
+  // a large acceleration interval. Keep a 250 ms floor for slower profiles.
+  control_time_step_ = std::make_unique<kanga_core_controller::ControlTimeStep>(
+    std::max(5.0 * publish_period_s, 0.25));
+  wheel_command_publish_timer_ = rclcpp::create_timer(
+    this, this->get_clock(), rclcpp::Duration::from_seconds(publish_period_s),
     std::bind(&WheelCommandMapper::publish_wheel_velocity_command, this));
-  previous_publish_time_ = std::chrono::steady_clock::now();
 
   RCLCPP_INFO(
     this->get_logger(),
@@ -148,20 +154,35 @@ geometry_msgs::msg::Twist WheelCommandMapper::get_active_twist_locked()
   return active_twist;
 }
 
-// Publish the latest four-wheel command at the configured steady rate.
+// Publish the latest four-wheel command at the configured ROS-clock rate.
 void WheelCommandMapper::publish_wheel_velocity_command()
 {
+  const auto publish_time = this->get_clock()->now();
+  const auto elapsed_time_s = control_time_step_->update(publish_time.nanoseconds());
+
+  // The first tick and all clock discontinuities publish a deterministic stop.
+  // Also discard the cached Twist so a pre-reset command cannot resume motion.
+  if (!elapsed_time_s.has_value()) {
+    {
+      std::lock_guard<std::mutex> lock(twist_mutex_);
+      twist_received_ = false;
+      latest_twist_ = geometry_msgs::msg::Twist();
+    }
+    previous_limited_twist_ = geometry_msgs::msg::Twist();
+    previous_wheel_command_ =
+      kanga_interfaces::msg::WheelVelocityCommand();
+    previous_wheel_command_.header.stamp = publish_time;
+    wheel_velocity_command_publisher_->publish(previous_wheel_command_);
+    return;
+  }
+
   // Get a stable local copy; new /cmd_vel messages cannot alter it afterwards.
   const auto active_twist = get_active_twist_locked();
-  const auto publish_time = std::chrono::steady_clock::now();
-  const double elapsed_time_s =
-    std::chrono::duration<double>(publish_time - previous_publish_time_).count();
-  previous_publish_time_ = publish_time;
 
   const auto limited_twist = limit_body_velocity_change(
     previous_limited_twist_, active_twist,
     max_linear_acceleration_m_s2_, max_angular_acceleration_rad_s2_,
-    elapsed_time_s);
+    elapsed_time_s.value());
   previous_limited_twist_ = limited_twist;
 
   const auto target_wheel_command = desaturate_wheel_velocities(
@@ -169,7 +190,7 @@ void WheelCommandMapper::publish_wheel_velocity_command()
     max_wheel_joint_velocity_rad_s_);
   auto command = limit_wheel_acceleration(
     previous_wheel_command_, target_wheel_command,
-    max_wheel_joint_acceleration_rad_s2_, elapsed_time_s);
+    max_wheel_joint_acceleration_rad_s2_, elapsed_time_s.value());
   previous_wheel_command_ = command;
   command.header.stamp = this->get_clock()->now();
   wheel_velocity_command_publisher_->publish(command);

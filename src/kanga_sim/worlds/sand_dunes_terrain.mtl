@@ -1,0 +1,8 @@
+# Fallback for mesh loaders; the SDF visual also specifies this colour.
+newmtl loose_sand
+Ka 0.42 0.39 0.32
+Kd 0.72 0.56 0.33
+Ks 0.05 0.05 0.05
+Ns 8.0
+d 1.0
+illum 2

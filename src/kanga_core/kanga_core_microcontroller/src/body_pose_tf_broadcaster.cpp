@@ -54,7 +54,8 @@ public:
       });
 
     RCLCPP_INFO(
-      this->get_logger(), "Broadcasting body/pose as %s -> %s",
+      this->get_logger(),
+      "Broadcasting body/pose orientation as %s -> %s (translation ignored)",
       parent_frame_id_.c_str(), child_frame_id_.c_str());
   }
 
@@ -72,16 +73,13 @@ private:
       return;
     }
 
-    const auto & position = message.pose.pose.position;
     const auto & orientation = message.pose.pose.orientation;
-    if (!std::isfinite(position.x) || !std::isfinite(position.y) ||
-      !std::isfinite(position.z) || !std::isfinite(orientation.x) ||
-      !std::isfinite(orientation.y) || !std::isfinite(orientation.z) ||
-      !std::isfinite(orientation.w))
+    if (!std::isfinite(orientation.x) || !std::isfinite(orientation.y) ||
+      !std::isfinite(orientation.z) || !std::isfinite(orientation.w))
     {
       RCLCPP_WARN_THROTTLE(
         this->get_logger(), *this->get_clock(), 5000,
-        "Ignoring body pose containing non-finite values");
+        "Ignoring body pose containing non-finite orientation");
       return;
     }
 
@@ -97,9 +95,11 @@ private:
       return;
     }
 
-    latest_transform_.transform.translation.x = position.x;
-    latest_transform_.transform.translation.y = position.y;
-    latest_transform_.transform.translation.z = position.z;
+    // BNO086 Game Rotation Vector has no reliable translation. Keep the body
+    // origin coincident with base_link and apply orientation only.
+    latest_transform_.transform.translation.x = 0.0;
+    latest_transform_.transform.translation.y = 0.0;
+    latest_transform_.transform.translation.z = 0.0;
     latest_transform_.transform.rotation.x = orientation.x / quaternion_norm;
     latest_transform_.transform.rotation.y = orientation.y / quaternion_norm;
     latest_transform_.transform.rotation.z = orientation.z / quaternion_norm;

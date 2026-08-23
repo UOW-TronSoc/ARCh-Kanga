@@ -172,6 +172,8 @@ def test_articulated_suspension_has_expected_travel() -> None:
         assert limit is not None
         assert math.isclose(float(limit.attrib["lower"]), -expected_limit, abs_tol=1e-6)
         assert math.isclose(float(limit.attrib["upper"]), expected_limit, abs_tol=1e-6)
+        assert float(limit.attrib["effort"]) > 0.0
+        assert float(limit.attrib["velocity"]) > 0.0
 
 
 def test_core_2026_meshes_resolve_inside_package() -> None:

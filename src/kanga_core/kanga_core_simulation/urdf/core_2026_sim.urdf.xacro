@@ -1,0 +1,105 @@
+<?xml version="1.0" ?>
+<robot name="core_2026_sim" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:arg name="drivetrain_profile" default="drivetrain_2025"/>
+  <xacro:arg name="surface_preset" default="loose_sand"/>
+
+  <xacro:unless value="${'$(arg drivetrain_profile)' == 'drivetrain_2025'}">
+    <xacro:property
+      name="unsupported_drivetrain_profile"
+      value="${xacro.fatal('core_2026 simulation requires drivetrain_2025; got', '$(arg drivetrain_profile)')}"
+      lazy_eval="false"
+    />
+  </xacro:unless>
+  <xacro:unless value="${'$(arg surface_preset)' in ['hard_ground', 'compacted_sand', 'loose_sand']}">
+    <xacro:property
+      name="unsupported_surface_preset"
+      value="${xacro.fatal('unknown core simulation surface preset', '$(arg surface_preset)')}"
+      lazy_eval="false"
+    />
+  </xacro:unless>
+
+  <xacro:property
+    name="drivetrain"
+    value="${xacro.load_yaml('$(find kanga_core_description)/config/drivetrains/$(arg drivetrain_profile).yaml')}"
+  />
+  <xacro:property
+    name="simulation"
+    value="${xacro.load_yaml('$(find kanga_core_simulation)/config/core_simulation.yaml')}"
+  />
+  <xacro:property
+    name="surface_preset"
+    value="${xacro.load_yaml('$(find kanga_core_simulation)/config/surfaces/$(arg surface_preset).yaml')}"
+  />
+
+  <xacro:include filename="$(find kanga_core_description)/urdf/core_2026_macro.urdf.xacro"/>
+  <xacro:core_2026
+    drivetrain_profile="$(arg drivetrain_profile)"
+    wheel_joint_effort_limit_nm="${drivetrain.drivetrain.wheel_joint_effort_limit_nm}"
+    wheel_joint_velocity_limit_rad_s="${drivetrain.drivetrain.motor_velocity_limit_tps * 2.0 * pi / drivetrain.drivetrain.motor_revolutions_per_wheel_revolution}"
+    wheel_joint_damping_nm_s_rad="${simulation.drive.wheel_bearing_damping_nm_s_rad}"
+    passive_joint_effort_limit_nm="${simulation.passive_suspension.passive_joint_effort_limit_nm}"
+    passive_joint_velocity_limit_rad_s="${simulation.passive_suspension.passive_joint_velocity_limit_rad_s}"
+    passive_joint_damping_nm_s_rad="${simulation.passive_suspension.joint_bearing_damping_nm_s_rad}"
+  />
+
+  <xacro:macro name="wheel_surface" params="link_name">
+    <gazebo reference="${link_name}">
+      <!-- Fortress WheelSlip assumes fdir1 is parallel to the axle. With the
+           wheel links' local Z axes, mu1 is lateral and mu2 longitudinal. -->
+      <fdir1>0 0 1</fdir1>
+      <mu1>${surface_preset.surface.friction_coefficient_lateral}</mu1>
+      <mu2>${surface_preset.surface.friction_coefficient_longitudinal}</mu2>
+      <kp>${surface_preset.surface.contact_stiffness_n_m}</kp>
+      <kd>${surface_preset.surface.contact_damping_n_s_m}</kd>
+      <minDepth>0.001</minDepth>
+      <maxVel>0.1</maxVel>
+    </gazebo>
+  </xacro:macro>
+  <xacro:wheel_surface link_name="wheel_fl"/>
+  <xacro:wheel_surface link_name="wheel_bl"/>
+  <xacro:wheel_surface link_name="wheel_br"/>
+  <xacro:wheel_surface link_name="wheel_fr"/>
+
+  <gazebo>
+    <plugin
+      filename="libkanga_core_hardware_system.so"
+      name="kanga_core_simulation::CoreHardwareSystem">
+      <command_timeout_s>${simulation.drive.command_timeout_s}</command_timeout_s>
+      <publish_rate_hz>${simulation.drive.publish_rate_hz}</publish_rate_hz>
+      <velocity_kp>${simulation.drive.velocity_kp}</velocity_kp>
+      <velocity_ki>${simulation.drive.velocity_ki}</velocity_ki>
+      <velocity_kd>${simulation.drive.velocity_kd}</velocity_kd>
+      <integral_limit>${simulation.drive.integral_limit}</integral_limit>
+      <torque_limit_nm>${simulation.drive.torque_limit_nm}</torque_limit_nm>
+      <wheel_velocity_limit_rad_s>${drivetrain.drivetrain.motor_velocity_limit_tps * 2.0 * pi / drivetrain.drivetrain.motor_revolutions_per_wheel_revolution}</wheel_velocity_limit_rad_s>
+      <wheel_acceleration_limit_rad_s2>${drivetrain.drivetrain.motor_acceleration_limit_tps_s * 2.0 * pi / drivetrain.drivetrain.motor_revolutions_per_wheel_revolution}</wheel_acceleration_limit_rad_s2>
+    </plugin>
+    <plugin
+      filename="libkanga_passive_suspension_system.so"
+      name="kanga_core_simulation::PassiveSuspensionSystem">
+      <stiffness_nm_rad>${simulation.passive_suspension.stiffness_nm_rad}</stiffness_nm_rad>
+      <damping_nm_s_rad>${simulation.passive_suspension.damping_nm_s_rad}</damping_nm_s_rad>
+      <maximum_torque_nm>${simulation.passive_suspension.maximum_torque_nm}</maximum_torque_nm>
+      <diff_bar_limit_deg>${simulation.passive_suspension.diff_bar_limit_deg}</diff_bar_limit_deg>
+      <suspension_limit_deg>${simulation.passive_suspension.suspension_limit_deg}</suspension_limit_deg>
+      <suspension_linkage_l1_mm>${drivetrain.suspension_geometry.suspension_linkage_l1_mm}</suspension_linkage_l1_mm>
+      <suspension_linkage_l2_mm>${drivetrain.suspension_geometry.suspension_linkage_l2_mm}</suspension_linkage_l2_mm>
+      <suspension_linkage_l3_mm>${drivetrain.suspension_geometry.suspension_linkage_l3_mm}</suspension_linkage_l3_mm>
+      <suspension_theta_at_beta_zero_deg>${drivetrain.suspension_geometry.suspension_theta_at_beta_zero_deg}</suspension_theta_at_beta_zero_deg>
+    </plugin>
+    <plugin filename="libignition-gazebo-wheel-slip-system.so" name="gz::sim::systems::WheelSlip">
+      <xacro:macro name="wheel_slip" params="link_name">
+        <wheel link_name="${link_name}">
+          <wheel_radius>${simulation.wheel_contact.collision_radius_m}</wheel_radius>
+          <wheel_normal_force>${simulation.wheel_contact.nominal_normal_force_n}</wheel_normal_force>
+          <slip_compliance_lateral>${surface_preset.surface.slip_compliance_lateral}</slip_compliance_lateral>
+          <slip_compliance_longitudinal>${surface_preset.surface.slip_compliance_longitudinal}</slip_compliance_longitudinal>
+        </wheel>
+      </xacro:macro>
+      <xacro:wheel_slip link_name="wheel_fl"/>
+      <xacro:wheel_slip link_name="wheel_bl"/>
+      <xacro:wheel_slip link_name="wheel_br"/>
+      <xacro:wheel_slip link_name="wheel_fr"/>
+    </plugin>
+  </gazebo>
+</robot>

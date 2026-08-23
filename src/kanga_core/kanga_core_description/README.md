@@ -129,6 +129,11 @@ differential-bar joint has a symmetrical ±70° range. Measured diff-bar state i
 mapped to the suspension joints by `kanga_core_microcontroller`; the description
 only owns the link/joint geometry and limits.
 
+In simulation those same three joints have finite effort and velocity limits,
+and Gazebo publishes their actual dynamic state. The limits are intentionally
+parameterized so the simulation wrapper can tune constraint torque and bearing
+damping without changing rover control behaviour.
+
 The detailed STL files are visual geometry only. Collision geometry is kept
 deliberately lightweight for simulation: main-chassis and rear LED/e-stop
 boxes, an antenna cylinder, a differential-bar box, one cylinder per wheel,

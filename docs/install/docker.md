@@ -1,9 +1,12 @@
-# Docker Dev/Build Setup (Initial)
+# Docker Dev/Build Setup
 
-This is the **initial** Docker development/build setup for the Kanga rover. It is
-**not** a full rover runtime setup yet. The goal right now is to get a reproducible
-ROS 2 Humble build environment and to verify that CAN works inside a container
-before we move on to hardware bring-up.
+This is the reproducible ROS 2 Humble development, hardware integration, and
+Gazebo Fortress simulation environment for the Kanga rover.
+
+Fortress is intentionally pinned with ROS 2 Humble on Ubuntu Jammy and is
+supported through May 2027. Treat a future ROS/Gazebo migration as one stack
+upgrade; do not mix an unsupported Gazebo release into this image. See the
+[Gazebo Fortress installation guidance](https://gazebosim.org/docs/fortress/getstarted/).
 
 ## Responsibility split
 
@@ -16,10 +19,11 @@ before we move on to hardware bring-up.
 - Core ROS message/lib packages used by Kanga (`rclcpp`, `rclpy`, `std_msgs`,
   `geometry_msgs`, `sensor_msgs`, `nav_msgs`, `tf2`, `tf2_ros`, ...)
 - CAN debugging tools (`can-utils`, `iproute2`, `net-tools`)
+- Gazebo Fortress, its development libraries, and `ros_gz`
 
 ### The host still handles
 
-- JetPack / NVIDIA drivers
+- JetPack / NVIDIA drivers and NVIDIA Container Toolkit
 - Docker itself (engine + compose plugin)
 - USB-CAN adapter detection
 - stable CAN interface naming (`can_core` / `can_payload`) and bitrate setup
@@ -77,6 +81,52 @@ From a graphical Linux desktop, the helper also applies
 and Xauthority cookie so RViz and other Qt applications can open on the host.
 Headless and SSH sessions without a usable `DISPLAY` continue with the base
 development Compose file only.
+
+The same GUI overlay supports Gazebo. For a headless core simulation, no
+display forwarding is required:
+
+```bash
+ros2 launch kanga_sim core_simulation.launch.py gui:=false
+```
+
+### NVIDIA-accelerated Gazebo GUI
+
+The GUI overlay permits hardware rendering and the NVIDIA overlay selects the
+discrete GPU on PRIME / hybrid-graphics laptops. `docker_shell.bash` applies
+`docker/compose.nvidia.yaml` automatically when the host driver is working and
+Docker has registered the NVIDIA runtime. It no longer forces Mesa's software
+renderer.
+
+The NVIDIA driver remains a host responsibility. Install and register NVIDIA
+Container Toolkit once on the host:
+
+```bash
+./scripts/setup_nvidia_container_toolkit.bash
+```
+
+The helper intentionally does not restart Docker because a restart interrupts
+all running containers. After closing them, either run
+`sudo systemctl restart docker`, or install and restart in one operation with
+`./scripts/setup_nvidia_container_toolkit.bash --restart`.
+
+Open a fresh development shell and verify both device passthrough and the
+actual OpenGL renderer:
+
+```bash
+./scripts/docker_shell.bash
+nvidia-smi -L
+glxinfo -B | grep -E 'direct rendering|OpenGL vendor|OpenGL renderer'
+```
+
+The renderer should contain `NVIDIA`, not `llvmpipe` or `softpipe`. Use
+`KANGA_GPU=nvidia ./scripts/docker_shell.bash` to require NVIDIA and fail early
+if it is unavailable. Use `KANGA_GPU=none` to disable the NVIDIA overlay and
+allow the host/Mesa renderer to be selected instead.
+
+NVIDIA's setup follows the
+[official Container Toolkit installation guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html),
+and the Compose overlay follows Docker's
+[GPU access guidance](https://docs.docker.com/compose/how-tos/gpu-support/).
 
 The image uses a non-root `kanga` user whose UID and GID are matched to the host
 by `docker_shell.bash`. This prevents colcon's bind-mounted `build/`, `install/`,

@@ -15,6 +15,7 @@ from kanga_core_microcontroller.core_frames import (
 def generate_launch_description():
     body_pose_parent_frame = LaunchConfiguration("body_pose_parent_frame")
     body_pose_child_frame = LaunchConfiguration("body_pose_child_frame")
+    use_sim_time = LaunchConfiguration("use_sim_time")
     parameters = PathJoinSubstitution(
         [
             FindPackageShare("kanga_core_microcontroller"),
@@ -35,6 +36,11 @@ def generate_launch_description():
                 default_value=DEFAULT_BODY_POSE_CHILD_FRAME,
                 description="Body frame driven by body/pose",
             ),
+            DeclareLaunchArgument(
+                "use_sim_time",
+                default_value="false",
+                description="Use the ROS simulation clock",
+            ),
             Node(
                 package="kanga_core_microcontroller",
                 executable="body_pose_tf_broadcaster",
@@ -44,6 +50,7 @@ def generate_launch_description():
                     {
                         "parent_frame_id": body_pose_parent_frame,
                         "child_frame_id": body_pose_child_frame,
+                        "use_sim_time": use_sim_time,
                     },
                 ],
                 output="screen",

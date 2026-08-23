@@ -5,10 +5,11 @@
        - prefix: optional name prefix to avoid link/joint collisions
        - drivetrain_profile: compatible physical drivetrain profile
        - wheel_joint_effort_limit_nm: high simulation effort ceiling
-       - wheel_joint_velocity_limit_rad_s: profile-derived wheel speed limit -->
+       - wheel_joint_velocity_limit_rad_s: profile-derived wheel speed limit
+       - passive_joint_*: finite simulation limits; they do not command hardware -->
   <xacro:macro
     name="core_2026"
-    params="wheel_joint_effort_limit_nm wheel_joint_velocity_limit_rad_s prefix:='' drivetrain_profile:='drivetrain_2025'"
+    params="wheel_joint_effort_limit_nm wheel_joint_velocity_limit_rad_s prefix:='' drivetrain_profile:='drivetrain_2025' wheel_joint_damping_nm_s_rad:=0.0 passive_joint_effort_limit_nm:=500.0 passive_joint_velocity_limit_rad_s:=2.0 passive_joint_damping_nm_s_rad:=0.0"
   >
     <!-- core_2026 describes the physical 2026 core, which retained the 2025
          drivetrain. Reject mismatched composition instead of silently
@@ -183,6 +184,7 @@
       <child link="${prefix}wheel_fl"/>
       <axis xyz="0 0 -1"/>
       <limit effort="${wheel_joint_effort_limit_nm}" velocity="${wheel_joint_velocity_limit_rad_s}"/>
+      <dynamics damping="${wheel_joint_damping_nm_s_rad}" friction="0"/>
     </joint>
 
     <link name="${prefix}wheel_bl">
@@ -213,6 +215,7 @@
       <child link="${prefix}wheel_bl"/>
       <axis xyz="0 0 -1"/>
       <limit effort="${wheel_joint_effort_limit_nm}" velocity="${wheel_joint_velocity_limit_rad_s}"/>
+      <dynamics damping="${wheel_joint_damping_nm_s_rad}" friction="0"/>
     </joint>
 
     <!-- Physical articulation range; state mapping lives in kanga_core_microcontroller. -->
@@ -221,7 +224,8 @@
       <parent link="${prefix}kanga_core"/>
       <child link="${prefix}left_suspension"/>
       <axis xyz="0 0 1"/>
-      <limit effort="0" velocity="0" lower="-0.5235987755982988" upper="0.5235987755982988"/>
+      <limit effort="${passive_joint_effort_limit_nm}" velocity="${passive_joint_velocity_limit_rad_s}" lower="-0.5235987755982988" upper="0.5235987755982988"/>
+      <dynamics damping="${passive_joint_damping_nm_s_rad}" friction="0"/>
     </joint>
 
     <link name="${prefix}right_suspension">
@@ -304,6 +308,7 @@
            positive joint velocity means rover-forward on every wheel. -->
       <axis xyz="0 0 1"/>
       <limit effort="${wheel_joint_effort_limit_nm}" velocity="${wheel_joint_velocity_limit_rad_s}"/>
+      <dynamics damping="${wheel_joint_damping_nm_s_rad}" friction="0"/>
     </joint>
 
     <link name="${prefix}wheel_br">
@@ -335,6 +340,7 @@
       <!-- Match the positive-forward wheel convention used by drive feedback. -->
       <axis xyz="0 0 1"/>
       <limit effort="${wheel_joint_effort_limit_nm}" velocity="${wheel_joint_velocity_limit_rad_s}"/>
+      <dynamics damping="${wheel_joint_damping_nm_s_rad}" friction="0"/>
     </joint>
 
     <!-- Physical articulation range; state mapping lives in kanga_core_microcontroller. -->
@@ -343,7 +349,8 @@
       <parent link="${prefix}kanga_core"/>
       <child link="${prefix}right_suspension"/>
       <axis xyz="0 0 1"/>
-      <limit effort="0" velocity="0" lower="-0.5235987755982988" upper="0.5235987755982988"/>
+      <limit effort="${passive_joint_effort_limit_nm}" velocity="${passive_joint_velocity_limit_rad_s}" lower="-0.5235987755982988" upper="0.5235987755982988"/>
+      <dynamics damping="${passive_joint_damping_nm_s_rad}" friction="0"/>
     </joint>
 
     <link name="${prefix}diff_bar">
@@ -375,7 +382,8 @@
       <parent link="${prefix}kanga_core"/>
       <child link="${prefix}diff_bar"/>
       <axis xyz="0 0 1"/>
-      <limit effort="0" velocity="0" lower="-1.2217304763960306" upper="1.2217304763960306"/>
+      <limit effort="${passive_joint_effort_limit_nm}" velocity="${passive_joint_velocity_limit_rad_s}" lower="-1.2217304763960306" upper="1.2217304763960306"/>
+      <dynamics damping="${passive_joint_damping_nm_s_rad}" friction="0"/>
     </joint>
   </xacro:macro>
 </robot>

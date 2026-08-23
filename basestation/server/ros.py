@@ -131,6 +131,42 @@ class RosRuntime:
         self._thread: Optional[threading.Thread] = None
         self._control_lock = threading.Lock()
         self._control_held = False
+        self._svc_lock = threading.Lock()
+
+    # ---- one-shot drive management (REST) ----
+
+    def set_drivestop(self, stop: bool) -> dict:
+        """Ask WHS to assert or clear the software stop."""
+        return self._call_set_bool("/whs_node/set_drivestop", stop)
+
+    def set_closed_loop(self, enable: bool) -> dict:
+        """Enter or exit closed-loop drive (wheels live)."""
+        return self._call_set_bool("/drive_manager/set_closed_loop", enable)
+
+    def clear_drive_errors(self) -> dict:
+        """Clear ODrive / drive manager faults."""
+        return self._call_trigger("/drive_manager/clear_errors")
+
+    def calibrate_wheel(self, wheel: str) -> dict:
+        """Run one-wheel calibration (wheel must be off the ground)."""
+        wheel = wheel.lower()
+        if wheel not in ("fl", "bl", "br", "fr"):
+            return {"ok": False, "message": f"unknown wheel {wheel!r}"}
+        return self._call_trigger(
+            f"/drive_manager/calibrate_{wheel}", timeout_sec=120.0
+        )
+
+    def _call_set_bool(self, service: str, value: bool) -> dict:
+        if not self.ready or self._node is None:
+            return {"ok": False, "message": "ROS node not ready"}
+        with self._svc_lock:
+            return self._node.invoke_set_bool(service, value)
+
+    def _call_trigger(self, service: str, timeout_sec: float = 10.0) -> dict:
+        if not self.ready or self._node is None:
+            return {"ok": False, "message": "ROS node not ready"}
+        with self._svc_lock:
+            return self._node.invoke_trigger(service, timeout_sec)
 
     # ---- control session (newest tab wins; see main.ws_control) ----
 
@@ -198,6 +234,7 @@ class RosRuntime:
             )
             from sensor_msgs.msg import JointState
             from std_msgs.msg import Bool
+            from std_srvs.srv import SetBool, Trigger
 
             state = self.state
             sensor_qos = qos_profile_sensor_data
@@ -248,6 +285,26 @@ class RosRuntime:
                     )
                     self._subscribe_motor_status()
                     self._cmd_vel_pub = self.create_publisher(Twist, "/cmd_vel", 10)
+                    # One-shot actions the operator page triggers over REST.
+                    self._clients_set_bool = {
+                        "/whs_node/set_drivestop": self.create_client(
+                            SetBool, "/whs_node/set_drivestop"
+                        ),
+                        "/drive_manager/set_closed_loop": self.create_client(
+                            SetBool, "/drive_manager/set_closed_loop"
+                        ),
+                    }
+                    self._clients_trigger = {
+                        "/drive_manager/clear_errors": self.create_client(
+                            Trigger, "/drive_manager/clear_errors"
+                        ),
+                        **{
+                            f"/drive_manager/calibrate_{w}": self.create_client(
+                                Trigger, f"/drive_manager/calibrate_{w}"
+                            )
+                            for w in ("fl", "bl", "br", "fr")
+                        },
+                    }
                     # One timer does both jobs: republish the operator's
                     # command while it is fresh, and stop the rover when the
                     # operator goes quiet (closed tab, frozen browser,
@@ -321,6 +378,32 @@ class RosRuntime:
                             "axis_state": int(msg.axis_state),
                             "vel_estimate": round(float(msg.vel_estimate), 3),
                         }
+
+                def invoke_set_bool(self, service: str, value: bool) -> dict:
+                    client = self._clients_set_bool.get(service)
+                    if client is None:
+                        return {"ok": False, "message": f"unknown service {service}"}
+                    if not client.wait_for_service(timeout_sec=3.0):
+                        return {"ok": False, "message": f"{service} not available"}
+                    req = SetBool.Request()
+                    req.data = value
+                    resp = client.call(req)
+                    if resp is None:
+                        return {"ok": False, "message": f"{service} call failed"}
+                    return {"ok": bool(resp.success), "message": resp.message}
+
+                def invoke_trigger(
+                    self, service: str, timeout_sec: float = 10.0
+                ) -> dict:
+                    client = self._clients_trigger.get(service)
+                    if client is None:
+                        return {"ok": False, "message": f"unknown service {service}"}
+                    if not client.wait_for_service(timeout_sec=timeout_sec):
+                        return {"ok": False, "message": f"{service} not available"}
+                    resp = client.call(Trigger.Request())
+                    if resp is None:
+                        return {"ok": False, "message": f"{service} call failed"}
+                    return {"ok": bool(resp.success), "message": resp.message}
 
                 def _publish_twist(self, linear: float, yaw: float) -> None:
                     msg = Twist()

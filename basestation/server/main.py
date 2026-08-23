@@ -16,8 +16,9 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
 from .ros import MAX_LINEAR_MPS, MAX_YAW_RAD_S, TELEMETRY_HZ, RosRuntime
 
@@ -50,6 +51,36 @@ def health() -> dict:
         "workspace_sourced": os.path.isdir("/workspace/install"),
         "ros_domain_id": os.environ.get("ROS_DOMAIN_ID", "0"),
     }
+
+
+class StopRequest(BaseModel):
+    stop: bool = Field(description="true = assert drivestop, false = release")
+
+
+class EnableRequest(BaseModel):
+    enable: bool = Field(description="true = closed loop, false = idle")
+
+
+@app.post("/api/drive/drivestop")
+async def api_drivestop(body: StopRequest) -> dict:
+    return await asyncio.to_thread(runtime.set_drivestop, body.stop)
+
+
+@app.post("/api/drive/closed-loop")
+async def api_closed_loop(body: EnableRequest) -> dict:
+    return await asyncio.to_thread(runtime.set_closed_loop, body.enable)
+
+
+@app.post("/api/drive/clear-errors")
+async def api_clear_errors() -> dict:
+    return await asyncio.to_thread(runtime.clear_drive_errors)
+
+
+@app.post("/api/drive/calibrate/{wheel}")
+async def api_calibrate(wheel: str) -> dict:
+    if wheel.lower() not in ("fl", "bl", "br", "fr"):
+        raise HTTPException(status_code=400, detail="wheel must be fl, bl, br, or fr")
+    return await asyncio.to_thread(runtime.calibrate_wheel, wheel.lower())
 
 
 # Close code sent to a tab that lost control to a newer one. The page must

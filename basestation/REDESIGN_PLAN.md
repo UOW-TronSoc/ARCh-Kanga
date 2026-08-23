@@ -469,7 +469,11 @@ rest.
 5. Drive management REST + UI: drivestop set/clear with latched state
    display, `set_closed_loop`, `clear_errors`, per-wheel calibrate (the
    "motor page" from the core drive migration doc), with the arming sequence
-   (clear stop -> closed loop -> drive) made explicit in the UI.
+   (clear stop -> closed loop -> drive) made explicit in the UI. **Done
+   2026-08-23** — REST under `/api/drive/*`; test page Drive setup panel
+   (release/assert stop, closed loop/idle, clear errors). Per-wheel calibrate
+   endpoint exists (`POST /api/drive/calibrate/{wheel}`) but no UI button yet
+   — add with the real motor page in task 7.
 6. Port the remaining operator REST actions from the legacy Django app:
    checklist, logs, PIN; science controls *(payload-gated)*; NIR servo /
    Roo release wait for `kanga_core_microcontroller` firmware instead of

@@ -20,6 +20,16 @@
       .off { color: #999; }
       input[type=range] { width: 160px; }
       .hint { color: #8a93a2; font-size: 0.85em; }
+      .btnRow { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+      button.action {
+        background: #2a3140; color: #e8e8e8; border: 1px solid #3d4656;
+        border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 0.85em;
+      }
+      button.action:hover { border-color: #58d68d; }
+      button.action:disabled { opacity: 0.5; cursor: not-allowed; }
+      #actionMsg { min-height: 1.2em; margin-top: 8px; font-size: 0.85em; color: #8a93a2; }
+      #actionMsg.ok { color: #58d68d; }
+      #actionMsg.err { color: #ff5c5c; }
     </style>
   </head>
   <body>
@@ -46,6 +56,20 @@
           <span><code id="bodyYaw">—</code></span></div>
         <div class="row"><span>Body speed</span>
           <span><code id="bodyVx">—</code></span></div>
+      </div>
+
+      <div class="panel">
+        <div class="row"><span>Drive setup</span></div>
+        <p class="hint">Before driving: 1) release stop, 2) enter closed loop,
+          3) tick Drive enabled below.</p>
+        <div class="btnRow">
+          <button type="button" class="action" id="btnReleaseStop">Release stop</button>
+          <button type="button" class="action" id="btnAssertStop">Assert stop</button>
+          <button type="button" class="action" id="btnClosedLoop">Closed loop</button>
+          <button type="button" class="action" id="btnIdle">Idle</button>
+          <button type="button" class="action" id="btnClearErrors">Clear errors</button>
+        </div>
+        <div id="actionMsg"></div>
       </div>
 
       <div class="panel">
@@ -121,6 +145,47 @@
         };
       }
       connectTelemetry();
+
+      // ---- drive setup buttons (one-shot REST actions) ----
+      const actionMsg = document.getElementById("actionMsg");
+
+      async function driveAction(label, path, body) {
+        actionMsg.textContent = `${label}…`;
+        actionMsg.className = "";
+        const buttons = document.querySelectorAll("button.action");
+        buttons.forEach((b) => { b.disabled = true; });
+        try {
+          const opts = body === undefined
+            ? { method: "POST" }
+            : { method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body) };
+          const res = await fetch(path, opts);
+          const data = await res.json();
+          if (data.ok) {
+            actionMsg.textContent = data.message || `${label} OK`;
+            actionMsg.className = "ok";
+          } else {
+            actionMsg.textContent = data.message || `${label} failed`;
+            actionMsg.className = "err";
+          }
+        } catch (e) {
+          actionMsg.textContent = `${label} failed: ${e.message}`;
+          actionMsg.className = "err";
+        } finally {
+          buttons.forEach((b) => { b.disabled = false; });
+        }
+      }
+
+      document.getElementById("btnReleaseStop").onclick = () =>
+        driveAction("Release stop", "/api/drive/drivestop", { stop: false });
+      document.getElementById("btnAssertStop").onclick = () =>
+        driveAction("Assert stop", "/api/drive/drivestop", { stop: true });
+      document.getElementById("btnClosedLoop").onclick = () =>
+        driveAction("Closed loop", "/api/drive/closed-loop", { enable: true });
+      document.getElementById("btnIdle").onclick = () =>
+        driveAction("Idle", "/api/drive/closed-loop", { enable: false });
+      document.getElementById("btnClearErrors").onclick = () =>
+        driveAction("Clear errors", "/api/drive/clear-errors");
 
       // ---- control channel ----
       // One WebSocket, reconnect every second if it drops. While "Drive

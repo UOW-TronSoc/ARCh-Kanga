@@ -8,6 +8,9 @@ namespace kanga_whs
 WhsNode::WhsNode(const std::string & node_name, const rclcpp::NodeOptions & options)
 : Node(node_name, options)
 {
+  const bool initial_drivestop =
+    this->declare_parameter<bool>("initial_drivestop", true);
+
   // Match custom_odrive /drivestop subscription: KeepLast(1), reliable, transient_local.
   rclcpp::QoS drivestop_qos(rclcpp::KeepLast(1));
   drivestop_qos.reliable();
@@ -21,12 +24,15 @@ WhsNode::WhsNode(const std::string & node_name, const rclcpp::NodeOptions & opti
       &WhsNode::set_drivestop_callback, this,
       std::placeholders::_1, std::placeholders::_2));
 
-  // Publish initial allow so late-joining consumers see an authoritative WHS value.
-  publish_drivestop(false);
+  // Publish one authoritative startup state. Production defaults to stop so a
+  // restart requires an explicit release before motion can resume.
+  publish_drivestop(initial_drivestop);
 
   RCLCPP_INFO(
     get_logger(),
-    "WHS ready: service ~/set_drivestop (true=stop, false=allow) → /drivestop");
+    "WHS ready (initial_drivestop=%s): service ~/set_drivestop "
+    "(true=stop, false=allow) → /drivestop",
+    initial_drivestop ? "true" : "false");
 }
 
 void WhsNode::set_drivestop_callback(

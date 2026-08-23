@@ -69,8 +69,11 @@ class BenchTeleop(Node):
         self.closed_loop_active = False
         self.closed_loop_request_pending = False
         self.clear_errors_request_pending = False
+        self.drivestop_request_pending = False
+        self.queued_drivestop_request = None
         self.motion_armed = False
-        self.drivestop_active = False
+        # Fail closed until the authoritative transient-local WHS state arrives.
+        self.drivestop_active = True
         self.command_loss_active = False
         self.invalid_layout_reported = False
 
@@ -79,9 +82,6 @@ class BenchTeleop(Node):
         drivestop_qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
 
         self.velocity_publisher = self.create_publisher(Twist, "/cmd_vel", 10)
-        self.drivestop_publisher = self.create_publisher(
-            Bool, "/drivestop", drivestop_qos
-        )
         self.drivestop_subscription = self.create_subscription(
             Bool, "/drivestop", self.on_drivestop, drivestop_qos
         )
@@ -90,6 +90,9 @@ class BenchTeleop(Node):
         )
         self.closed_loop_client = self.create_client(
             SetBool, "/drive_manager/set_closed_loop"
+        )
+        self.drivestop_client = self.create_client(
+            SetBool, "/whs_node/set_drivestop"
         )
         self.clear_errors_client = self.create_client(
             Trigger, "/drive_manager/clear_errors"
@@ -305,17 +308,65 @@ class BenchTeleop(Node):
     def assert_drivestop(self):
         self.closed_loop_active = False
         self.motion_armed = False
+        self.drivestop_active = True
         self.publish_zero()
-        self.drivestop_publisher.publish(Bool(data=True))
-        self.get_logger().warning("DRIVESTOP asserted; all wheels requested IDLE")
+        self.request_drivestop(True)
 
     # Clear the global stop without automatically re-entering CLOSED_LOOP.
     def release_drivestop(self):
         self.closed_loop_active = False
         self.motion_armed = False
         self.publish_zero()
-        self.drivestop_publisher.publish(Bool(data=False))
-        self.get_logger().info("Drivestop released; press B0 to enter CLOSED_LOOP")
+        # Do not clear the local gate until WHS publishes authoritative false.
+        self.request_drivestop(False)
+
+    # Route a stop-state request through the sole /drivestop publisher (WHS).
+    def request_drivestop(self, active):
+        if self.drivestop_request_pending:
+            # Keep only the newest intent. A stop request has already applied
+            # the local fail-closed gate in assert_drivestop().
+            self.queued_drivestop_request = active
+            self.get_logger().info("Queued newest WHS drivestop request")
+            return
+        self.send_drivestop_request(active)
+
+    # Send one asynchronous WHS request, remaining disarmed on any failure.
+    def send_drivestop_request(self, active):
+        if not self.drivestop_client.service_is_ready():
+            action = "assert" if active else "release"
+            self.get_logger().error(
+                f"WHS set_drivestop service unavailable; cannot {action}"
+            )
+            return
+
+        request = SetBool.Request()
+        request.data = active
+        self.drivestop_request_pending = True
+        future = self.drivestop_client.call_async(request)
+        future.add_done_callback(
+            lambda result: self.on_drivestop_response(result, active)
+        )
+
+    # Report the WHS response and forward any newer request queued behind it.
+    def on_drivestop_response(self, future, requested_active):
+        self.drivestop_request_pending = False
+        try:
+            response = future.result()
+        except Exception as error:  # noqa: BLE001 - ROS futures can raise broadly.
+            self.get_logger().error(f"WHS drivestop request failed: {error}")
+        else:
+            if response.success:
+                state = "asserted" if requested_active else "released"
+                self.get_logger().info(f"Drivestop {state}: {response.message}")
+            else:
+                self.get_logger().error(
+                    f"WHS drivestop request rejected: {response.message}"
+                )
+
+        queued_request = self.queued_drivestop_request
+        self.queued_drivestop_request = None
+        if queued_request is not None and queued_request != requested_active:
+            self.send_drivestop_request(queued_request)
 
     # Return true when all mapped chassis percentages are near zero.
     def axes_are_neutral(self):

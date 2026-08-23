@@ -201,7 +201,7 @@ ros2 topic echo /wheel_fl/controller_status --once
 If nodes ignore commands until `/drivestop` is received:
 
 ```bash
-ros2 topic pub /drivestop std_msgs/msg/Bool "{data: false}" --once
+ros2 service call /whs_node/set_drivestop std_srvs/srv/SetBool "{data: false}"
 ```
 
 ---

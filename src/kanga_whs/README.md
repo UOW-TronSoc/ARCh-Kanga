@@ -34,6 +34,11 @@ Motor latching, IDLE requests, and per-axis enable stay in each consumer
 (e.g. `custom_odrive`). This node only remembers and publishes the last
 software-stop command so late subscribers still see it.
 
+WHS starts with drivestop asserted by default. Startup and node restart
+therefore require an explicit release before motion can be enabled. The
+`initial_drivestop` parameter exists for controlled development situations,
+but physical-rover bringup should keep its default value of `true`.
+
 No custom `kanga_interfaces` messages. No joy/polarity logic here. Battery-based
 stop and power interruption are out of scope for this iteration.
 
@@ -57,6 +62,9 @@ GPIO reader. It is not wired into `whs_node` yet.
 ```bash
 ros2 launch kanga_whs whs.launch.py
 
+# Development-only startup override. Do not use for normal rover bringup.
+ros2 launch kanga_whs whs.launch.py initial_drivestop:=false
+
 # assert stop
 ros2 service call /whs_node/set_drivestop std_srvs/srv/SetBool "{data: true}"
 
@@ -66,12 +74,15 @@ ros2 service call /whs_node/set_drivestop std_srvs/srv/SetBool "{data: false}"
 ros2 topic echo /drivestop
 ```
 
-## Virtual test (no hardware)
+## Tests (no hardware)
 
 Inside the kanga-dev container (after vendor import + build):
 
 ```bash
-./scripts/test_whs_drivestop.bash
+colcon test --packages-select kanga_whs
+colcon test-result --verbose
 ```
 
-Uses `vcan0` so `custom_odrive` can start without a physical CAN adapter.
+The test verifies the default fail-safe startup state, transient-local delivery
+to a late subscriber, service-routed state changes, and the explicit
+development startup override.

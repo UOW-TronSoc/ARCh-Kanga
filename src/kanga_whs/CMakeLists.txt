@@ -44,4 +44,23 @@ install(FILES README.md
   DESTINATION share/${PROJECT_NAME}
 )
 
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+
+  ament_add_gtest(test_whs_node
+    test/test_whs_node.cpp
+    src/whs_node.cpp
+  )
+  target_compile_features(test_whs_node PRIVATE cxx_std_17)
+  target_include_directories(test_whs_node PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+  )
+  ament_target_dependencies(test_whs_node
+    rclcpp
+    std_msgs
+    std_srvs
+  )
+endif()
+
 ament_package()

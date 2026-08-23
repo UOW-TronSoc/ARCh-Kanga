@@ -33,15 +33,14 @@ those in early PRs.
 
 ## Replacement order (after scaffold)
 
-1. Replace `basestation/fastapi_server` stub with real cmd_vel FastAPI.
-2. Replace `basestation/arm_fastapi_app` stub with real arm FastAPI.
-3. Replace `basestation/django_app` stub with real Django (keep port 8000).
-4. Replace nginx scaffold frontend with the Vite app on port 3000.
-5. Add a prod-oriented compose profile for Orin when behaviour matches the
-   current systemd stack.
+Superseded: the stubs are not replaced one-for-one. The agreed target is a
+single FastAPI server (embedded rclpy node, WebSocket control/telemetry)
+serving a built frontend on one port — see the design and task list in
+[basestation/REDESIGN_PLAN.md](../../basestation/REDESIGN_PLAN.md).
 
 Validate each slice against ROS nodes started from Path A
-(`./scripts/docker_shell.bash`) on the same `ROS_DOMAIN_ID`.
+(`./scripts/docker_shell.bash`) — physical core bringup or the `kanga_sim`
+core simulation — on the same `ROS_DOMAIN_ID`.
 
 ## Interface rule
 

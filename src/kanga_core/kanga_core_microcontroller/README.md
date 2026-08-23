@@ -10,8 +10,8 @@ review, but does not mean they should become one monolithic program.
 - Its CAN protocol and host-side translation where required
 - ROO release and drive-lock commands and status
 - Differential-bar encoder sampling and raw count reporting
-- Host-side publication of IMU, encoder, servo command/status, and other typed
-  ROS interfaces carried by the ESP32 CAN protocol
+- Host-side publication of IMU, encoder, and other typed ROS state interfaces
+  carried by the ESP32 CAN protocol
 - Testable conversion of differential-bar angle into suspension joint state
 - Core internal status reported by the microcontroller
 
@@ -23,6 +23,31 @@ separate executable in this package owns the suspension kinematics so that the
 equation remains independent of CAN framing and can be tested offline. Link TF
 generation remains with `robot_state_publisher` or a dedicated estimator. The
 GPIO motion-stop input belongs to `kanga_whs`, not this firmware.
+
+## Rover validation status
+
+The current sensing and visualization scope was validated on the physical
+rover on 2026-08-23:
+
+- Differential-bar encoder feedback passed through the ESP32, CAN bridge, and
+  suspension kinematics, and the resulting visualization matched the rover's
+  real differential-bar and suspension movement.
+- IMU orientation, axis directions, and units produced a body visualization
+  that matched the rover's observed orientation.
+- Together these checks validate the implemented ESP32 -> CAN -> ROS -> TF /
+  JointState visualization path for the current merge scope.
+
+This validation does not promote the preliminary body pose to production
+odometry or closed-loop control feedback; the covariance, freshness, drift,
+and sensor-fusion requirements described below still apply to those future
+uses.
+
+Auxiliary servo control is explicitly deferred and is not an acceptance
+requirement for this merge. The current firmware can decode and log the
+reserved servo command frame, but its PWM pins are unassigned and commands are
+not applied to hardware. Servo topic ownership, limits, failsafe behaviour,
+pin assignment, actuation, and hardware validation will be added as a separate
+reviewed feature.
 
 ## Source layout
 
@@ -49,8 +74,8 @@ code can live beside it as `.h` and `.cpp` files.
 
 | Part | Owns | Does not own |
 |---|---|---|
-| ESP32 firmware | Sensor sampling, encoder counts, IMU access, servo I/O, CAN framing, device timestamps and status | ROS, TF, URDF geometry, or suspension kinematics |
-| ESP32 CAN bridge | SocketCAN transport, protocol validation, unit conversion/calibration, typed ROS topics and servo command forwarding | Robot geometry or TF |
+| ESP32 firmware | Sensor sampling, encoder counts, IMU access, CAN framing, device timestamps and status; reserved inactive servo command decoding | ROS, TF, URDF geometry, suspension kinematics, or production servo actuation |
+| ESP32 CAN bridge | SocketCAN transport, protocol validation, unit conversion/calibration, and typed ROS state topics | Robot geometry, TF, or the deferred servo control interface |
 | Body pose TF node | Mirror an already-processed `body/pose` sample into a development TF | Pose estimation, sensor fusion, twist processing, or production odometry |
 | Suspension state node | Diff-bar angle limits and the replaceable diff-bar-to-suspension equation | CAN framing, encoder drivers, or TF |
 
@@ -62,10 +87,10 @@ diff-bar encoder → ESP32 firmware → CAN → ESP32 CAN bridge
   → suspension_joint_states → robot_state_publisher integration
 ```
 
-The IMU and servo paths share the firmware and CAN bridge, but not the
-suspension kinematics executable. This keeps hardware reconnection or protocol
-changes separate from the mechanism equation and makes that equation testable
-without an ESP32.
+The IMU path shares the firmware and CAN bridge with the reserved servo frame,
+but not the suspension kinematics executable. Servo actuation remains deferred.
+This keeps hardware reconnection or protocol changes separate from the
+mechanism equation and makes that equation testable without an ESP32.
 
 ### Who publishes body state
 

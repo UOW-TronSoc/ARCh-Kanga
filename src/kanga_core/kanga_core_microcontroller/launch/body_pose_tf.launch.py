@@ -6,6 +6,11 @@ from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
+from kanga_core_microcontroller.core_frames import (
+    DEFAULT_BODY_POSE_CHILD_FRAME,
+    DEFAULT_BODY_POSE_PARENT_FRAME,
+)
+
 
 def generate_launch_description():
     body_pose_parent_frame = LaunchConfiguration("body_pose_parent_frame")
@@ -22,12 +27,12 @@ def generate_launch_description():
         [
             DeclareLaunchArgument(
                 "body_pose_parent_frame",
-                default_value="body_origin",
+                default_value=DEFAULT_BODY_POSE_PARENT_FRAME,
                 description="Reference frame expected on body/pose",
             ),
             DeclareLaunchArgument(
                 "body_pose_child_frame",
-                default_value="base_link",
+                default_value=DEFAULT_BODY_POSE_CHILD_FRAME,
                 description="Body frame driven by body/pose",
             ),
             Node(

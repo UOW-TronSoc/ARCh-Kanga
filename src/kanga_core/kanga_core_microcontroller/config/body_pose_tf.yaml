@@ -1,5 +1,8 @@
 body_pose_tf_broadcaster:
   ros__parameters:
-    parent_frame_id: body_origin
-    child_frame_id: base_link
+    # Frame names are set from launch arguments, not here, so that this node
+    # and whatever publishes body/pose cannot drift apart. See config/core_frames.py.
+
+    # How far the incoming quaternion may be from unit length before the
+    # sample is rejected as malformed.
     quaternion_norm_tolerance: 0.01

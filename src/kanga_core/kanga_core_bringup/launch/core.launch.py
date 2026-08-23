@@ -9,10 +9,18 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
-from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.launch_description_sources import (
+    AnyLaunchDescriptionSource,
+    PythonLaunchDescriptionSource,
+)
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch_ros.substitutions import FindPackageShare
 
 from kanga_core_description.drivetrain_profile import DEFAULT_DRIVETRAIN_PROFILE
+from kanga_core_microcontroller.core_frames import (
+    DEFAULT_BODY_POSE_CHILD_FRAME,
+    DEFAULT_BODY_POSE_PARENT_FRAME,
+)
 
 
 def _include(package_name, launch_file, *, arguments=None, condition=None):
@@ -42,6 +50,13 @@ def generate_launch_description():
     use_onboard_control = LaunchConfiguration("use_onboard_control")
     device_id = LaunchConfiguration("device_id")
     joint_state_sources = LaunchConfiguration("joint_state_sources")
+    launch_socketcan = LaunchConfiguration("launch_socketcan")
+    use_core_can_bridge = LaunchConfiguration("use_core_can_bridge")
+    receiver_interval_sec = LaunchConfiguration("receiver_interval_sec")
+
+    socketcan_launch = PathJoinSubstitution(
+        [FindPackageShare("ros2_socketcan"), "launch", "socket_can_bridge.launch.xml"]
+    )
 
     description = _include(
         "kanga_core_description",
@@ -89,6 +104,26 @@ def generate_launch_description():
         condition=IfCondition(use_body_pose_tf),
     )
 
+    core_can_bridge = _include(
+        "kanga_core_microcontroller",
+        "core_can_bridge.launch.py",
+        arguments={
+            "launch_socketcan": "false",
+            "body_pose_parent_frame": body_pose_parent_frame,
+            "body_pose_child_frame": body_pose_child_frame,
+        },
+        condition=IfCondition(use_core_can_bridge),
+    )
+
+    socketcan = IncludeLaunchDescription(
+        AnyLaunchDescriptionSource(socketcan_launch),
+        condition=IfCondition(launch_socketcan),
+        launch_arguments={
+            "interface": can_interface,
+            "receiver_interval_sec": receiver_interval_sec,
+        }.items(),
+    )
+
     # Temporary local-control implementation until kanga_onboard_control gains
     # its production launch. This is deliberately disabled by default.
     onboard_control = _include(
@@ -132,13 +167,13 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "body_pose_parent_frame",
-                default_value="body_origin",
-                description="Reference frame expected on body/pose",
+                default_value=DEFAULT_BODY_POSE_PARENT_FRAME,
+                description="Reference frame stamped on body/pose and TF parent",
             ),
             DeclareLaunchArgument(
                 "body_pose_child_frame",
-                default_value="base_link",
-                description="Body frame driven by body/pose",
+                default_value=DEFAULT_BODY_POSE_CHILD_FRAME,
+                description="Body frame for twist, IMU, and the body/pose TF child",
             ),
             DeclareLaunchArgument(
                 "use_joint_state_publisher",
@@ -177,11 +212,35 @@ def generate_launch_description():
                 default_value="0",
                 description="SDL game-controller index for onboard control",
             ),
+            DeclareLaunchArgument(
+                "launch_socketcan",
+                default_value="true",
+                description=(
+                    "Start the shared ros2_socketcan bridge on can_interface. "
+                    "Core CAN consumers (microcontroller bridge, BMS) subscribe "
+                    "to from_can_bus / to_can_bus."
+                ),
+            ),
+            DeclareLaunchArgument(
+                "use_core_can_bridge",
+                default_value="true",
+                description="Start the ESP32 core CAN protocol bridge node",
+            ),
+            DeclareLaunchArgument(
+                "receiver_interval_sec",
+                default_value="0.05",
+                description=(
+                    "SocketCAN receiver poll timeout in seconds. ESP32 telemetry "
+                    "arrives in ~20 ms bursts, so 0.05 avoids spurious timeouts."
+                ),
+            ),
+            socketcan,
             description,
             drive,
             controller,
             suspension_state,
             body_pose_tf,
+            core_can_bridge,
             onboard_control,
         ]
     )

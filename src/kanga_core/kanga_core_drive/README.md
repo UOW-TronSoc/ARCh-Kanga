@@ -39,8 +39,8 @@ control decision belongs. Drive retains a per-motor hard safety clamp.
 This status means the drive actuator boundary is ready for controller work; it
 does not mean the complete rover is field-qualified. Loaded/on-ground driving,
 long-duration thermal/current testing, power-cycle or CAN-loss recovery, and
-the real WHS source of `/drivestop` remain whole-system validation. Physical
-Twist calibration and effective wheel radius belong to
+integrated WHS behaviour on the physical rover remain whole-system validation.
+Physical Twist calibration and effective wheel radius belong to
 `kanga_core_controller`, not this package.
 
 ## Build (dev container)

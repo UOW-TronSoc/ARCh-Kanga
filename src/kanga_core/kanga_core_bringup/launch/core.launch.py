@@ -39,6 +39,8 @@ def generate_launch_description():
     can_interface = LaunchConfiguration("can_interface")
     drivetrain_profile = LaunchConfiguration("drivetrain_profile")
     use_drive = LaunchConfiguration("use_drive")
+    use_whs = LaunchConfiguration("use_whs")
+    initial_drivestop = LaunchConfiguration("initial_drivestop")
     use_controller = LaunchConfiguration("use_controller")
     use_suspension_state = LaunchConfiguration("use_suspension_state")
     use_body_pose_tf = LaunchConfiguration("use_body_pose_tf")
@@ -78,6 +80,13 @@ def generate_launch_description():
             "drivetrain_profile": drivetrain_profile,
         },
         condition=IfCondition(use_drive),
+    )
+
+    whs = _include(
+        "kanga_whs",
+        "whs.launch.py",
+        arguments={"initial_drivestop": initial_drivestop},
+        condition=IfCondition(use_whs),
     )
 
     controller = _include(
@@ -149,6 +158,18 @@ def generate_launch_description():
                 "use_drive",
                 default_value="true",
                 description="Start the physical ODrive stack and drive manager",
+            ),
+            DeclareLaunchArgument(
+                "use_whs",
+                default_value="true",
+                description="Start the sole software /drivestop authority",
+            ),
+            DeclareLaunchArgument(
+                "initial_drivestop",
+                default_value="true",
+                description=(
+                    "Initial WHS state. Keep true for fail-safe physical bringup."
+                ),
             ),
             DeclareLaunchArgument(
                 "use_controller",
@@ -236,6 +257,7 @@ def generate_launch_description():
             ),
             socketcan,
             description,
+            whs,
             drive,
             controller,
             suspension_state,

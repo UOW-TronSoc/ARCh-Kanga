@@ -16,6 +16,7 @@
   <exec_depend>kanga_core_description</exec_depend>
   <exec_depend>kanga_core_microcontroller</exec_depend>
   <exec_depend>kanga_joy</exec_depend>
+  <exec_depend>kanga_whs</exec_depend>
   <exec_depend>ros2_socketcan</exec_depend>
 
   <export>

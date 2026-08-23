@@ -346,7 +346,11 @@ def run_checks(node: ContractCheck) -> None:
     assert idle_distance < 0.025, f"IDLE rover moved {idle_distance:.3f} m"
 
     # Exercise drivestop through its sole authority instead of publishing a
-    # competing transient-local value from the contract test.
+    # competing transient-local value from the contract test. WHS must fail
+    # closed on startup, so motion cannot be enabled before an explicit release.
+    rejected_initial_enable = node.call_closed_loop(True)
+    assert not rejected_initial_enable.success
+    assert rejected_initial_enable.message == "drivestop is active"
     assert node.call_drivestop(False).success
     node.run_for_simulated_seconds(0.1)
     assert node.call_closed_loop(True).success

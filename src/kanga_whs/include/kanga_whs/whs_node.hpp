@@ -45,7 +45,7 @@ private:
   rclcpp::Service<SetBool>::SharedPtr set_drivestop_service_;
 
   // Last commanded software-stop state (not consumer latching).
-  std::atomic<bool> drivestop_active_{false};
+  std::atomic<bool> drivestop_active_{true};
 };
 
 }  // namespace kanga_whs

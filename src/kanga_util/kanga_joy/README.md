@@ -9,9 +9,8 @@ Shared ROS 2 joystick integration for Kanga.
 
 ## Boundary
 
-Manipulator, excavator, science, and drive-specific control policy remains in the owning domain.
-
-This is an architecture placeholder; gamepad teleop will land here later.
+Manipulator, excavator, science, and drive-specific control policy remains in
+the owning domain.
 
 ## Controller test
 
@@ -53,10 +52,18 @@ This launch is deliberately for off-ground development testing. It starts
 | Button 3 | Clear errors on all four drive wheels |
 | Button 7 (hold) | Stop publishing `/cmd_vel` to simulate command loss |
 
+`bench_teleop` never publishes `/drivestop` directly. Buttons 1 and 2 call
+`/whs_node/set_drivestop`; `kanga_whs` remains the sole authoritative
+publisher. A stop press disarms motion and publishes zero `/cmd_vel`
+immediately even if the WHS service is unavailable. A release does not clear
+the local gate until the authoritative transient-local `/drivestop=false`
+state arrives from WHS.
+
 Analogue and D-pad inputs are added and clamped to `-1..1`. The percentages
 are scaled by the commented limits in `config/bench_teleop.yaml`.
 
-With `core_drive.launch.py` already running, start the bench controller:
+With `kanga_whs` and `core_drive.launch.py` already running, start the bench
+controller:
 
 ```bash
 ros2 launch kanga_joy bench_teleop.launch.py

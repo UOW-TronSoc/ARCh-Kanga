@@ -23,7 +23,7 @@ from rclpy.qos import (
 )
 from rosgraph_msgs.msg import Clock
 from sensor_msgs.msg import JointState
-from std_msgs.msg import Bool, Float64
+from std_msgs.msg import Float64
 from std_srvs.srv import SetBool, Trigger
 from tf2_msgs.msg import TFMessage
 
@@ -44,6 +44,7 @@ EXPECTED_TOPICS = {
     "/clock": "rosgraph_msgs/msg/Clock",
 }
 EXPECTED_SERVICES = {
+    "/whs_node/set_drivestop": "std_srvs/srv/SetBool",
     "/drive_manager/set_closed_loop": "std_srvs/srv/SetBool",
     "/drive_manager/clear_errors": "std_srvs/srv/Trigger",
     "/drive_manager/calibrate_fl": "std_srvs/srv/Trigger",
@@ -68,14 +69,6 @@ class ContractCheck(Node):
         self.tf_pairs: set[tuple[str, str]] = set()
 
         self.cmd_vel_publisher = self.create_publisher(Twist, "/cmd_vel", 10)
-        drivestop_qos = QoSProfile(
-            depth=1,
-            reliability=ReliabilityPolicy.RELIABLE,
-            durability=DurabilityPolicy.TRANSIENT_LOCAL,
-        )
-        self.drivestop_publisher = self.create_publisher(
-            Bool, "/drivestop", drivestop_qos
-        )
 
         self.create_subscription(
             WheelVelocityCommand,
@@ -170,6 +163,17 @@ class ContractCheck(Node):
         assert client.wait_for_service(timeout_sec=5.0)
         request = SetBool.Request()
         request.data = enable
+        future = client.call_async(request)
+        rclpy.spin_until_future_complete(self, future, timeout_sec=5.0)
+        response = future.result()
+        assert response is not None
+        return response
+
+    def call_drivestop(self, active: bool) -> SetBool.Response:
+        client = self.create_client(SetBool, "/whs_node/set_drivestop")
+        assert client.wait_for_service(timeout_sec=5.0)
+        request = SetBool.Request()
+        request.data = active
         future = client.call_async(request)
         rclpy.spin_until_future_complete(self, future, timeout_sec=5.0)
         response = future.result()
@@ -299,6 +303,11 @@ def run_checks(node: ContractCheck) -> None:
     endpoint = drive_stop_endpoints[0]
     assert endpoint.qos_profile.reliability == ReliabilityPolicy.RELIABLE
     assert endpoint.qos_profile.durability == DurabilityPolicy.TRANSIENT_LOCAL
+    drivestop_publishers = [
+        endpoint.node_name
+        for endpoint in node.get_publishers_info_by_topic("/drivestop")
+    ]
+    assert drivestop_publishers == ["whs_node"], drivestop_publishers
 
     assert node.call_trigger("/drive_manager/clear_errors").success
     for wheel in ["fl", "bl", "br", "fr"]:
@@ -336,22 +345,23 @@ def run_checks(node: ContractCheck) -> None:
     )
     assert idle_distance < 0.025, f"IDLE rover moved {idle_distance:.3f} m"
 
+    # Exercise drivestop through its sole authority instead of publishing a
+    # competing transient-local value from the contract test.
+    assert node.call_drivestop(False).success
+    node.run_for_simulated_seconds(0.1)
     assert node.call_closed_loop(True).success
     motion_start_x = node.odom_message.pose.pose.position.x
     node.run_for_simulated_seconds(1.0, twist(x=0.10))
     assert node.odom_message.pose.pose.position.x - motion_start_x > 0.02
     assert all(velocity > 0.05 for velocity in node.wheel_messages[-1].velocity)
 
-    stop = Bool()
-    stop.data = True
-    node.drivestop_publisher.publish(stop)
+    assert node.call_drivestop(True).success
     node.run_for_simulated_seconds(0.1, twist(x=0.10))
     rejected_enable = node.call_closed_loop(True)
     assert not rejected_enable.success
     assert rejected_enable.message == "drivestop is active"
 
-    stop.data = False
-    node.drivestop_publisher.publish(stop)
+    assert node.call_drivestop(False).success
     node.run_for_simulated_seconds(0.1)
     idle_response = node.call_closed_loop(False)
     assert idle_response.success

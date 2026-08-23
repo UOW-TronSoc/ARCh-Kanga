@@ -5,15 +5,17 @@ This tree is **not** a colcon package domain; keep it beside `src/`, not under i
 
 ## Current status
 
-Scaffold only: health-stub services on the production ports so Docker and the
-`install/` coupling can be validated before real application code is migrated.
+One service: `basestation-server` runs the FastAPI app in `server/` on port
+8000. It joins the ROS graph as a single `rclpy` node and serves the operator
+web page from the same port. The old four health-stub services (ports
+3000/8000/8001/8080) were retired when this server landed — see
+[REDESIGN_PLAN.md](REDESIGN_PLAN.md) for the full picture and progress.
 
-| Service (compose)       | Port | Stub role                                      |
-| ----------------------- | ---- | ---------------------------------------------- |
-| `basestation-django`    | 8000 | HTTP health (placeholder for future Django)    |
-| `basestation-fastapi`   | 8080 | HTTP health + optional `/cmd_vel` Twist pub    |
-| `basestation-arm-fastapi` | 8001 | HTTP health (placeholder for arm FastAPI)    |
-| `basestation-frontend`  | 3000 | Static page linking to the health endpoints    |
+| Piece              | What it does                                          |
+| ------------------ | ----------------------------------------------------- |
+| `server/main.py`   | The web app: routes, health endpoint, static serving  |
+| `server/ros.py`    | The ROS side: one node, one background spin thread    |
+| `server/static/`   | Placeholder page until the real UI build replaces it  |
 
 ## Prerequisites
 
@@ -32,11 +34,11 @@ From the repository root:
 See [Basestation install](../docs/install/basestation.md) and
 [Basestation migration](../docs/migration/basestation.md).
 
-## Redesign (future work)
+## Redesign (in progress)
 
 - [REDESIGN_PLAN.md](REDESIGN_PLAN.md) — full two-phase plan: consolidate the
   four legacy services into one FastAPI backend (WebSocket teleop/telemetry,
   built static frontend, single systemd bringup chain), then the camera
-  pipeline rework.
+  pipeline rework. The task list at the bottom tracks progress.
 - [CAMERAS.md](CAMERAS.md) — camera deep-dive: latency diagnosis,
   MediaMTX/WebRTC design, and the Orin NX vs Orin Nano encoder comparison.

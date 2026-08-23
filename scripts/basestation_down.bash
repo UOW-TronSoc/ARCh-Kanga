@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Stop basestation scaffold services started by basestation_up.bash.
+# Stop the basestation server started by basestation_up.bash.
 #
 set -euo pipefail
 
@@ -9,4 +9,4 @@ cd "${ROOT_DIR}"
 
 docker compose -f docker/compose.basestation.yaml down
 
-echo "Basestation scaffold stopped."
+echo "Basestation server stopped."

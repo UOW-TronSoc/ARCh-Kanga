@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kanga Basestation</title>
+    <style>
+      body { font-family: system-ui, sans-serif; background: #14171c; color: #e8e8e8;
+             display: grid; place-items: center; min-height: 100vh; margin: 0; }
+      main { text-align: center; max-width: 420px; }
+      code { background: #22262e; padding: 2px 6px; border-radius: 4px; }
+      .panel { background: #1b1f26; border-radius: 10px; padding: 16px 24px; margin-top: 16px;
+               text-align: left; }
+      .row { display: flex; justify-content: space-between; align-items: center; margin: 8px 0; }
+      .stopped { color: #ff5c5c; font-weight: bold; }
+      .clear { color: #58d68d; font-weight: bold; }
+      .unknown { color: #999; font-weight: bold; }
+      .offline { color: #f0ad4e; font-weight: bold; }
+      .on { color: #58d68d; }
+      .off { color: #999; }
+      input[type=range] { width: 160px; }
+      .hint { color: #8a93a2; font-size: 0.85em; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Kanga Basestation</h1>
+      <p class="hint">Server test page — the real UI replaces this later.
+        <a href="/health"><code>/health</code></a></p>
+
+      <div class="panel">
+        <div class="row"><span>Drivestop</span>
+          <span id="drivestop" class="unknown">unknown</span></div>
+        <div class="row"><span>Telemetry</span>
+          <span id="telemetry" class="off">connecting…</span></div>
+        <div class="row"><span>Control link</span>
+          <span id="link" class="off">connecting…</span></div>
+        <button id="retake" style="display: none; width: 100%;">
+          Take control back</button>
+      </div>
+
+      <div class="panel" id="feedbackPanel" style="display: none;">
+        <div class="row"><span>Wheel rad/s</span>
+          <span><code id="wheels">—</code></span></div>
+        <div class="row"><span>Body yaw</span>
+          <span><code id="bodyYaw">—</code></span></div>
+        <div class="row"><span>Body speed</span>
+          <span><code id="bodyVx">—</code></span></div>
+      </div>
+
+      <div class="panel">
+        <div class="row">
+          <label for="enable">Drive enabled</label>
+          <input type="checkbox" id="enable" />
+        </div>
+        <div class="row">
+          <label for="scale">Speed <span id="scaleVal">20</span>%</label>
+          <input type="range" id="scale" min="0" max="100" value="20" />
+        </div>
+        <div class="row"><span>Command</span>
+          <span><code id="cmd">x 0.00 yaw 0.00</code></span></div>
+        <p class="hint">Keys: W/S forward/back, A/D turn. A gamepad's left
+          stick works too. Commands only flow while "Drive enabled" is on.</p>
+      </div>
+    </main>
+
+    <script>
+      // ---- telemetry (robot -> browser, read-only) ----
+      const telemetryEl = document.getElementById("telemetry");
+      const feedbackPanel = document.getElementById("feedbackPanel");
+
+      function fmtWheel(w) {
+        if (!w) return "—";
+        const parts = ["fl", "bl", "br", "fr"].map((k) => {
+          const v = w[k];
+          return v == null ? "?" : v.toFixed(2);
+        });
+        return parts.join(" / ");
+      }
+
+      function updateFromTelemetry(data) {
+        const el = document.getElementById("drivestop");
+        const ds = data.drivestop;
+        if (!data.whs_online) {
+          const last = ds === null ? "" : ` (last: ${ds ? "STOPPED" : "clear"})`;
+          el.textContent = `WHS offline${last}`;
+          el.className = "offline";
+        } else if (ds) { el.textContent = "STOPPED"; el.className = "stopped"; }
+        else { el.textContent = "clear"; el.className = "clear"; }
+
+        if (data.wheels && Object.values(data.wheels).some((v) => v != null)) {
+          feedbackPanel.style.display = "";
+          document.getElementById("wheels").textContent = fmtWheel(data.wheels);
+        }
+        if (data.body) {
+          feedbackPanel.style.display = "";
+          if (data.body.yaw_deg != null) {
+            document.getElementById("bodyYaw").textContent =
+              `${data.body.yaw_deg.toFixed(1)}°`;
+          }
+          if (data.body.vx_mps != null) {
+            document.getElementById("bodyVx").textContent =
+              `${data.body.vx_mps.toFixed(2)} m/s`;
+          }
+        }
+      }
+
+      function connectTelemetry() {
+        const tWs = new WebSocket(`ws://${location.host}/ws/telemetry`);
+        tWs.onopen = () => {
+          telemetryEl.textContent = "live";
+          telemetryEl.className = "on";
+        };
+        tWs.onmessage = (ev) => {
+          try { updateFromTelemetry(JSON.parse(ev.data)); } catch (e) { /* skip */ }
+        };
+        tWs.onclose = () => {
+          telemetryEl.textContent = "disconnected — retrying";
+          telemetryEl.className = "off";
+          setTimeout(connectTelemetry, 1000);
+        };
+      }
+      connectTelemetry();
+
+      // ---- control channel ----
+      // One WebSocket, reconnect every second if it drops. While "Drive
+      // enabled" is ticked we send the current command 20 times a second;
+      // if these frames stop arriving the server stops the rover.
+      let ws = null;
+      const linkEl = document.getElementById("link");
+      const retakeEl = document.getElementById("retake");
+      const CONTROL_TAKEN = 4000; // server close code: a newer tab took over
+
+      function connect() {
+        retakeEl.style.display = "none";
+        ws = new WebSocket(`ws://${location.host}/ws/control`);
+        ws.onopen = () => {
+          linkEl.textContent = "connected";
+          linkEl.className = "on";
+          // Safety rule from the redesign plan: every (re)connect starts
+          // with drive disabled, so a reconnect can never cause motion.
+          document.getElementById("enable").checked = false;
+        };
+        ws.onclose = (ev) => {
+          linkEl.className = "off";
+          if (ev.code === CONTROL_TAKEN) {
+            // Another tab took over. Do NOT auto-reconnect (the tabs would
+            // steal control from each other forever); offer a button.
+            linkEl.textContent = "another tab took control";
+            retakeEl.style.display = "";
+            return;
+          }
+          linkEl.textContent = "disconnected — retrying";
+          setTimeout(connect, 1000);
+        };
+      }
+      retakeEl.addEventListener("click", connect);
+      connect();
+
+      // ---- operator input (keyboard + gamepad) ----
+      const keys = new Set();
+      window.addEventListener("keydown", (e) => keys.add(e.key.toLowerCase()));
+      window.addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
+
+      // Eyes off = hands off. A backgrounded tab never receives the keyup
+      // for a held key (so it looks held forever) and its timers slow to
+      // ~1/s, which would drip stale "full speed" commands. Losing focus or
+      // visibility drops all input and sends an immediate stop.
+      function dropAllInput() {
+        keys.clear();
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ t: "drive", x: 0, yaw: 0, scale: 0 }));
+          document.getElementById("cmd").textContent = "x 0.00 yaw 0.00";
+        }
+      }
+      window.addEventListener("blur", dropAllInput);
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) dropAllInput();
+      });
+
+      const enableEl = document.getElementById("enable");
+      const scaleEl = document.getElementById("scale");
+      const scaleVal = document.getElementById("scaleVal");
+      scaleEl.oninput = () => { scaleVal.textContent = scaleEl.value; };
+
+      function deadzone(v) { return Math.abs(v) < 0.15 ? 0 : v; }
+
+      function currentCommand() {
+        let x = 0, yaw = 0;
+        if (keys.has("w")) x += 1;
+        if (keys.has("s")) x -= 1;
+        if (keys.has("a")) yaw += 1;   // positive yaw turns left in ROS
+        if (keys.has("d")) yaw -= 1;
+        const gp = navigator.getGamepads()[0];
+        if (gp) {
+          x += deadzone(-(gp.axes[1] ?? 0));
+          yaw += deadzone(-(gp.axes[0] ?? 0));
+        }
+        return {
+          x: Math.max(-1, Math.min(1, x)),
+          yaw: Math.max(-1, Math.min(1, yaw)),
+        };
+      }
+
+      setInterval(() => {
+        if (!enableEl.checked || !ws || ws.readyState !== WebSocket.OPEN) return;
+        // A hidden tab sends zeros only — never live input.
+        const c = document.hidden ? { x: 0, yaw: 0 } : currentCommand();
+        document.getElementById("cmd").textContent =
+          `x ${c.x.toFixed(2)} yaw ${c.yaw.toFixed(2)}`;
+        ws.send(JSON.stringify({
+          t: "drive", x: c.x, yaw: c.yaw, scale: Number(scaleEl.value),
+        }));
+      }, 50);
+
+      // Unticking the box sends one final stop so the rover halts right
+      // away rather than waiting for the dead-man.
+      enableEl.addEventListener("change", () => {
+        if (!enableEl.checked && ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ t: "drive", x: 0, yaw: 0, scale: 0 }));
+          document.getElementById("cmd").textContent = "x 0.00 yaw 0.00";
+        }
+      });
+    </script>
+  </body>
+</html>

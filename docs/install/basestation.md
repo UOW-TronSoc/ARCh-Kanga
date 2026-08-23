@@ -1,19 +1,17 @@
-# Basestation install (scaffold)
+# Basestation install
 
-Operator HTTP services that join the ROS 2 graph via `rclpy`. They live under
-`basestation/` (not under `src/`) and share the host network / `ROS_DOMAIN_ID`
-with the ROS dev container.
-
-This is the **initial** basestation Docker setup: health stubs on the production
-ports. Real Django / FastAPI / Vite code will replace the stubs later.
+The basestation is one HTTP server that joins the ROS 2 graph via `rclpy`. It
+lives under `basestation/` (not under `src/`) and shares the host network /
+`ROS_DOMAIN_ID` with the ROS dev container. Everything — operator page, API,
+and ROS node — runs from a single service on port 8000. Design and progress:
+[basestation/REDESIGN_PLAN.md](../../basestation/REDESIGN_PLAN.md).
 
 ## Responsibility split
 
 ### Docker handles
 
 - Basestation Python image (`ros:humble-ros-base-jammy` + pip deps)
-- Static scaffold frontend (nginx on port 3000)
-- Sourcing `/opt/ros/humble` and `/workspace/install` in Python entrypoints
+- Sourcing `/opt/ros/humble` and `/workspace/install` in the entrypoint
 
 ### The host still handles
 
@@ -45,12 +43,10 @@ missing.
 ./scripts/basestation_up.bash
 ```
 
-| URL | Service |
+| URL | What you get |
 | --- | --- |
-| http://localhost:3000/ | Scaffold frontend |
-| http://localhost:8000/health | Django-port stub |
-| http://localhost:8001/health | Arm FastAPI stub |
-| http://localhost:8080/health | cmd_vel FastAPI stub |
+| http://localhost:8000/ | Operator page (placeholder until the UI is migrated) |
+| http://localhost:8000/health | Server + ROS node status as JSON |
 
 Stop:
 

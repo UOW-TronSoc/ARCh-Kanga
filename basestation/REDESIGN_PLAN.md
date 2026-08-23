@@ -168,6 +168,13 @@ background executor thread with all publishers/subscribers:
   20-30 Hz with change-detection and a keepalive over one ordered WebSocket.
   **Dead-man stop:** the server publishes a zero Twist if no message arrives
   within ~300-500 ms, covering frozen tabs, dropped Wi-Fi, and closed laptops.
+  **Eyes off = hands off (UI rule, found in field-testing 2026-08-23):** the
+  client must drop all input and send a stop whenever the tab loses focus or
+  visibility — a backgrounded tab never receives the `keyup` for a held key
+  (it looks held forever) and browsers throttle its timers to ~1/s, which
+  otherwise drips stale "full speed" frames that repeatedly re-arm the
+  dead-man. A hidden tab may only ever send zeros. The React UI (task 7)
+  must keep this behaviour.
 - **Carried requirement: satisfied.** The rebuilt drive stack has its own
   timeouts: `wheel_command_mapper` streams zero wheel commands after 0.5 s of
   `/cmd_vel` silence (`cmd_vel_timeout_s` in
@@ -239,7 +246,12 @@ operator stack just collapses from four compose services to one.
   networking / `ipc: host` / `ROS_DOMAIN_ID` env, same bind-mounted
   `/workspace`, same entrypoint sourcing pattern. UI moves from :3000 to
   `http://localhost:8000/`. The `Dockerfile.basestation-frontend` nginx
-  scaffold and the three uvicorn stub services retire.
+  scaffold and the three uvicorn stub services retire. The server's DDS
+  transport is UDP-only ([fastdds_profile.xml](fastdds_profile.xml)):
+  Fast DDS shared memory silently fails between processes owned by
+  different users (dev container vs this container, or systemd rover
+  processes vs this container), and loopback UDP costs nothing at our
+  message sizes.
 - **Path C (end-to-end control test)** — unchanged story, now with a real
   target instead of mocks: in Path A run either `kanga_core_bringup`
   (hardware) or `ros2 launch kanga_sim core_simulation.launch.py` (Gazebo
@@ -320,7 +332,11 @@ takes the project over next, the plan commits to:
 - Native `WebSocket` API only — no socket.io or wrapper libraries.
 - Plain JSON, a handful of documented message types, no acks or custom framing.
 - One fixed reconnect policy (fixed ~1 s retry on close), connection state
-  shown prominently in the UI.
+  shown prominently in the UI. **Newest tab wins** (added 2026-08-23 after a
+  forgotten tab silently locked out the operator in testing): a new control
+  connection bumps the previous holder with a dedicated close code; a bumped
+  tab shows "another tab took control" and a retake button instead of
+  auto-reconnecting, so tabs can never steal control back and forth.
 - **Drive-enable resets to OFF on any reconnect** — the operator must
   deliberately re-arm, so a reconnect bug can never cause motion.
 - Refresh always fully recovers — the server holds no session state worth
@@ -419,21 +435,37 @@ rest.
 1. Scaffold `basestation/server/` FastAPI app with a single rclpy node on an
    executor thread, plus static file serving. Reuse the existing entrypoint
    sourcing pattern so `kanga_interfaces` and topic contracts come from the
-   bind-mounted `install/`.
+   bind-mounted `install/`. **Done 2026-08-23** — `/health` + latched
+   `/drivestop` subscription verified in the basestation container (also
+   fixed `docker-entrypoint.bash`: `set -u` broke sourcing ROS `setup.bash`,
+   which had silently blocked all Path B services).
 2. Collapse `docker/compose.basestation.yaml` to one `basestation-server`
    service (multi-stage Dockerfile: node stage runs `vite build`, Python stage
    serves it); retire the nginx frontend scaffold and the three uvicorn stubs;
    keep `basestation_up.bash` / `basestation_down.bash` working unchanged
-   (Path B), including the `install/` guard.
+   (Path B), including the `install/` guard. **Done 2026-08-23** — one
+   service on :8000, stubs and nginx scaffold removed, Path B verified
+   end-to-end. The node/vite build stage joins the Dockerfile when the React
+   frontend is migrated (task 7); until then the server serves the
+   placeholder page.
 3. Implement `/ws/control`: gamepad input sent at fixed 20-30 Hz with
    change-detection and keepalive; the 0-100% speed scale mapped onto
    configured chassis limits to produce a physical-unit `/cmd_vel`;
    server-side dead-man publishes zero Twist on ~300-500 ms silence. Arm
-   command topics *(payload-gated)*.
+   command topics *(payload-gated)*. **Done 2026-08-23** (drive only) —
+   browser sends 20 Hz JSON frames; the node's own 20 Hz timer does all
+   `/cmd_vel` publishing, doubles as the dead-man (0.4 s, verified), and
+   sends a clean stop on disconnect; one tab holds control at a time;
+   limits via `BASESTATION_MAX_LINEAR_MPS` / `BASESTATION_MAX_YAW_RAD_S`
+   (defaults 0.3 m/s, 1.0 rad/s).
 4. Implement `/ws/telemetry`: `/drivestop`, wheel + suspension joint states,
    `/body/pose` / `/body/twist`, per-wheel `controller_status` /
    `odrive_status` pushed at a fixed rate; add battery and science topics
-   when their packages land.
+   when their packages land. **Done 2026-08-23** — 5 Hz push on
+   `/ws/telemetry` (any number of listener tabs); page shows drivestop,
+   wheel rad/s, body yaw and speed from the stream instead of polling
+   `/health`. Motor status subscribes when `custom_odrive` is present
+   (physical rover); sim skips it gracefully.
 5. Drive management REST + UI: drivestop set/clear with latched state
    display, `set_closed_loop`, `clear_errors`, per-wheel calibrate (the
    "motor page" from the core drive migration doc), with the arming sequence

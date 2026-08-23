@@ -238,13 +238,19 @@ class RosRuntime:
         return snap
 
     def whs_online(self) -> bool:
-        """True while something (the WHS node) is publishing /drivestop.
+        """True when WHS stop authority appears reachable.
 
-        If WHS dies we keep the last state we saw, but the UI must say the
-        stop authority is offline rather than pretend the value is current.
+        A latched /drivestop value means our subscription is live even if
+        DDS discovery has not yet repopulated count_publishers() after a sim
+        restart.
         """
         if self._node is None:
             return False
+        with self.state.lock:
+            if self.state.drivestop is not None:
+                return True
+        if self._node.drivestop_service_ready():
+            return True
         return self._node.count_publishers("/drivestop") > 0
 
     def start(self) -> None:
@@ -425,6 +431,10 @@ class RosRuntime:
                     if resp is None:
                         return {"ok": False, "message": f"{service} call failed"}
                     return {"ok": bool(resp.success), "message": resp.message}
+
+                def drivestop_service_ready(self) -> bool:
+                    client = self._clients_set_bool.get("/whs_node/set_drivestop")
+                    return client is not None and client.service_is_ready()
 
                 def invoke_trigger(
                     self, service: str, timeout_sec: float = 10.0

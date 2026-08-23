@@ -1,8 +1,12 @@
 services:
   kanga-dev:
+    # Give the non-root development user access to Mesa / DRI render nodes.
+    # compose.dev.yaml is privileged for rover hardware, but device-node Unix
+    # permissions still apply to the user inside the container.
+    group_add:
+      - "${KANGA_RENDER_GID:-109}"
     environment:
       - DISPLAY=${DISPLAY}
-      - LIBGL_ALWAYS_SOFTWARE=1
       - MESA_SHADER_CACHE_DIR=/tmp/kanga-mesa-cache
       - XAUTHORITY=/tmp/kanga-xauthority
       - QT_X11_NO_MITSHM=1

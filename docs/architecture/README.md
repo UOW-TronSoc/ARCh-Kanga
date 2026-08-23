@@ -78,7 +78,8 @@ safety-rated emergency stop.
   (apply / calibrate / save), closed-loop trigger, and wheel `JointState` from
   ODrive estimates. Invert direction is configured in launch only.
 - `kanga_core_controller` owns chassis-to-wheel velocity mapping, drive limits,
-  and the `/cmd_vel` setpoint stream to ODrive (streams only while CLOSED_LOOP).
+  and the continuous `/cmd_vel` setpoint stream. The selected physical or
+  simulated drive boundary owns CLOSED_LOOP gating.
   Optional low-confidence wheel odometry remains deferred. `robot_state_publisher`
   generates link transforms from the robot description. A visual, inertial,
   SLAM, or fused estimator owns the authoritative `odom` to `base_link`
@@ -99,7 +100,9 @@ safety-rated emergency stop.
   Jetson and is owned by `kanga_whs`.
 - `kanga_core_battery` owns Daly BMS communication and battery diagnostics.
 - `kanga_core_simulation` provides standalone simulated hardware and launch
-  integration for the rover base.
+  integration for the rover base. It exposes the same operational drive and
+  state interfaces as the physical boundary and is the authoritative simulated
+  odometry/TF source.
 
 Transport and device-state management for ODrive live in the vendor
 `custom_odrive` package (opened from `kanga_core_drive` launch). Mission policy

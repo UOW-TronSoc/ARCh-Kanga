@@ -114,4 +114,30 @@ SuspensionJointPositions LinearSuspensionKinematics::map_diff_bar_angle(
   };
 }
 
+double LinearSuspensionKinematics::suspension_angle_derivative(
+  const double diff_bar_angle_rad) const
+{
+  if (!std::isfinite(diff_bar_angle_rad)) {
+    throw std::invalid_argument("diff_bar_angle_rad must be finite");
+  }
+
+  // A small bounded finite difference is deliberately used here instead of
+  // duplicating the derivative of the nonlinear closure equation. The mapping
+  // remains the single source of truth, including future profile changes.
+  constexpr double kDerivativeStepRad = 1e-6;
+  const double beta = std::clamp(
+    diff_bar_angle_rad, -diff_bar_limit_rad_, diff_bar_limit_rad_);
+  const double beta_lower = std::max(-diff_bar_limit_rad_, beta - kDerivativeStepRad);
+  const double beta_upper = std::min(diff_bar_limit_rad_, beta + kDerivativeStepRad);
+  if (beta_upper <= beta_lower) {
+    return 0.0;
+  }
+
+  const double suspension_lower =
+    map_diff_bar_angle(beta_lower).left_suspension_rad;
+  const double suspension_upper =
+    map_diff_bar_angle(beta_upper).left_suspension_rad;
+  return (suspension_upper - suspension_lower) / (beta_upper - beta_lower);
+}
+
 }  // namespace kanga_core_microcontroller

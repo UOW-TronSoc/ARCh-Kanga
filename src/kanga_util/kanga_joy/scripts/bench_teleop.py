@@ -6,6 +6,7 @@ import math
 import rclpy
 from geometry_msgs.msg import Twist
 from rclpy.duration import Duration
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Joy
@@ -368,11 +369,12 @@ def main(args=None):
     node = BenchTeleop()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         try:
-            node.publish_zero()
+            if rclpy.ok():
+                node.publish_zero()
             node.destroy_node()
             if rclpy.ok():
                 rclpy.shutdown()

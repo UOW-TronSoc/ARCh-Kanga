@@ -175,16 +175,18 @@ with the future localisation estimator.
 
 ### Preliminary pose visualization
 
-`body_pose_tf_broadcaster` subscribes to `body/pose` and broadcasts its existing
-translation and quaternion as `body_origin -> base_link`. It does not subscribe
-to `body/twist`, calculate pose, integrate velocity, or perform IMU processing.
-It rejects non-finite poses, unexpected parent frames, and badly formed
-quaternions; the small final quaternion normalization is only TF input hygiene.
-While waiting for its first valid pose after launch, it publishes an identity
-`body_origin -> base_link` transform. It then republishes the latest accepted
-pose at 10 Hz so a one-shot test message remains visible and the dynamic TF does
-not expire. This last-known TF deliberately does not represent sensor freshness;
-consumers that need freshness must inspect the timestamped `body/pose` topic.
+`body_pose_tf_broadcaster` subscribes to `body/pose` and broadcasts its
+orientation as `body_origin -> base_link`. Translation is always ignored and
+forced to zero: BNO086 Game Rotation Vector has no reliable position, and this
+adapter must not invent one. It does not subscribe to `body/twist`, calculate
+pose, integrate velocity, or perform IMU processing. It rejects unexpected
+parent frames and badly formed quaternions; the small final quaternion
+normalization is only TF input hygiene. While waiting for its first valid pose
+after launch, it publishes an identity `body_origin -> base_link` transform. It
+then republishes the latest accepted pose at 10 Hz so a one-shot test message
+remains visible and the dynamic TF does not expire. This last-known TF
+deliberately does not represent sensor freshness; consumers that need freshness
+must inspect the timestamped `body/pose` topic.
 
 Start it directly:
 
@@ -192,11 +194,12 @@ Start it directly:
 ros2 launch kanga_core_microcontroller body_pose_tf.launch.py
 ```
 
-Publish a preliminary pose one metre forward with 90° yaw:
+Publish a preliminary pose with 90° yaw (translation is ignored by the
+broadcaster):
 
 ```bash
 ros2 topic pub /body/pose geometry_msgs/msg/PoseWithCovarianceStamped \
-  "{header: {frame_id: body_origin}, pose: {pose: {position: {x: 1.0}, orientation: {z: 0.7071067811865475, w: 0.7071067811865476}}}}" \
+  "{header: {frame_id: body_origin}, pose: {pose: {orientation: {z: 0.7071067811865475, w: 0.7071067811865476}}}}" \
   --rate 10
 ```
 

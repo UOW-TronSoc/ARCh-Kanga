@@ -9,17 +9,13 @@ as `arch-2027-final`.
 
 ## Current status
 
-The ROS 2 Humble development environment and SocketCAN workflow are working.
-The first migration slices are merged to `main`:
-
-- **`kanga_interfaces`** — `BatteryInfo` and `BmsStatus` (merged via PR #15)
-- **`ros2_socketcan`** — pinned at `1.3.0` under `src/vendor` via
-  `kanga_vendor.repos` (merged via PR #15)
-
-Drive work is underway on `feat/drive-system` (`kanga_core_drive` + vendor pin
-for [`custom-ros-odrive`](https://github.com/UOW-TronSoc/custom-ros-odrive)).
-`kanga_core_controller` (twist→wheel) follows. Details:
-[docs/migration/core_drive.md](docs/migration/core_drive.md).
+The ROS 2 Humble development environment, SocketCAN workflow, physical core
+drive boundary, shared core controller, canonical 2026 core description, WHS,
+microcontroller state adapters, and core bringup are implemented. A Gazebo
+Fortress core simulation now replaces the physical drive boundary without
+changing controller or operator interfaces. Details:
+[core drive migration](docs/migration/core_drive.md) and
+[core simulation](src/kanga_core/kanga_core_simulation/README.md).
 
 The primary migration reference is the old `ARCH2026-Kanga` repository at
 remote commit `8b0c0537823fac7aaac26c1bea8bd4f3763bdc06` on

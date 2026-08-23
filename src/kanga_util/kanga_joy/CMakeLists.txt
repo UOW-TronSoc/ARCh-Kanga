@@ -10,6 +10,18 @@ install(PROGRAMS
 )
 
 install(PROGRAMS
+  scripts/keyboard_joy.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME keyboard_joy
+)
+
+install(PROGRAMS
+  scripts/keyboard_bench_teleop.bash
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME keyboard_bench_teleop
+)
+
+install(PROGRAMS
   scripts/controller_test.py
   DESTINATION lib/${PROJECT_NAME}
   RENAME controller_test

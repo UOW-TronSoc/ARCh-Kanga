@@ -1,0 +1,30 @@
+schema_version: 1
+
+drive:
+  command_timeout_s: 0.5
+  publish_rate_hz: 50.0
+  # DART's wheel inertia is small; conservative gains avoid a 1 kHz
+  # torque-saturation limit cycle while still tracking the profile ramp.
+  velocity_kp: 3.0
+  velocity_ki: 0.5
+  velocity_kd: 0.01
+  integral_limit: 2.0
+  torque_limit_nm: 8.0
+  wheel_bearing_damping_nm_s_rad: 0.15
+
+passive_suspension:
+  stiffness_nm_rad: 1200.0
+  damping_nm_s_rad: 8.0
+  maximum_torque_nm: 100.0
+  joint_bearing_damping_nm_s_rad: 0.2
+  passive_joint_effort_limit_nm: 300.0
+  passive_joint_velocity_limit_rad_s: 2.0
+  diff_bar_limit_deg: 70.0
+  suspension_limit_deg: 30.0
+
+wheel_contact:
+  # Retain the v1 smooth collision. The controller profile currently derives
+  # 0.115 m from the measured wheel diameter; this 0.125 m collision remains a
+  # known calibration item instead of being hidden in the drive interface.
+  collision_radius_m: 0.125
+  nominal_normal_force_n: 73.0

@@ -25,28 +25,23 @@ what changed and why.
 |------|-------------|--------|-------|
 | 1 | Interface inventory (drive/ODrive) | **Complete** | Merged via PR #15. Science payload interfaces are out of scope for the core track. |
 | 2 | `kanga_interfaces` + ODrive split | **Complete** | `BatteryInfo`, `BmsStatus` in Kanga; ODrive contracts in external repo. |
-| 3 | External ODrive repo + vendor pin | **In progress** | Pin lands with `feat/drive-system` (`kanga_core_drive`). |
+| 3 | External ODrive repo + vendor pin | **Complete** | `custom_odrive` is imported through the pinned vendor manifest. |
 | 4 | `ros2_socketcan` for club CAN | **Partial** | Pinned at `1.3.0` (PR #15). Build and bridge validation deferred to `kanga_core_battery`. |
-| 5 | `kanga_whs` + GPIO stop | **Deferred** | Requirements not finalised. Does not block drive work; ODrive nodes already subscribe to `/drivestop`. |
-| 6 | `kanga_core_drive` / controller | **In progress** | Drive on `feat/drive-system`; controller on `feat/core-controller`. See [core_drive.md](core_drive.md). |
-| 7 | `kanga_core_description` + payload models | **Not started** | |
-| 8 | `kanga_description` + core bringup | **Not started** | |
-| 9 | Utilities, autonomy, payloads, simulation | **Not started** | Manipulator, excavator, and science as independent slices. |
+| 5 | `kanga_whs` + GPIO stop | **Partial** | Software stop contract and publisher are implemented; physical GPIO input remains deferred. |
+| 6 | `kanga_core_drive` / controller | **Complete** | Physical drive boundary and shared Twist-to-wheel controller are implemented. See [core_drive.md](core_drive.md). |
+| 7 | `kanga_core_description` + payload models | **Partial** | Canonical `core_2026` description is implemented; payload model migration remains separate. |
+| 8 | `kanga_description` + core bringup | **Partial** | Standalone physical core bringup is implemented; reviewed whole-rover composition remains ongoing. |
+| 9 | Utilities, autonomy, payloads, simulation | **In progress** | Gazebo Fortress core simulation is implemented; payload and autonomy slices remain independent work. |
 
 ### Next up
 
-**Drive / ODrive stack:** [core_drive.md](core_drive.md)
-
-1. **`feat/drive-system`** — pin `custom-ros-odrive` + implement `kanga_core_drive` (pushed; HW pending).
-2. **`feat/core-controller`** — Twist→wheel-joint mapper; drive owns
-   CLOSED_LOOP gating and motor setpoint streaming.
-
-Battery / `ros2_socketcan` validation stays a separate track
-(`feat/core-battery`) and does not block the drive branches above.
-
-WHS work stays on a separate branch (e.g. `feat/whs-gpio-stop`) once GPIO,
-override, and interface requirements are documented. It is not a prerequisite
-for steps 6–8.
+- Validate and calibrate the Gazebo contact, slip, drive torque, and suspension
+  gains against measured rover tests.
+- Complete physical GPIO integration behind the existing `kanga_whs` contract.
+- Continue payload description/control/simulation and whole-rover composition
+  as independently reviewed slices.
+- Battery / `ros2_socketcan` validation stays a separate track and does not
+  block the core simulation.
 
 ## Migration method
 

@@ -475,10 +475,13 @@ rest.
    endpoint exists (`POST /api/drive/calibrate/{wheel}`) but no UI button yet
    — add with the real motor page in task 7.
 6. Port the remaining operator REST actions from the legacy Django app:
-   checklist, logs, PIN; science controls *(payload-gated)*; NIR servo /
-   Roo release wait for `kanga_core_microcontroller` firmware instead of
-   porting the GPIO scripts.
-7. Migrate the React UI (drive + 3D URDF, checklist, logs, PIN; arm and
+   logs, PIN; science controls *(payload-gated)*; NIR servo / Roo release wait
+   for `kanga_core_microcontroller` firmware instead of porting the GPIO
+   scripts. **Done 2026-08-23** — `/api/auth-status/`, `/api/pin-verify/`
+   (file-backed PBKDF2 hash, session cookie), `/api/django-logs/`,
+   `/api/list-logs/`, `/api/get-log/<file>/`; `scripts/set_pin.py`. Competition
+   checklists dropped — not needed.
+7. Migrate the React UI (drive + 3D URDF, logs, PIN; arm and
    science pages *(payload-gated)*) onto the same-origin API/WS client;
    verify Path C end-to-end against the Gazebo core simulation, then against
    physical core bringup.

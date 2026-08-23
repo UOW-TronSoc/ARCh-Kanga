@@ -30,6 +30,15 @@
       #actionMsg { min-height: 1.2em; margin-top: 8px; font-size: 0.85em; color: #8a93a2; }
       #actionMsg.ok { color: #58d68d; }
       #actionMsg.err { color: #ff5c5c; }
+      .logBox {
+        background: #0f1218; border-radius: 6px; padding: 8px 10px; margin-top: 8px;
+        max-height: 120px; overflow-y: auto; font-family: ui-monospace, monospace;
+        font-size: 0.75em; color: #aeb6c4; white-space: pre-wrap;
+      }
+      input[type=password] {
+        background: #2a3140; color: #e8e8e8; border: 1px solid #3d4656;
+        border-radius: 6px; padding: 6px 8px; width: 100px; letter-spacing: 0.2em;
+      }
     </style>
   </head>
   <body>
@@ -85,6 +94,26 @@
           <span><code id="cmd">x 0.00 yaw 0.00</code></span></div>
         <p class="hint">Keys: W/S forward/back, A/D turn. A gamepad's left
           stick works too. Commands only flow while "Drive enabled" is on.</p>
+      </div>
+
+      <div class="panel">
+        <div class="row"><span>Operator APIs (task 6)</span></div>
+        <p class="hint">Backend-only in the last slice — this panel is for review.
+          Full UI comes in task 7.</p>
+        <div class="row"><span>PIN configured</span>
+          <span id="pinConfigured" class="unknown">…</span></div>
+        <div class="row"><span>Session</span>
+          <span id="pinAuth" class="unknown">…</span></div>
+        <div class="row">
+          <label for="pinInput">Verify PIN</label>
+          <span>
+            <input type="password" id="pinInput" maxlength="6" inputmode="numeric"
+                   autocomplete="off" placeholder="000000" />
+            <button type="button" class="action" id="btnPinVerify">Go</button>
+          </span>
+        </div>
+        <div class="row"><span>Server logs</span></div>
+        <div class="logBox" id="serverLogs">loading…</div>
       </div>
     </main>
 
@@ -286,6 +315,60 @@
           document.getElementById("cmd").textContent = "x 0.00 yaw 0.00";
         }
       });
+
+      // ---- operator REST smoke test (task 6 review panel) ----
+      const pinConfiguredEl = document.getElementById("pinConfigured");
+      const pinAuthEl = document.getElementById("pinAuth");
+      const serverLogsEl = document.getElementById("serverLogs");
+
+      function setBool(el, value, yes, no) {
+        el.textContent = value ? yes : no;
+        el.className = value ? "on" : "off";
+      }
+
+      async function refreshOperatorPanel() {
+        try {
+          const [authRes, logsRes] = await Promise.all([
+            fetch("/api/auth-status/", { credentials: "same-origin" }),
+            fetch("/api/django-logs/"),
+          ]);
+          const auth = await authRes.json();
+          setBool(pinConfiguredEl, auth.pin_configured, "yes", "no");
+          setBool(pinAuthEl, auth.authenticated, "verified", "not verified");
+
+          const logs = await logsRes.json();
+          const lines = logs.lines || [];
+          serverLogsEl.textContent = lines.length
+            ? lines.slice(-8).join("\n")
+            : "(no server log lines yet)";
+        } catch (e) {
+          serverLogsEl.textContent = `error: ${e.message}`;
+        }
+      }
+
+      document.getElementById("btnPinVerify").onclick = async () => {
+        const pin = document.getElementById("pinInput").value.trim();
+        try {
+          const res = await fetch("/api/pin-verify/", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pin }),
+          });
+          const data = await res.json();
+          if (data.ok) {
+            document.getElementById("pinInput").value = "";
+            await refreshOperatorPanel();
+          } else {
+            alert(data.error || "PIN verify failed");
+          }
+        } catch (e) {
+          alert(`PIN verify failed: ${e.message}`);
+        }
+      };
+
+      refreshOperatorPanel();
+      setInterval(refreshOperatorPanel, 5000);
     </script>
   </body>
 </html>

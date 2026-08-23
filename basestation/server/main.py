@@ -19,7 +19,10 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from starlette.middleware.sessions import SessionMiddleware
 
+from .log_buffer import attach_log_buffer
+from .operator import router as operator_router
 from .ros import MAX_LINEAR_MPS, MAX_YAW_RAD_S, TELEMETRY_HZ, RosRuntime
 
 runtime = RosRuntime()
@@ -27,12 +30,22 @@ runtime = RosRuntime()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    attach_log_buffer()
     runtime.start()
     yield
     runtime.stop()
 
 
 app = FastAPI(title="basestation-server", version="0.1.0", lifespan=lifespan)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.environ.get("BASESTATION_SECRET_KEY", "dev-change-me-in-production"),
+    session_cookie="session",
+    max_age=60 * 60 * 24 * 30,
+    same_site="lax",
+    https_only=False,
+)
+app.include_router(operator_router)
 
 
 @app.get("/health")

@@ -27,6 +27,10 @@ fi
 export KANGA_UID="${KANGA_UID:-$(id -u)}"
 export KANGA_GID="${KANGA_GID:-$(id -g)}"
 
+if [[ "${SKIP_FRONTEND_BUILD:-0}" != "1" ]]; then
+  ./scripts/build_frontend.bash
+fi
+
 docker compose -f docker/compose.basestation.yaml build
 docker compose -f docker/compose.basestation.yaml up -d
 

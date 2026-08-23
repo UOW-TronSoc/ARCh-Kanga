@@ -15,7 +15,8 @@ web page from the same port. The old four health-stub services (ports
 | ------------------ | ----------------------------------------------------- |
 | `server/main.py`   | The web app: routes, health endpoint, static serving  |
 | `server/ros.py`    | The ROS side: one node, one background spin thread    |
-| `server/static/`   | Placeholder page until the real UI build replaces it  |
+| `frontend/`        | React operator UI (Vite); builds into `server/static/` |
+| `server/static/`   | Built UI served at `/` (run `./scripts/build_frontend.bash`) |
 
 ## Prerequisites
 
@@ -27,8 +28,20 @@ web page from the same port. The old four health-stub services (ports
 From the repository root:
 
 ```bash
-./scripts/basestation_up.bash
+./scripts/basestation_up.bash    # builds frontend, then starts the container
 ./scripts/basestation_down.bash
+```
+
+Rebuild the UI only:
+
+```bash
+./scripts/build_frontend.bash
+```
+
+Local UI iteration (proxy to `:8000`):
+
+```bash
+cd basestation/frontend && npm ci && npm run dev
 ```
 
 See [Basestation install](../docs/install/basestation.md) and

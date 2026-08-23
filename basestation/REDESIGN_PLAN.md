@@ -481,10 +481,11 @@ rest.
    (file-backed PBKDF2 hash, session cookie), `/api/django-logs/`,
    `/api/list-logs/`, `/api/get-log/<file>/`; `scripts/set_pin.py`. Competition
    checklists dropped — not needed.
-7. Migrate the React UI (drive + 3D URDF, logs, PIN; arm and
-   science pages *(payload-gated)*) onto the same-origin API/WS client;
-   verify Path C end-to-end against the Gazebo core simulation, then against
-   physical core bringup.
+7. Migrate the React UI onto the same-origin API/WS client; verify Path C
+   end-to-end against the Gazebo core simulation, then against physical core
+   bringup. **Done 2026-08-24** — `basestation/frontend/` (Vite/React) built
+   into `server/static/`; drive via `/ws/control` + `/ws/telemetry`; PIN + logs;
+   camera placeholders; battery widgets static; arm/science hidden.
 8. Rover deployment: same compose file started on boot (restart policy or a
    thin systemd wrapper), brought up after robot bringup; legacy stack retired
    from the rover once parity is verified.

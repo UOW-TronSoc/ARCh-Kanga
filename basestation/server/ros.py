@@ -36,12 +36,18 @@ TELEMETRY_HZ = float(os.environ.get("BASESTATION_TELEMETRY_HZ", "5"))
 DRIVE_TICK_SECONDS = 0.05
 
 
+# ODrive axis states (custom_odrive) used when inferring closed loop from motors.
+ODRIVE_AXIS_IDLE = 1
+ODRIVE_AXIS_CLOSED_LOOP = 8
+
+
 @dataclass
 class CoreState:
     """Shared between the web handlers and the ROS thread, guarded by a lock."""
 
     lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
     drivestop: Optional[bool] = None
+    closed_loop: Optional[bool] = None
 
     # Operator's most recent drive command (normalised, not yet scaled).
     drive_x: float = 0.0        # forward/back, -1..1
@@ -93,6 +99,23 @@ class CoreState:
             }
 
 
+def _infer_closed_loop_from_motors(
+    motors: dict[str, Optional[dict[str, Any]]],
+) -> Optional[bool]:
+    """Return closed-loop state when all four wheel axis states agree."""
+    states: list[int] = []
+    for wheel in ("fl", "bl", "br", "fr"):
+        motor = motors.get(wheel)
+        if not motor or motor.get("axis_state") is None:
+            return None
+        states.append(int(motor["axis_state"]))
+    if all(state == ODRIVE_AXIS_CLOSED_LOOP for state in states):
+        return True
+    if all(state == ODRIVE_AXIS_IDLE for state in states):
+        return False
+    return None
+
+
 def _joint_velocities(msg) -> dict[str, float]:
     """Pull name -> velocity from a JointState message."""
     out: dict[str, float] = {}
@@ -141,7 +164,11 @@ class RosRuntime:
 
     def set_closed_loop(self, enable: bool) -> dict:
         """Enter or exit closed-loop drive (wheels live)."""
-        return self._call_set_bool("/drive_manager/set_closed_loop", enable)
+        result = self._call_set_bool("/drive_manager/set_closed_loop", enable)
+        if result.get("ok"):
+            with self.state.lock:
+                self.state.closed_loop = enable
+        return result
 
     def clear_drive_errors(self) -> dict:
         """Clear ODrive / drive manager faults."""
@@ -203,6 +230,11 @@ class RosRuntime:
         """Latest robot feedback plus WHS liveness, for /ws/telemetry."""
         snap = self.state.telemetry_snapshot()
         snap["whs_online"] = self.whs_online()
+        with self.state.lock:
+            inferred = _infer_closed_loop_from_motors(self.state.motors)
+            if inferred is not None:
+                self.state.closed_loop = inferred
+            snap["closed_loop"] = bool(self.state.closed_loop)
         return snap
 
     def whs_online(self) -> bool:
@@ -319,6 +351,8 @@ class RosRuntime:
                 def _on_drivestop(self, msg: Bool) -> None:
                     with state.lock:
                         state.drivestop = bool(msg.data)
+                        if msg.data:
+                            state.closed_loop = False
 
                 def _on_wheel_joints(self, msg: JointState) -> None:
                     with state.lock:

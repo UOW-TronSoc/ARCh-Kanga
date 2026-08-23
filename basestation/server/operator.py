@@ -29,6 +29,11 @@ class PinVerifyBody(BaseModel):
     pin: str = Field(default="")
 
 
+@router.get("/status/")
+def status_view() -> dict:
+    return {"status": "ok", "connected": True}
+
+
 @router.get("/auth-status/")
 def auth_status(request: Request) -> dict:
     return {

@@ -45,7 +45,7 @@ missing.
 
 | URL | What you get |
 | --- | --- |
-| http://localhost:8000/ | Operator page (placeholder until the UI is migrated) |
+| http://localhost:8000/ | React operator UI (PIN → Drive, Logs) |
 | http://localhost:8000/health | Server + ROS node status as JSON |
 
 Stop:

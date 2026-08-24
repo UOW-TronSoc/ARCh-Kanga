@@ -13,7 +13,7 @@ from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
-from kanga_core_description.drivetrain_profile import DEFAULT_DRIVETRAIN_PROFILE
+from kanga_core_description.drivetrain_profile import DEFAULT_DRIVETRAIN_PROFILE  # pyright: ignore[reportMissingImports]
 
 
 # Forward one CAN interface and drivetrain profile to controller and drive.

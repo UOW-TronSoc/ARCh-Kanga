@@ -1,0 +1,28 @@
+.panelActive {
+  border-left: 3px solid #58d68d;
+  padding-left: 0.75rem;
+}
+
+.panelInactive {
+  border-left: 3px solid #6c757d;
+  padding-left: 0.75rem;
+}
+
+.switchOn {
+  background-color: #58d68d;
+  border-color: #58d68d;
+}
+
+.switchOff {
+  background-color: #6c757d;
+  border-color: #6c757d;
+}
+
+.titleOn {
+  color: #58d68d;
+  font-weight: 600;
+}
+
+.titleOff {
+  color: #adb5bd;
+}

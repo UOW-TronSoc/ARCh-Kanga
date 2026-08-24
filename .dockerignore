@@ -6,3 +6,4 @@ install
 log
 *.swp
 *~
+basestation/frontend/node_modules

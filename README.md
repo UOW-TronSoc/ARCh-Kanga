@@ -26,7 +26,7 @@ progress and branch strategy.
 ## Repository layout
 
 ```text
-basestation/         Operator UI/API scaffold (ROS participants, not colcon)
+basestation/         Operator UI/API (single FastAPI server + React, not colcon)
 docker/              Reproducible ROS 2 and basestation images
 docs/                Architecture, migration, and installation documentation
 scripts/             Host and container development helpers

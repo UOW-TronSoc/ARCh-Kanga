@@ -4,6 +4,10 @@ set -euo pipefail
 
 ROS_DISTRO="${ROS_DISTRO:-humble}"
 
+# ROS setup scripts reference unset variables (e.g. AMENT_TRACE_SETUP_FILES),
+# so nounset must be relaxed while sourcing them.
+set +u
+
 if [[ -f "/opt/ros/${ROS_DISTRO}/setup.bash" ]]; then
   # shellcheck disable=SC1090
   source "/opt/ros/${ROS_DISTRO}/setup.bash"
@@ -18,5 +22,7 @@ if [[ -f /workspace/install/setup.bash ]]; then
 else
   echo "WARN: /workspace/install/setup.bash missing; workspace msgs unavailable" >&2
 fi
+
+set -u
 
 exec "$@"

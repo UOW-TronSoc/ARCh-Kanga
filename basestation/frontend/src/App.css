@@ -52,6 +52,7 @@ html, body {
 
 /* Page-level: full width, fit height. Allow internal overflow if needed */
 .dashboardPage,
+.commissioningPage,
 .armPage,
 .autoMapPage,
 .cameraPage,

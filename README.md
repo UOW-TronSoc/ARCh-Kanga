@@ -61,9 +61,9 @@ Inside the container:
 source install/setup.bash
 ```
 
-### Path B — Basestation scaffold
+### Path B — Basestation operator stack
 
-After `install/setup.bash` exists, start the operator stubs:
+After `install/setup.bash` exists, start the FastAPI server and built React UI:
 
 ```bash
 ./scripts/basestation_up.bash

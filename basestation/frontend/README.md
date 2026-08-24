@@ -1,12 +1,42 @@
-# React + Vite
+# Kanga Basestation Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React/Vite operator interface for the single Kanga basestation server. The
+production build is served by FastAPI on port 8000; Vite is only used for local
+development and building static assets.
 
-Currently, two official plugins are available:
+## Local development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Start the basestation backend from the repository root, then run Vite:
 
-## Expanding the ESLint configuration
+```bash
+./scripts/basestation_up.bash
+cd basestation/frontend
+npm ci
+npm run dev
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Open the Vite URL (normally `http://localhost:5173`). The dev server proxies
+`/api`, `/health`, and `/ws` to `http://127.0.0.1:8000`.
+
+## Checks and production build
+
+```bash
+npm run lint
+npm run build
+```
+
+From the repository root, `./scripts/build_frontend.bash` performs the supported
+production build into `basestation/server/static/`. The same build also runs as
+the frontend stage of the basestation Docker image.
+
+## Project structure
+
+- `src/pages/` owns route-level screens.
+- `src/components/` owns reusable operator controls and status cards.
+- `src/context/` owns shared authentication and telemetry state.
+- `src/hooks/` owns control and telemetry WebSocket clients.
+- `src/config.js` builds same-origin HTTP and WebSocket URLs.
+
+See the [basestation overview](../README.md) for runtime instructions and the
+[commissioning page plan](../COMMISSIONING_PAGE_PLAN.md) for the next operator
+feature slice.

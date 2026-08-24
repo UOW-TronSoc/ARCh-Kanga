@@ -5,7 +5,7 @@ This tree is **not** a colcon package domain; keep it beside `src/`, not under i
 
 ## Current status
 
-**Phase 1 is done for laptop development.** One service — `basestation-server` —
+**Phase 1 is complete for development.** One service — `basestation-server` —
 runs the FastAPI app in `server/` on port 8000, embeds a single rclpy node, and
 serves the built React operator UI from the same port.
 
@@ -33,7 +33,9 @@ motors and sensors on CAN (developer laptop, shared `ROS_DOMAIN_ID`).
 
 - Live cameras (placeholders) — Phase 2 in [CAMERAS.md](CAMERAS.md)
 - Arm / science pages (hidden)
-- Per-wheel calibrate button (API exists)
+- Motor commissioning — frontend-only mockup available at `/commissioning`;
+  backend and hardware work is planned in
+  [COMMISSIONING_PAGE_PLAN.md](COMMISSIONING_PAGE_PLAN.md)
 - Live battery telemetry
 
 ## Prerequisites
@@ -71,16 +73,19 @@ cd basestation/frontend && npm ci && npm run dev
 | `BASESTATION_SECRET_KEY` | dev placeholder | Session cookie signing (set on rover) |
 | `ROS_DOMAIN_ID` | `0` | Must match robot stack |
 
-## Rover deployment (later)
+## Rover deployment
 
 Systemd unit: `deploy/kanga-basestation.service` and
-`scripts/basestation_install_service.bash`. Competition Jetson setup (PIN,
-secret, paths, retiring the legacy four-service stack) is documented in
-[REDESIGN_PLAN.md](REDESIGN_PLAN.md) task 8 — not required for laptop dev.
+`scripts/basestation_install_service.bash`. The scaffold is present; final
+competition Jetson setup still requires a PIN, a production session secret,
+verified unit paths/startup ordering, and retirement of the legacy stack. See
+[the install guide](../docs/install/basestation.md).
 
 ## Docs
 
 - [REDESIGN_PLAN.md](REDESIGN_PLAN.md) — architecture and task checklist
+- [COMMISSIONING_PAGE_PLAN.md](COMMISSIONING_PAGE_PLAN.md) — planned motor
+  config, save, and sequential calibration page
 - [CAMERAS.md](CAMERAS.md) — Phase 2 camera pipeline
 - [Basestation install](../docs/install/basestation.md)
 - [Basestation migration](../docs/migration/basestation.md)

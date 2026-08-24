@@ -16,8 +16,8 @@ from launch.launch_description_sources import (
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
 
-from kanga_core_description.drivetrain_profile import DEFAULT_DRIVETRAIN_PROFILE
-from kanga_core_microcontroller.core_frames import (
+from kanga_core_description.drivetrain_profile import DEFAULT_DRIVETRAIN_PROFILE  # pyright: ignore[reportMissingImports]
+from kanga_core_microcontroller.core_frames import (  # pyright: ignore[reportMissingImports]
     DEFAULT_BODY_POSE_CHILD_FRAME,
     DEFAULT_BODY_POSE_PARENT_FRAME,
 )

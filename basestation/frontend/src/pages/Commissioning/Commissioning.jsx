@@ -303,7 +303,7 @@ export default function Commissioning() {
         </div>
 
         <section
-          className="commissioningPanel rounded border border-secondary p-3 mb-3"
+          className="commissioningPanel p-3 mb-3"
           aria-label="Motor selection"
         >
           <div className="row g-3 align-items-end">
@@ -369,7 +369,7 @@ export default function Commissioning() {
         ) : (
           <div className="row g-3 pb-3">
             <div className="col-xl-8">
-              <section className="commissioningPanel rounded border border-secondary p-3">
+              <section className="commissioningPanel p-3">
                 <div className="d-flex justify-content-between align-items-center gap-2 mb-3">
                   <h5 className="text-white mb-0">
                     {editorTab === "individual"
@@ -432,12 +432,16 @@ export default function Commissioning() {
                 </div>
 
                 <div className="d-flex flex-wrap justify-content-end gap-2 mt-3">
-                  <button type="button" className="btn btn-sm btn-outline-light" onClick={restoreDefaults}>
+                  <button
+                    type="button"
+                    className="commissioningButton commissioningButtonMuted"
+                    onClick={restoreDefaults}
+                  >
                     Restore defaults
                   </button>
                   <button
                     type="button"
-                    className="btn btn-sm btn-outline-light"
+                    className="commissioningButton commissioningButtonMuted"
                     disabled={!currentEditorDirty}
                     onClick={resetEditor}
                   >
@@ -445,7 +449,7 @@ export default function Commissioning() {
                   </button>
                   <button
                     type="button"
-                    className="btn btn-sm btn-warning"
+                    className="commissioningButton commissioningButtonAccent"
                     disabled={!currentEditorDirty}
                     onClick={saveEditor}
                   >
@@ -456,7 +460,7 @@ export default function Commissioning() {
             </div>
 
             <div className="col-xl-4">
-              <section className="commissioningPanel rounded border border-secondary p-3 mb-3">
+              <section className="commissioningPanel p-3 mb-3">
                 <div className="d-flex justify-content-between align-items-center gap-2 mb-2">
                   <h5 className="text-white mb-0">Commission motors</h5>
                   <span className="badge text-bg-secondary">can_core</span>
@@ -491,7 +495,7 @@ export default function Commissioning() {
                   <div className="small text-white-50 mb-2">Selected motor</div>
                   <button
                     type="button"
-                    className="btn btn-sm btn-outline-light"
+                    className="commissioningButton commissioningButtonMuted"
                     disabled={actionsDisabled}
                     onClick={() => beginSave([motor.id])}
                   >
@@ -499,7 +503,7 @@ export default function Commissioning() {
                   </button>
                   <button
                     type="button"
-                    className="btn btn-sm btn-outline-warning"
+                    className="commissioningButton commissioningButtonAccent"
                     disabled={actionsDisabled}
                     onClick={() => beginCalibration([motor.id])}
                   >
@@ -513,7 +517,7 @@ export default function Commissioning() {
                   <div className="small text-white-50 mb-2">All core motors</div>
                   <button
                     type="button"
-                    className="btn btn-sm btn-outline-light"
+                    className="commissioningButton commissioningButtonMuted"
                     disabled={actionsDisabled}
                     onClick={() => beginSave(CORE_MOTORS.map((item) => item.id))}
                   >
@@ -521,7 +525,7 @@ export default function Commissioning() {
                   </button>
                   <button
                     type="button"
-                    className="btn btn-sm btn-outline-warning"
+                    className="commissioningButton commissioningButtonAccent"
                     disabled={actionsDisabled}
                     onClick={() => beginCalibration(CORE_MOTORS.map((item) => item.id))}
                   >
@@ -534,7 +538,7 @@ export default function Commissioning() {
                 </p>
               </section>
 
-              <section className="commissioningPanel rounded border border-secondary p-3">
+              <section className="commissioningPanel p-3">
                 <div className="d-flex justify-content-between align-items-center gap-2 mb-2">
                   <h5 className="text-white mb-0">
                     {job

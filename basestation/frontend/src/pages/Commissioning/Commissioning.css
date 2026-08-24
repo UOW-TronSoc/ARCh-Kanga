@@ -5,7 +5,10 @@
 }
 
 .commissioningPanel {
-  background: rgba(33, 37, 41, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  color: var(--card-alt-fg);
+  background: var(--card-alt-bg);
 }
 
 .commissioningPreview {
@@ -121,6 +124,35 @@
 .commissioningActionGroup {
   display: grid;
   gap: 0.5rem;
+}
+
+.commissioningButton {
+  padding: 0.45rem 0.65rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s, filter 0.15s;
+}
+
+.commissioningButtonMuted {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.commissioningButtonAccent {
+  color: var(--accent);
+  background: rgba(248, 206, 77, 0.2);
+}
+
+.commissioningButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.commissioningButton:not(:disabled):hover {
+  filter: brightness(1.15);
 }
 
 .commissioningJobState {

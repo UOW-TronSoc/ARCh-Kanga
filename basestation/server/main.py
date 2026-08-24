@@ -17,13 +17,13 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
 from .log_buffer import attach_log_buffer
 from .operator import router as operator_router
 from .ros import MAX_LINEAR_MPS, MAX_YAW_RAD_S, TELEMETRY_HZ, RosRuntime
+from .spa_static import SPAStaticFiles
 
 runtime = RosRuntime()
 
@@ -170,4 +170,4 @@ async def ws_telemetry(ws: WebSocket) -> None:
 
 # Static frontend last so API routes above take precedence.
 _static_dir = Path(__file__).resolve().parent / "static"
-app.mount("/", StaticFiles(directory=_static_dir, html=True), name="static")
+app.mount("/", SPAStaticFiles(directory=_static_dir, html=True), name="static")

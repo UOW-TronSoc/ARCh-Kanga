@@ -22,7 +22,9 @@ from typing import Any, Optional
 # 0-100% speed slider; the server turns that into real-world speeds capped
 # by these values. Override per machine with environment variables if needed.
 MAX_LINEAR_MPS = float(os.environ.get("BASESTATION_MAX_LINEAR_MPS", "0.3"))
-MAX_YAW_RAD_S = float(os.environ.get("BASESTATION_MAX_YAW_RAD_S", "1.0"))
+# Tuned so pure yaw at 90% slider reaches wheel saturation (straight already
+# matched 0–90% with MAX_LINEAR_MPS; yaw was ~3× too hot at 1.0 rad/s).
+MAX_YAW_RAD_S = float(os.environ.get("BASESTATION_MAX_YAW_RAD_S", "0.3"))
 
 # How long the operator can go quiet before we send a stop. The drive stack
 # has its own 0.5 s timeout below us; this fires first so the stop comes
@@ -97,6 +99,14 @@ class CoreState:
                 "body": self.body,
                 "motors": dict(self.motors),
             }
+
+
+def _speed_factor(scale_pct: float) -> float:
+    """Map operator slider 0–90% → 0–100% output; 90–100% plateaus at full."""
+    s = max(0.0, min(100.0, scale_pct))
+    if s >= 90.0:
+        return 1.0
+    return s / 90.0
 
 
 def _infer_closed_loop_from_motors(
@@ -479,7 +489,7 @@ class RosRuntime:
                         return
                     fresh = (time.monotonic() - stamp) <= DEADMAN_SECONDS
                     if fresh:
-                        factor = scale / 100.0
+                        factor = _speed_factor(scale)
                         self._publish_twist(
                             x * factor * MAX_LINEAR_MPS,
                             yaw * factor * MAX_YAW_RAD_S,

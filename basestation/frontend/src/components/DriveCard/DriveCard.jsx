@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import Modal from "react-bootstrap/Modal";
 import { getApiBase } from "../../config";
 import styles from "./DriveCard.module.css";
 
@@ -41,6 +42,7 @@ export default function DriveCard({
   const [feedback, setFeedback] = useState("");
   const [feedbackErr, setFeedbackErr] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [showDrivestopConfirm, setShowDrivestopConfirm] = useState(false);
 
   const isStopped = drivestop === true;
   const whsReachable = whsOnline || drivestop !== null;
@@ -77,20 +79,26 @@ export default function DriveCard({
       return;
     }
     if (isStopped) {
-      run({
-        path: "/drive/drivestop",
-        body: { stop: false },
-        successMsg: "Drivestop released — you can enter closed loop.",
-        failMsg: "Could not release drivestop.",
-      });
-    } else {
-      run({
-        path: "/drive/drivestop",
-        body: { stop: true },
-        successMsg: "Drivestop asserted — drive is stopped.",
-        failMsg: "Could not assert drivestop.",
-      });
+      setShowDrivestopConfirm(true);
+      return;
     }
+    run({
+      path: "/drive/drivestop",
+      body: { stop: true },
+      successMsg: "Drivestop asserted — drive is stopped.",
+      failMsg: "Could not assert drivestop.",
+    });
+    setEnabled(false);
+  };
+
+  const confirmReleaseDrivestop = () => {
+    setShowDrivestopConfirm(false);
+    run({
+      path: "/drive/drivestop",
+      body: { stop: false },
+      successMsg: "Drivestop released — you can enter closed loop.",
+      failMsg: "Could not release drivestop.",
+    });
   };
 
   const toggleClosedLoop = () => {
@@ -141,7 +149,7 @@ export default function DriveCard({
 
         <div className={styles.speedSection}>
           <label htmlFor="speedScale" className="form-label small mb-1">
-            Speed limit: {speedScale}%
+            Speed max: {speedScale}%
           </label>
           <input
             id="speedScale"
@@ -189,6 +197,9 @@ export default function DriveCard({
         <div>
           <strong>Active device:</strong> {controllerInfo?.name ?? "None"}
         </div>
+        <div className="small text-muted">
+          B0 drive input · B12 forward · B13 back · B14 rotate left · B15 rotate right
+        </div>
         {controllerInfo?.type === "logitech-extreme-3d" &&
           typeof controllerInfo?.throttle === "number" && (
             <div className="small text-muted">
@@ -202,6 +213,39 @@ export default function DriveCard({
           {feedback}
         </div>
       ) : null}
+
+      <Modal
+        show={showDrivestopConfirm}
+        onHide={() => setShowDrivestopConfirm(false)}
+        centered
+        contentClassName={styles.modalContent}
+        backdropClassName={styles.modalBackdrop}
+      >
+        <Modal.Header closeButton className={styles.modalHeader}>
+          <Modal.Title className={styles.modalTitle}>Release drivestop?</Modal.Title>
+        </Modal.Header>
+        <Modal.Body className={styles.modalBody}>
+          This allows the rover to enter closed loop and accept drive commands.
+          Only continue if you intend to drive.
+        </Modal.Body>
+        <Modal.Footer className={styles.modalFooter}>
+          <button
+            type="button"
+            className={styles.modalBtnCancel}
+            onClick={() => setShowDrivestopConfirm(false)}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className={styles.modalBtnConfirm}
+            onClick={confirmReleaseDrivestop}
+            disabled={busy}
+          >
+            Release drivestop
+          </button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 }

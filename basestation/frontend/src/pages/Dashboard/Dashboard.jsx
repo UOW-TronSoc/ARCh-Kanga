@@ -7,11 +7,53 @@ import DriveCard from "components/DriveCard/DriveCard";
 import { useBattery } from "context/BatteryContext";
 import { useControlWebSocket } from "hooks/useControlWebSocket";
 import { useTelemetryWebSocket } from "hooks/useTelemetryWebSocket";
+import { getApiBase } from "../../config";
 
 const EPSILON = 0.01;
 const MAX_TWIST = 20;
 const CONTROL_KEYS = new Set(["w", "s", "a", "d", "q", "e"]);
 const ZERO_VECTOR = { x: 0, y: 0, z: 0 };
+
+const BUTTON_DRIVE_INPUT = 0;
+const BUTTON_FULL_FORWARD = 12;
+const BUTTON_FULL_BACKWARD = 13;
+const BUTTON_FULL_ROTATE_LEFT = 14;
+const BUTTON_FULL_ROTATE_RIGHT = 15;
+
+const isButtonPressed = (gamepad, index) => Boolean(gamepad.buttons[index]?.pressed);
+
+async function driveApi(path, body) {
+  const res = await fetch(`${getApiBase()}${path}`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  let data = {};
+  try {
+    data = await res.json();
+  } catch {
+    /* empty body */
+  }
+  return data.ok === true;
+}
+
+const waitForTelemetry = (predicate, timeoutMs = 4000, intervalMs = 100) =>
+  new Promise((resolve) => {
+    const deadline = Date.now() + timeoutMs;
+    const tick = () => {
+      if (predicate()) {
+        resolve(true);
+        return;
+      }
+      if (Date.now() >= deadline) {
+        resolve(false);
+        return;
+      }
+      setTimeout(tick, intervalMs);
+    };
+    tick();
+  });
 
 const vectorsAlmostEqual = (a, b, epsilon = EPSILON) =>
   Math.abs(a.x - b.x) < epsilon &&
@@ -52,6 +94,14 @@ export default function Dashboard() {
   });
 
   const pressedKeysRef = useRef(new Set());
+  const prevButtonsRef = useRef([]);
+  const armBusyRef = useRef(false);
+  const driveEnabledRef = useRef(driveEnabled);
+  const drivestopRef = useRef(telemetry.drivestop);
+  const closedLoopRef = useRef(telemetry.closed_loop);
+  driveEnabledRef.current = driveEnabled;
+  drivestopRef.current = telemetry.drivestop;
+  closedLoopRef.current = telemetry.closed_loop;
 
   const recalcKeyboardTwist = useCallback(() => {
     const scale = MAX_TWIST;
@@ -83,9 +133,35 @@ export default function Dashboard() {
     });
   }, []);
 
+  const toggleDriveInputFromGamepad = useCallback(async () => {
+    if (driveEnabledRef.current) {
+      setDriveEnabled(false);
+      return;
+    }
+
+    if (drivestopRef.current === true) {
+      return;
+    }
+
+    if (!closedLoopRef.current) {
+      const armed = await driveApi("/drive/closed-loop", { enable: true });
+      if (!armed) return;
+      const closedLoopReady = await waitForTelemetry(() => closedLoopRef.current === true);
+      if (!closedLoopReady) return;
+    }
+
+    setDriveEnabled(true);
+  }, []);
+
   useEffect(() => {
     document.title = "Drive";
   }, []);
+
+  useEffect(() => {
+    if (telemetry.drivestop === true) {
+      setDriveEnabled(false);
+    }
+  }, [telemetry.drivestop]);
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -117,14 +193,27 @@ export default function Dashboard() {
     const pollGamepad = () => {
       const gp = navigator.getGamepads()[0];
       if (!gp) {
+        prevButtonsRef.current = [];
         setGamepadLinear((prev) => (vectorsAlmostEqual(prev, ZERO_VECTOR) ? prev : { ...ZERO_VECTOR }));
         setGamepadAngular((prev) => (vectorsAlmostEqual(prev, ZERO_VECTOR) ? prev : { ...ZERO_VECTOR }));
         updateControllerInfo({ name: "None", type: null, throttle: null });
         return;
       }
 
+      const prevPressed = prevButtonsRef.current;
+      const driveInputPressed = isButtonPressed(gp, BUTTON_DRIVE_INPUT);
+      if (prevPressed.length > 0 && driveInputPressed && !prevPressed[BUTTON_DRIVE_INPUT]) {
+        if (!armBusyRef.current) {
+          armBusyRef.current = true;
+          toggleDriveInputFromGamepad().finally(() => {
+            armBusyRef.current = false;
+          });
+        }
+      }
+      prevButtonsRef.current = gp.buttons.map((button) => Boolean(button?.pressed));
+
       const controllerType = identifyControllerType(gp.id);
-      if (!driveEnabled) {
+      if (!driveEnabledRef.current) {
         updateControllerInfo({ name: gp.id || "Unknown Controller", type: controllerType, throttle: 0 });
         setGamepadLinear((prev) => (vectorsAlmostEqual(prev, ZERO_VECTOR) ? prev : { ...ZERO_VECTOR }));
         setGamepadAngular((prev) => (vectorsAlmostEqual(prev, ZERO_VECTOR) ? prev : { ...ZERO_VECTOR }));
@@ -164,6 +253,17 @@ export default function Dashboard() {
         };
       }
 
+      const fullForward = isButtonPressed(gp, BUTTON_FULL_FORWARD);
+      const fullBackward = isButtonPressed(gp, BUTTON_FULL_BACKWARD);
+      const fullRotateLeft = isButtonPressed(gp, BUTTON_FULL_ROTATE_LEFT);
+      const fullRotateRight = isButtonPressed(gp, BUTTON_FULL_ROTATE_RIGHT);
+      if (fullForward !== fullBackward) {
+        nextLinear.x = fullForward ? baseScale : -baseScale;
+      }
+      if (fullRotateLeft !== fullRotateRight) {
+        nextAngular.z = fullRotateLeft ? baseScale : -baseScale;
+      }
+
       updateControllerInfo({
         name: gp.id || "Unknown Controller",
         type: controllerType,
@@ -175,7 +275,7 @@ export default function Dashboard() {
 
     const interval = setInterval(pollGamepad, 50);
     return () => clearInterval(interval);
-  }, [driveEnabled, updateControllerInfo]);
+  }, [toggleDriveInputFromGamepad, updateControllerInfo]);
 
   const combinedLinear = useMemo(
     () => ({

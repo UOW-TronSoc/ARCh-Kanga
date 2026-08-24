@@ -250,8 +250,9 @@ publishing a partial sample.
 
 Those same headers are compiled into the firmware, so a protocol change cannot
 land on one side only. Encoder calibration and covariances live in
-`config/core_can_bridge.yaml`; `diff_bar_encoder_counts_per_rad` is still a
-placeholder until the encoder is characterised.
+`config/core_can_bridge.yaml`. `diff_bar_encoder_counts_per_rad` is
+4096 / (2π) for the AS5600 12-bit RAW ANGLE; set `diff_bar_encoder_zero_count`
+to the rest-position reading.
 
 The bridge does not start `ros2_socketcan` by default, because core bringup owns
 one shared SocketCAN bridge for all core CAN devices. To run it standalone

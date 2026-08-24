@@ -10,18 +10,20 @@
 // TWAI / CAN transceiver (active)
 // -----------------------------------------------------------------------------
 
-constexpr int kCanTxPin = 5;
-constexpr int kCanRxPin = 4;
+constexpr int kCanTxPin = 4;
+constexpr int kCanRxPin = 5;
 
 // Bitrate in kbit/s. Must match can_core on the host (250 kbit/s).
 constexpr int kCanBitrateKbps = 250;
 
-// MPU6050 IMU over I2C (bench HW-123 clone; tasks_imu.cpp emulates until unset)
+// -----------------------------------------------------------------------------
+// Shared I2C bus (MPU6050 IMU + AS5600 diff-bar encoder)
 // -----------------------------------------------------------------------------
 
-constexpr int kImuI2cSdaPin = 21;
-constexpr int kImuI2cSclPin = 22;
+constexpr int kI2cSdaPin = 21;
+constexpr int kI2cSclPin = 22;
 constexpr int kMpu6050I2cAddress = 0x68;
+constexpr int kAs5600I2cAddress = 0x36;
 
 // -----------------------------------------------------------------------------
 // BNO086 IMU over SPI (planned production IMU; not used while MPU6050 is wired)
@@ -42,10 +44,3 @@ constexpr int kGimbalPanPwmPin = -1;
 constexpr int kGimbalTiltPwmPin = -1;
 constexpr int kServoAPwmPin = -1;
 constexpr int kServoBPwmPin = -1;
-
-// -----------------------------------------------------------------------------
-// Differential-bar encoder (planned; tasks_encoder.cpp emulates until chosen)
-// -----------------------------------------------------------------------------
-
-constexpr int kDiffBarEncoderPinA = -1;
-constexpr int kDiffBarEncoderPinB = -1;

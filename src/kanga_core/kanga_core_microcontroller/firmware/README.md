@@ -18,7 +18,7 @@ ROS or encode URDF geometry and suspension kinematics.
 | Build system | [PlatformIO](https://platformio.org/) (`firmware/kanga_core_esp32/platformio.ini`) |
 | Library | [ESP32-TWAI-CAN](https://github.com/handmade0octopus/ESP32-TWAI-CAN) |
 | CAN bitrate | 250 kbit/s (`can_core` policy) |
-| CAN pins | TX = GPIO 5, RX = GPIO 4 |
+| CAN pins | TX = GPIO 4, RX = GPIO 5 |
 
 ```bash
 cd src/kanga_core/kanga_core_microcontroller/firmware/kanga_core_esp32
@@ -28,8 +28,9 @@ pio device monitor       # serial log at 115200 baud
 ```
 
 Future BNO086 support will use SPI (pins not assigned yet). The bench IMU is an
-MPU6050-compatible HW-123 on I2C (GPIO 21/22). Servo PWM and encoder pins are
-placeholders (`-1` in `pin_config.h`).
+MPU6050-compatible HW-123 on I2C (GPIO 21/22), sharing that bus with the AS5600
+diff-bar encoder at address `0x36`. Servo PWM pins remain placeholders (`-1` in
+`pin_config.h`).
 
 ## RTOS layout
 
@@ -39,7 +40,7 @@ placeholders (`-1` in `pin_config.h`).
 | `gimbal` | 1 | CAN gimbal command placeholder | Inactive (logs only) |
 | `servo_pwm` | 1 | CAN auxiliary servo placeholder | Inactive (logs only) |
 | `imu` | 1 | ESP32 → CAN body IMU samples | MPU6050 DMP when I2C configured |
-| `encoder` | 1 | ESP32 → CAN diff-bar count | Emulated |
+| `encoder` | 1 | ESP32 → CAN diff-bar count | AS5600 RAW ANGLE when I2C configured |
 
 `ros2_socketcan` on the host will bridge these frames to ROS topics. The future
 `core_can_bridge` executable in this package will decode them into typed
@@ -67,7 +68,7 @@ frames published in the same IMU cycle.
 
 | ID | Name | Payload |
 |---|---|---|
-| 812 | `CAN_ID_DIFF_BAR_ENCODER` | `sequence`, `count` (int32, device units TBD) |
+| 812 | `CAN_ID_DIFF_BAR_ENCODER` | `sequence`, `count` (int32, AS5600 12-bit RAW ANGLE, unwrapped) |
 | 820 | `CAN_ID_IMU_ORIENTATION` | `qw/qx/qy/qz` (int16, scale 1/16384; no sequence byte) |
 | 821 | `CAN_ID_IMU_ANGULAR_VEL` | `sequence`, `wx/wy/wz` (int16, 0.001 rad/s per LSB) |
 | 822 | `CAN_ID_IMU_LINEAR_ACCEL` | `sequence`, `ax/ay/az` (int16, 0.001 m/s² per LSB) |
@@ -84,10 +85,11 @@ last year's firmware but are not transmitted yet.
 | `../../include/kanga_core_microcontroller/can_ids.hpp` | CAN identifier constants (shared) |
 | `../../include/kanga_core_microcontroller/can_protocol.hpp` | Payload structs, scales (shared) |
 | `can_bus.*` | TWAI init and read/write wrapper |
+| `i2c_bus.*` | Shared Wire init and mutex for MPU6050 + AS5600 |
 | `tasks_can.*` | Core 0 command ingress |
 | `tasks_servos.*` | Gimbal + PWM servo placeholders |
 | `tasks_imu.*` | MPU6050 DMP publisher (emulated when I2C unset) |
-| `tasks_encoder.*` | Encoder publisher (emulated until wired) |
+| `tasks_encoder.*` | AS5600 publisher (emulated if magnet missing or I2C unset) |
 
 ## Planned BNO086 mode
 

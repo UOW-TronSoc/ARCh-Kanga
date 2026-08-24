@@ -8,6 +8,7 @@
 #include "I2Cdev.h"
 #include "MPU6050_6Axis_MotionApps20.h"
 #include "can_bus.h"
+#include "i2c_bus.h"
 #include "kanga_core_microcontroller/can_ids.hpp"
 #include "kanga_core_microcontroller/can_protocol.hpp"
 #include "pin_config.h"
@@ -115,64 +116,67 @@ void generateEmulatedImuSample(
 
 bool initMpu6050(MPU6050 &mpu, uint16_t &packetSize)
 {
-  Wire.begin(kImuI2cSdaPin, kImuI2cSclPin);
-  Wire.setClock(400000);
-  delay(100);
-
   Serial.println("Initializing MPU6050...");
 
-  mpu.initialize();
-
-  const uint8_t deviceId = mpu.getDeviceID();
-  Serial.printf("MPU6050 library device ID: 0x%02X\n", deviceId);
-
-  Wire.beginTransmission(kMpu6050I2cAddress);
-  Wire.write(0x75);
-  const uint8_t i2cStatus = Wire.endTransmission(false);
-  if (i2cStatus == 0)
+  uint8_t dmpStatus = 0;
   {
-    Wire.requestFrom(static_cast<uint16_t>(kMpu6050I2cAddress), static_cast<uint8_t>(1));
-    if (Wire.available())
+    I2cBusLock lock;
+    mpu.initialize();
+
+    const uint8_t deviceId = mpu.getDeviceID();
+    Serial.printf("MPU6050 library device ID: 0x%02X\n", deviceId);
+
+    Wire.beginTransmission(kMpu6050I2cAddress);
+    Wire.write(0x75);
+    const uint8_t i2cStatus = Wire.endTransmission(false);
+    if (i2cStatus == 0)
     {
-      const uint8_t whoAmI = Wire.read();
-      Serial.printf("MPU6050 raw WHO_AM_I: 0x%02X\n", whoAmI);
+      Wire.requestFrom(static_cast<uint16_t>(kMpu6050I2cAddress), static_cast<uint8_t>(1));
+      if (Wire.available())
+      {
+        const uint8_t whoAmI = Wire.read();
+        Serial.printf("MPU6050 raw WHO_AM_I: 0x%02X\n", whoAmI);
+      }
     }
-  }
-  else
-  {
-    Serial.println("MPU6050 WHO_AM_I read failed");
-    return false;
-  }
+    else
+    {
+      Serial.println("MPU6050 WHO_AM_I read failed");
+      return false;
+    }
 
-  if (mpu.testConnection())
-  {
-    Serial.println("MPU6050 testConnection(): PASS");
-  }
-  else
-  {
-    Serial.println("MPU6050 testConnection(): FAIL");
-    Serial.println("Continuing: HW-123 clones may report an unsupported ID");
-  }
+    if (mpu.testConnection())
+    {
+      Serial.println("MPU6050 testConnection(): PASS");
+    }
+    else
+    {
+      Serial.println("MPU6050 testConnection(): FAIL");
+      Serial.println("Continuing: HW-123 clones may report an unsupported ID");
+    }
 
-  const uint8_t dmpStatus = mpu.dmpInitialize();
-  if (dmpStatus != 0)
-  {
-    Serial.printf("MPU6050 DMP initialization failed: %u\n", dmpStatus);
-    return false;
-  }
+    dmpStatus = mpu.dmpInitialize();
+    if (dmpStatus != 0)
+    {
+      Serial.printf("MPU6050 DMP initialization failed: %u\n", dmpStatus);
+      return false;
+    }
 
-  mpu.setXGyroOffset(0);
-  mpu.setYGyroOffset(0);
-  mpu.setZGyroOffset(0);
+    mpu.setXGyroOffset(0);
+    mpu.setYGyroOffset(0);
+    mpu.setZGyroOffset(0);
+  }
 
   Serial.println("Calibrating MPU6050 gyro; keep the sensor still...");
   delay(1000);
-  mpu.CalibrateGyro(6);
-  Serial.println("MPU6050 gyro calibration complete");
-  mpu.PrintActiveOffsets();
+  {
+    I2cBusLock lock;
+    mpu.CalibrateGyro(6);
+    Serial.println("MPU6050 gyro calibration complete");
+    mpu.PrintActiveOffsets();
 
-  mpu.setDMPEnabled(true);
-  packetSize = mpu.dmpGetFIFOPacketSize();
+    mpu.setDMPEnabled(true);
+    packetSize = mpu.dmpGetFIFOPacketSize();
+  }
   Serial.printf("MPU6050 DMP ready, packet size %u\n", packetSize);
   return true;
 }
@@ -184,9 +188,12 @@ bool readMpu6050Sample(
   float &wx, float &wy, float &wz,
   float &ax, float &ay, float &az)
 {
-  if (!mpu.dmpGetCurrentFIFOPacket(fifoBuffer))
   {
-    return false;
+    I2cBusLock lock;
+    if (!mpu.dmpGetCurrentFIFOPacket(fifoBuffer))
+    {
+      return false;
+    }
   }
 
   Quaternion q;
@@ -295,7 +302,7 @@ void vImuTask(void *pvParameters)
 {
   (void)pvParameters;
 
-  if (kImuI2cSdaPin < 0 || kImuI2cSclPin < 0)
+  if (!i2cBusConfigured())
   {
     runEmulatedImuTask();
     return;

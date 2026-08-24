@@ -133,7 +133,7 @@ export default function Dashboard() {
     });
   }, []);
 
-  const toggleDriveInputFromGamepad = useCallback(async () => {
+  const toggleDriveInputArm = useCallback(async () => {
     if (driveEnabledRef.current) {
       setDriveEnabled(false);
       return;
@@ -153,6 +153,14 @@ export default function Dashboard() {
     setDriveEnabled(true);
   }, []);
 
+  const requestDriveInputArm = useCallback(() => {
+    if (armBusyRef.current) return;
+    armBusyRef.current = true;
+    toggleDriveInputArm().finally(() => {
+      armBusyRef.current = false;
+    });
+  }, [toggleDriveInputArm]);
+
   useEffect(() => {
     document.title = "Drive";
   }, []);
@@ -165,6 +173,13 @@ export default function Dashboard() {
 
   useEffect(() => {
     const handleKeyDown = (event) => {
+      if (event.code === "Space" || event.key === " ") {
+        event.preventDefault();
+        if (event.repeat) return;
+        requestDriveInputArm();
+        return;
+      }
+
       const key = event.key.toLowerCase();
       if (!CONTROL_KEYS.has(key)) return;
       event.preventDefault();
@@ -175,6 +190,11 @@ export default function Dashboard() {
       }
     };
     const handleKeyUp = (event) => {
+      if (event.code === "Space" || event.key === " ") {
+        event.preventDefault();
+        return;
+      }
+
       const key = event.key.toLowerCase();
       if (!CONTROL_KEYS.has(key)) return;
       event.preventDefault();
@@ -187,7 +207,7 @@ export default function Dashboard() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [recalcKeyboardTwist]);
+  }, [recalcKeyboardTwist, requestDriveInputArm]);
 
   useEffect(() => {
     const pollGamepad = () => {
@@ -203,12 +223,7 @@ export default function Dashboard() {
       const prevPressed = prevButtonsRef.current;
       const driveInputPressed = isButtonPressed(gp, BUTTON_DRIVE_INPUT);
       if (prevPressed.length > 0 && driveInputPressed && !prevPressed[BUTTON_DRIVE_INPUT]) {
-        if (!armBusyRef.current) {
-          armBusyRef.current = true;
-          toggleDriveInputFromGamepad().finally(() => {
-            armBusyRef.current = false;
-          });
-        }
+        requestDriveInputArm();
       }
       prevButtonsRef.current = gp.buttons.map((button) => Boolean(button?.pressed));
 
@@ -275,7 +290,7 @@ export default function Dashboard() {
 
     const interval = setInterval(pollGamepad, 50);
     return () => clearInterval(interval);
-  }, [toggleDriveInputFromGamepad, updateControllerInfo]);
+  }, [requestDriveInputArm, updateControllerInfo]);
 
   const combinedLinear = useMemo(
     () => ({

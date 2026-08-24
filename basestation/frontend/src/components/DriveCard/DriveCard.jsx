@@ -198,7 +198,7 @@ export default function DriveCard({
           <strong>Active device:</strong> {controllerInfo?.name ?? "None"}
         </div>
         <div className="small text-muted">
-          B0 drive input · B12 forward · B13 back · B14 rotate left · B15 rotate right
+          B0 / Space drive input · B12 forward · B13 back · B14 rotate left · B15 rotate right
         </div>
         {controllerInfo?.type === "logitech-extreme-3d" &&
           typeof controllerInfo?.throttle === "number" && (

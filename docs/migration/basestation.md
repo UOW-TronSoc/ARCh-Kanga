@@ -2,45 +2,67 @@
 
 ## Status
 
-Scaffold only in this repository: Docker compose, health-stub services, and
-docs. Real operator application code has not been migrated yet.
+**Phase 1 complete for development** (2026-08-24). The legacy four-service stack
+(Django :8000, arm FastAPI :8001, cmd_vel FastAPI :8080, Vite :3000) is replaced
+in this repository by a single `basestation-server` on port **8000**.
 
-## Primary reference (application code)
+| Legacy | Replacement |
+| ------ | ----------- |
+| Django + PIN + logs | `basestation/server/operator.py`, `pin_auth.py`, log buffer |
+| cmd_vel FastAPI | `/ws/control` + `server/ros.py` (one rclpy node) |
+| Arm FastAPI | Not migrated — arm/science UI hidden until payload packages land |
+| Vite dev server :3000 | Built React app in `basestation/server/static/` |
+
+Drive, drivestop, closed-loop management, telemetry, PIN, and logs are
+implemented and verified against **Gazebo core simulation** and **physical
+core bringup** (laptop dev with rover CAN hardware connected).
+
+Still outstanding (not migration blockers):
+
+- **Phase 2 cameras** — placeholders on the Drive page; see
+  [basestation/CAMERAS.md](../../basestation/CAMERAS.md).
+- **Rover boot deployment** — systemd unit and compose restart policy exist;
+  PIN, session secret, and legacy stack retirement on the competition Jetson
+  are manual follow-ups.
+- **Per-wheel calibrate UI** — REST endpoint only (`POST /api/drive/calibrate/{wheel}`).
+- **Live battery** — widget present; `kanga_core_battery` not wired through yet.
+
+## Primary reference (legacy application code)
 
 ```text
-Local tree (current systemd stack):
+Previous live stack (retire on rover after parity check):
   /home/kanga/kanga/basestation/basestationproject/
 
-Live ports today:
   Django          8000
   Arm FastAPI     8001
   cmd_vel FastAPI 8080
   Vite frontend   3000
 ```
 
-The old basestation also contained unused `process_manager/` and
-`robot_controller/` trees (Docker `:8081` script manager). Do **not** migrate
-those in early PRs.
+Do **not** migrate unused `process_manager/` or `robot_controller/` trees from
+the old repo.
 
-## Provenance notes from the live stack
+## Design and task list
 
-- `fastapi_server` publishes `geometry_msgs/Twist` on `/cmd_vel`
-- `arm_fastapi_app` publishes arm joint / EE / mode topics and subscribes
-  feedback
-- `backendapi/views.py` runs `rclpy` nodes (science bridge, arm, battery) and
-  imports `kanga_interfaces.msg` types such as `BatteryInfo` / `BmsStatus` when
-  available
+[basestation/REDESIGN_PLAN.md](../../basestation/REDESIGN_PLAN.md) — architecture,
+WebSocket contracts, and Phase 1/2 checklist.
 
-## Replacement order (after scaffold)
+## Validation
 
-Superseded: the stubs are not replaced one-for-one. The agreed target is a
-single FastAPI server (embedded rclpy node, WebSocket control/telemetry)
-serving a built frontend on one port — see the design and task list in
-[basestation/REDESIGN_PLAN.md](../../basestation/REDESIGN_PLAN.md).
+Run Path A (ROS workspace + core bringup or sim) and Path B (basestation) on
+the **same machine** with the same `ROS_DOMAIN_ID`:
 
-Validate each slice against ROS nodes started from Path A
-(`./scripts/docker_shell.bash`) — physical core bringup or the `kanga_sim`
-core simulation — on the same `ROS_DOMAIN_ID`.
+```bash
+# Terminal 1 — robot stack (example: physical core on can0)
+ros2 launch kanga_core_bringup core.launch.py can_interface:=can0 ...
+
+# Terminal 2 — operator server
+./scripts/basestation_up.bash
+```
+
+Open http://localhost:8000/ — PIN → Drive. Release drivestop from the dashboard,
+arm with **B0** or **Space** (closed loop, then drive input), drive with WASD /
+gamepad / D-pad buttons B12–B15.
 
 ## Interface rule
 

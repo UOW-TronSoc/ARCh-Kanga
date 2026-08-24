@@ -1,11 +1,11 @@
 # Basestation Ground-Up Redesign (Co-located with Robot)
 
-Status: **ready to start** — plan agreed 2026-07-18; updated 2026-08-23
-against what actually landed on `develop`: WHS/`/drivestop` authority, core
-drive + controller (with its own `/cmd_vel` timeout — the carried requirement
-is satisfied), the ESP32 CAN bridge, a Gazebo core simulation, and health-stub
-services under `basestation/`. Camera details expanded in
-[CAMERAS.md](CAMERAS.md).
+Status: **Phase 1 complete for dev** — plan agreed 2026-07-18; Phase 1 landed
+2026-08-24 (single server, React UI, drive WebSockets, PIN/logs). Phase 2
+(cameras) not started. Updated against `develop`: WHS/`/drivestop` authority,
+core drive + controller (with its own `/cmd_vel` timeout — the carried requirement
+is satisfied), the ESP32 CAN bridge, Gazebo core simulation, and the unified
+`basestation-server`. Camera details in [CAMERAS.md](CAMERAS.md).
 
 Phase 1: replace the four-service basestation stack (Django + two FastAPI apps
 + Vite dev server) with a single FastAPI backend embedding one rclpy node,
@@ -457,7 +457,8 @@ rest.
    `/cmd_vel` publishing, doubles as the dead-man (0.4 s, verified), and
    sends a clean stop on disconnect; one tab holds control at a time;
    limits via `BASESTATION_MAX_LINEAR_MPS` / `BASESTATION_MAX_YAW_RAD_S`
-   (defaults 0.3 m/s, 1.0 rad/s).
+   (defaults 0.3 m/s, 0.3 rad/s; slider maps 0–90% linearly with 90–100%
+   plateau at full).
 4. Implement `/ws/telemetry`: `/drivestop`, wheel + suspension joint states,
    `/body/pose` / `/body/twist`, per-wheel `controller_status` /
    `odrive_status` pushed at a fixed rate; add battery and science topics
@@ -470,10 +471,12 @@ rest.
    display, `set_closed_loop`, `clear_errors`, per-wheel calibrate (the
    "motor page" from the core drive migration doc), with the arming sequence
    (clear stop -> closed loop -> drive) made explicit in the UI. **Done
-   2026-08-23** — REST under `/api/drive/*`; test page Drive setup panel
-   (release/assert stop, closed loop/idle, clear errors). Per-wheel calibrate
-   endpoint exists (`POST /api/drive/calibrate/{wheel}`) but no UI button yet
-   — add with the real motor page in task 7.
+   2026-08-24** — REST under `/api/drive/*`; Drive card on the dashboard
+   (drivestop with release confirmation, closed loop/idle, clear errors).
+   Gamepad **B0** / keyboard **Space** arm drive (closed loop then drive
+   input; cannot release drivestop). D-pad B12–B15 full motion. Drivestop
+   assertion disables drive input. Per-wheel calibrate endpoint exists
+   (`POST /api/drive/calibrate/{wheel}`) but no UI button yet.
 6. Port the remaining operator REST actions from the legacy Django app:
    logs, PIN; science controls *(payload-gated)*; NIR servo / Roo release wait
    for `kanga_core_microcontroller` firmware instead of porting the GPIO
@@ -485,13 +488,15 @@ rest.
    end-to-end against the Gazebo core simulation, then against physical core
    bringup. **Done 2026-08-24** — `basestation/frontend/` (Vite/React) built
    into `server/static/`; drive via `/ws/control` + `/ws/telemetry`; PIN + logs;
-   camera placeholders; battery widgets static; arm/science hidden.
+   camera placeholders; battery widgets static; arm/science hidden. Verified on
+   sim and laptop dev with rover CAN hardware (motors + sensors).
 8. Rover deployment: same compose file started on boot (restart policy or a
    thin systemd wrapper), brought up after robot bringup; legacy stack retired
-   from the rover once parity is verified. **In progress 2026-08-24** —
+   from the rover once parity is verified. **Scaffold done 2026-08-24** —
    `restart: unless-stopped` on `basestation-server`; `basestation/deploy/
    kanga-basestation.service` + `scripts/basestation_install_service.bash`.
-   Legacy stack retirement is manual once physical bringup is verified.
+   Competition Jetson setup (PIN, secret, unit paths, legacy stack retirement)
+   deferred — laptop development does not require it.
 
 Carried requirement: **done** — the drive stack zeroes the wheels after 0.5 s
 of `/cmd_vel` silence (`cmd_vel_timeout_s` in `kanga_core_controller`); the

@@ -48,6 +48,10 @@ missing.
 | http://localhost:8000/ | React operator UI (PIN → Drive, Logs) |
 | http://localhost:8000/health | Server + ROS node status as JSON |
 
+Drive arming on the dashboard: release drivestop (confirmed), then **B0**,
+**Space**, or the Drive Input button — closed loop first, then drive input.
+Gamepad cannot release drivestop.
+
 Stop:
 
 ```bash

@@ -1,2 +1,6 @@
 fastapi==0.115.6
 uvicorn==0.34.0
+# WebSocket support for uvicorn (operator control/telemetry channels).
+websockets==14.1
+# Signed session cookies for PIN auth.
+itsdangerous==2.2.0

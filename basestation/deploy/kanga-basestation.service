@@ -1,0 +1,31 @@
+# Systemd unit for the operator basestation on the rover.
+#
+# Install (adjust paths):
+#   sudo cp basestation/deploy/kanga-basestation.service /etc/systemd/system/
+#   sudo systemctl edit kanga-basestation   # set KANGA_ROOT, user, After= robot unit
+#   sudo systemctl enable --now kanga-basestation
+#
+# Or use: ./scripts/basestation_install_service.bash
+
+[Unit]
+Description=Kanga basestation operator server (Docker)
+Documentation=file:///workspace/basestation/REDESIGN_PLAN.md
+After=docker.service network-online.target
+Wants=network-online.target
+# Start after robot ROS bringup when that unit exists, e.g.:
+# After=kanga-core.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=root
+WorkingDirectory=/home/kanga/kanga_wip
+Environment=KANGA_ROOT=/home/kanga/kanga_wip
+Environment=SKIP_FRONTEND_BUILD=1
+Environment=ROS_DOMAIN_ID=0
+ExecStart=/home/kanga/kanga_wip/scripts/basestation_up.bash
+ExecStop=/home/kanga/kanga_wip/scripts/basestation_down.bash
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

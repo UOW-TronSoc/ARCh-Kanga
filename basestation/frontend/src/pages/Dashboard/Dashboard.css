@@ -1,0 +1,60 @@
+/* ───────────────── page-level/base ───────────────── */
+body{ background:var(--bg-page); }
+
+/* generic heading accent (used in several cards) */
+.header{ color:var(--nav-fg-active); }
+
+/* ───────────────── Dashboard: fit in 100vh (below navbar) ───────────────── */
+.dashboardPage {
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboardPage .container,
+.dashboardPage .container-fluid {
+  flex: 1;
+  min-height: 0;
+  padding-top: var(--space-sm);
+  padding-bottom: var(--space-sm);
+}
+
+.dashboardPage .row {
+  --bs-gutter-x: 0.75rem;
+  --bs-gutter-y: 0.5rem;
+}
+
+.dashboardPage .dashboardRow1 {
+  flex: 1;
+  min-height: 0;
+}
+
+.dashboardPage .dashboardRow2 {
+  flex-shrink: 0;
+}
+
+.servoDemoCardInner code {
+  color: inherit;
+  word-break: break-all;
+}
+
+.servoDemoDetail {
+  max-height: 10rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-md, 6px);
+  padding: 0.5rem;
+}
+
+/* ───────────────── shared card styling ───────────────── */
+.card {
+  background: var(--card-alt-bg);
+  color: var(--card-alt-fg);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  height: 100%;
+  display: flex;
+  justify-content: space-evenly;
+}

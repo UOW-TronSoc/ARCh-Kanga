@@ -1,0 +1,7 @@
+surface:
+  friction_coefficient_lateral: 0.70
+  friction_coefficient_longitudinal: 0.75
+  contact_stiffness_n_m: 3000000.0
+  contact_damping_n_s_m: 30.0
+  slip_compliance_lateral: 0.10
+  slip_compliance_longitudinal: 0.05

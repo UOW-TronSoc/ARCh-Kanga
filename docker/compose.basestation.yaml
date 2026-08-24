@@ -1,12 +1,18 @@
-# Optional operator / basestation stack (ROS participants over host networking).
-# Start with ./scripts/basestation_up.bash after a workspace build (install/).
+# Operator / basestation stack: one FastAPI server that joins the ROS 2 graph
+# over host networking. Start with ./scripts/basestation_up.bash after a
+# workspace build (install/) exists.
+#
+# The server serves the operator web UI and the API from a single port (8000).
+# A frontend build stage joins the image once the React UI is migrated; until
+# then the server serves the placeholder page from basestation/server/static/.
 services:
-  basestation-django:
+  basestation-server:
     build:
       context: ..
       dockerfile: docker/Dockerfile.basestation-python
     image: kanga-basestation-python:humble
-    container_name: basestation-django
+    container_name: basestation-server
+    restart: unless-stopped
     network_mode: host
     ipc: host
     working_dir: /workspace/basestation
@@ -15,75 +21,17 @@ services:
     environment:
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
       - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
+      # Use UDP instead of shared memory so this container can talk to ROS
+      # processes owned by other users. See basestation/fastdds_profile.xml.
+      - FASTRTPS_DEFAULT_PROFILES_FILE=/workspace/basestation/fastdds_profile.xml
     command:
       [
         "python3",
         "-m",
         "uvicorn",
-        "django_app.main:app",
+        "server.main:app",
         "--host",
         "0.0.0.0",
         "--port",
         "8000",
       ]
-
-  basestation-fastapi:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.basestation-python
-    image: kanga-basestation-python:humble
-    container_name: basestation-fastapi
-    network_mode: host
-    ipc: host
-    working_dir: /workspace/basestation
-    volumes:
-      - ..:/workspace
-    environment:
-      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
-      - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
-    command:
-      [
-        "python3",
-        "-m",
-        "uvicorn",
-        "fastapi_server.main:app",
-        "--host",
-        "0.0.0.0",
-        "--port",
-        "8080",
-      ]
-
-  basestation-arm-fastapi:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.basestation-python
-    image: kanga-basestation-python:humble
-    container_name: basestation-arm-fastapi
-    network_mode: host
-    ipc: host
-    working_dir: /workspace/basestation
-    volumes:
-      - ..:/workspace
-    environment:
-      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
-      - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
-    command:
-      [
-        "python3",
-        "-m",
-        "uvicorn",
-        "arm_fastapi_app.main:app",
-        "--host",
-        "0.0.0.0",
-        "--port",
-        "8001",
-      ]
-
-  basestation-frontend:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.basestation-frontend
-    image: kanga-basestation-frontend:scaffold
-    container_name: basestation-frontend
-    network_mode: host
-    ipc: host

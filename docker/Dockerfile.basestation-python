@@ -1,5 +1,12 @@
-# Basestation Python services (Django/FastAPI stubs and future real apps).
-# ROS comes from the base image; workspace msgs come from the bind-mounted install/.
+# Build the React operator UI, then copy static assets into the runtime image.
+FROM node:20-bookworm-slim AS frontend
+WORKDIR /src/basestation/frontend
+COPY basestation/frontend/package.json basestation/frontend/package-lock.json ./
+RUN npm ci
+COPY basestation/frontend/ ./
+RUN npm run build
+
+# Basestation Python server + ROS base image.
 FROM ros:humble-ros-base-jammy
 
 ENV ROS_DISTRO=humble
@@ -18,5 +25,7 @@ COPY basestation/docker-entrypoint.bash /usr/local/bin/basestation-entrypoint.ba
 RUN chmod +x /usr/local/bin/basestation-entrypoint.bash
 
 WORKDIR /workspace/basestation
+COPY --from=frontend /src/basestation/server/static ./server/static
+
 ENTRYPOINT ["/usr/local/bin/basestation-entrypoint.bash"]
 CMD ["python3", "-m", "uvicorn", "--help"]

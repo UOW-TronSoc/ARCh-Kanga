@@ -1,7 +1,11 @@
 # Basestation Ground-Up Redesign (Co-located with Robot)
 
-Status: **not started** — plan agreed 2026-07-18. Camera details expanded in
-[CAMERAS.md](CAMERAS.md).
+Status: **Phase 1 complete for dev** — plan agreed 2026-07-18; Phase 1 landed
+2026-08-24 (single server, React UI, drive WebSockets, PIN/logs). Phase 2
+(cameras) not started. Updated against `develop`: WHS/`/drivestop` authority,
+core drive + controller (with its own `/cmd_vel` timeout — the carried requirement
+is satisfied), the ESP32 CAN bridge, Gazebo core simulation, and the unified
+`basestation-server`. Camera details in [CAMERAS.md](CAMERAS.md).
 
 Phase 1: replace the four-service basestation stack (Django + two FastAPI apps
 + Vite dev server) with a single FastAPI backend embedding one rclpy node,
@@ -51,41 +55,73 @@ Source repositories:
   commit pinned in the repo root README; the live (possibly diverged) copy is
   the rover's workspace at `/home/kanga/kanga/kanga`.
 
-**Sequencing: rover code merges in first.** The old rover code (including
-`kanga_interfaces` — `BatteryInfo`, `BmsStatus`, `ScienceControl`,
-`ScienceFeedback`, `ControlMessage`, `ControllerStatus`, `ODriveStatus`,
-`AxisState.srv`, currently only in the rover's live workspace) is being
-migrated into this repo's `src/` **before** basestation development starts.
-This plan assumes that migration is done: Phase 1 begins with the interfaces
-and robot packages already building via Path A.
+**Sequencing: rover code merges in first — the core half of that is done.**
+As of 2026-08-23 (`develop`), the core rover stack is implemented in `src/`
+and builds via Path A: `kanga_interfaces` (now only `WheelVelocityCommand`,
+`BatteryInfo`, `BmsStatus` — ODrive contracts such as `ControllerStatus`,
+`ODriveStatus`, and `AxisState.srv` moved to the vendored `custom_odrive`
+repo), `kanga_whs` (software motion-stop authority), the `kanga_core_*`
+packages (drive, controller, description, bringup, microcontroller CAN
+bridge), and a Gazebo core simulation. The manipulator, science, excavator,
+and camera packages are still architecture placeholders — no arm or science
+topics or interfaces exist in this tree yet; they arrive as separate payload
+migration slices. Phase 1 therefore targets the live core contract first and
+ports the arm/science UI pages only when those payloads land.
 
-### Topic contract (as implemented on the 2026 rover)
+### Operator contract (as implemented in `src/` on `develop`, 2026-08-23)
 
-| Topic | Type | Direction |
+Live once `kanga_core_bringup/launch/core.launch.py` (rover) or
+`kanga_sim/launch/core_simulation.launch.py` (dev, Gazebo) is up. Snapshot
+only — the code in `src/` stays the source of truth.
+
+| Name | Type | Direction |
 |---|---|---|
-| `/cmd_vel` | `geometry_msgs/Twist` | UI -> drive |
-| `/kanga_arm/joint_control` | `sensor_msgs/JointState` | UI -> arm |
-| `kanga_arm/ee_state_control` | `geometry_msgs/Twist` | UI -> arm |
-| `kanga_arm/control_mode_joint` | `std_msgs/Bool` | UI -> arm |
-| `/joint_states` | `sensor_msgs/JointState` | robot -> UI |
-| `kanga_science/heating` | `std_msgs/Bool` | UI -> robot |
-| `kanga_science/cooling` | `std_msgs/Bool` | UI -> robot |
-| `kanga_science/linear_actuator_speed` | `std_msgs/Int32` | UI -> robot |
-| `kanga_science/temperatures` | `std_msgs/Float32MultiArray` | robot -> UI |
-| `kanga_science/ultrasonic_cm` | `std_msgs/Float32` | robot -> UI |
-| `kanga_science/current_amps` | `std_msgs/Float32` | robot -> UI |
-| `kanga_science/spectrophotometer` | `std_msgs/Float32MultiArray` | robot -> UI |
-| `/battery/battery_info` | `kanga_interfaces/BatteryInfo` | robot -> UI |
-| `/battery/bms_status` | `kanga_interfaces/BmsStatus` | robot -> UI |
+| `/cmd_vel` | `geometry_msgs/Twist` | UI -> robot |
+| `/drivestop` | `std_msgs/Bool` | robot -> UI |
+| `/whs_node/set_drivestop` | `std_srvs/SetBool` (srv) | UI -> robot |
+| `/drive_manager/set_closed_loop` | `std_srvs/SetBool` (srv) | UI -> robot |
+| `/drive_manager/clear_errors` | `std_srvs/Trigger` (srv) | UI -> robot |
+| `/drive_manager/calibrate_{fl,bl,br,fr}` | `std_srvs/Trigger` (srv) | UI -> robot |
+| `/wheel_joint_states` | `sensor_msgs/JointState` | robot -> UI |
+| `/suspension_joint_states` | `sensor_msgs/JointState` | robot -> UI |
+| `/diff_bar_angle` | `std_msgs/Float64` | robot -> UI |
+| `/body/pose` | `geometry_msgs/PoseWithCovarianceStamped` | robot -> UI |
+| `/body/twist` | `geometry_msgs/TwistWithCovarianceStamped` | robot -> UI |
+| `/imu/data` | `sensor_msgs/Imu` | robot -> UI (physical only) |
+| `/wheel_{fl,bl,br,fr}/controller_status` | `custom_odrive/ControllerStatus` | robot -> UI |
+| `/wheel_{fl,bl,br,fr}/odrive_status` | `custom_odrive/ODriveStatus` | robot -> UI |
 
-This table is a snapshot for bootstrapping on a fresh machine; once the
-interfaces and robot packages are migrated into `src/`, the code there is the
-source of truth and this table should not be maintained separately.
+Contract rules the server must respect:
 
-Rover-only items (everything else can be developed and tested on a laptop via
-Path A + Path C): NIR servo GPIO (Jetson.GPIO), real cameras (IP cams at
-`10.0.0.5`/`10.0.0.6`, `/dev/video*`), CAN hardware, and final parity
-verification against the legacy stack.
+- `/cmd_vel` is now in physical units (linear m/s, yaw rad/s). The operator
+  0-100% speed setting is a UI-level scale mapped onto configurable maximum
+  chassis speeds (see "Drive command and limit model" in
+  [docs/architecture/README.md](../docs/architecture/README.md)); the legacy
+  arbitrary `MAX_TWIST = 20` does not carry over.
+- **Never publish `/drivestop`** — `whs_node` is its sole publisher; the UI
+  changes it only through `/whs_node/set_drivestop`, and subscribes with
+  reliable + transient_local QoS to latch current state. WHS starts asserted
+  (fail-closed), and clearing it does not re-enter closed loop.
+- Arming sequence: clear drivestop -> `set_closed_loop true` -> stream
+  `/cmd_vel`. Stop and closed-loop are independent states; the UI must show
+  both.
+- QoS: `controller_status` is best-effort; `/body/*` and `/imu/data` are
+  SensorDataQoS.
+
+Not live yet (do not block Phase 1 on these):
+
+- **Battery** — `BatteryInfo` / `BmsStatus` messages exist but
+  `kanga_core_battery` is a stub; the legacy `/battery/*` topics are not
+  published in this tree yet.
+- **Arm / science** — the legacy 2026 contract (`/kanga_arm/joint_control`,
+  `kanga_arm/ee_state_control`, `kanga_arm/control_mode_joint`,
+  `kanga_science/*`) is not implemented here; it returns (possibly revised)
+  with the `kanga_manipulator_*` / `kanga_science_*` migration slices.
+
+Rover-only items (everything else runs on a laptop via Path A + the core
+simulation): real CAN hardware (`can_core` — so per-wheel ODrive telemetry,
+`/imu/data`, and battery), real cameras (IP cams at `10.0.0.5`/`10.0.0.6`,
+`/dev/video*`), and final parity verification against the legacy stack.
 
 ## What stays the same
 
@@ -121,9 +157,10 @@ A single FastAPI app (new `basestation/server/`) replaces Django (:8000), drive
 FastAPI (:8080), and arm FastAPI (:8001). It embeds **one** `rclpy` node on a
 background executor thread with all publishers/subscribers:
 
-- **WebSocket `/ws/control`** — gamepad drive (`/cmd_vel`) and arm commands
-  (`/kanga_arm/joint_control`, `kanga_arm/ee_state_control`, mode toggle).
-  Replaces HTTP POST per gamepad tick — the current UI fires 10-100 POSTs/sec
+- **WebSocket `/ws/control`** — gamepad drive (`/cmd_vel`, physical units,
+  with the 0-100% speed scale applied against configured chassis limits) and,
+  once the manipulator migration lands, arm commands. Replaces HTTP POST per
+  gamepad tick — the current UI fires 10-100 POSTs/sec
   (10 ms interval on ArmControlCompact, 50 ms on Dashboard) with no ordering
   guarantee, so on a Wi-Fi hiccup a stale "full speed" command can be applied
   after a newer "stop". Browser still polls the gamepad (~50 Hz — the Gamepad
@@ -131,19 +168,38 @@ background executor thread with all publishers/subscribers:
   20-30 Hz with change-detection and a keepalive over one ordered WebSocket.
   **Dead-man stop:** the server publishes a zero Twist if no message arrives
   within ~300-500 ms, covering frozen tabs, dropped Wi-Fi, and closed laptops.
-- **Requirement to carry into the drive/ODrive rebuild** (not a task here —
-  that stack is being rebuilt from the ground up separately): the drive layer
-  must have its own `/cmd_vel` timeout that zeroes the wheels. The legacy
-  `wheel_command_mapper` has no command timeout and the ODrives hold their
-  last commanded velocity, so today a dead basestation process mid-drive
-  leaves the rover moving indefinitely. The new drive stack should never trust
-  the command source to keep talking.
-- **WebSocket `/ws/telemetry`** — pushes battery (`/battery/battery_info`,
-  `/battery/bms_status`), `/joint_states`, and `kanga_science/*` at a fixed
-  rate. Replaces frontend REST polling and removes the need for Redis caching
-  entirely.
-- **REST** — one-shot actions only: science heating/cooling/actuator,
-  checklist, logs, PIN, NIR servo GPIO.
+  **Eyes off = hands off (UI rule, found in field-testing 2026-08-23):** the
+  client must drop all input and send a stop whenever the tab loses focus or
+  visibility — a backgrounded tab never receives the `keyup` for a held key
+  (it looks held forever) and browsers throttle its timers to ~1/s, which
+  otherwise drips stale "full speed" frames that repeatedly re-arm the
+  dead-man. A hidden tab may only ever send zeros. The React UI (task 7)
+  must keep this behaviour.
+- **Carried requirement: satisfied.** The rebuilt drive stack has its own
+  timeouts: `wheel_command_mapper` streams zero wheel commands after 0.5 s of
+  `/cmd_vel` silence (`cmd_vel_timeout_s` in
+  `kanga_core_controller/config/controller.yaml`), `wheel_actuator` stops
+  publishing motor commands on a stale joint stream, and the sim drive
+  boundary drops to IDLE on silence. The server-side dead-man stays as the
+  second layer of defence, and WHS `/drivestop` sits above both as the
+  operator-facing stop authority.
+- **WebSocket `/ws/telemetry`** — pushes `/drivestop` state, wheel and
+  suspension joint states, `/body/pose` / `/body/twist`, per-wheel
+  `controller_status` / `odrive_status`, and — once their packages land —
+  battery and `kanga_science/*` at a fixed rate. Replaces frontend REST
+  polling and removes the need for Redis caching entirely.
+- **REST** — one-shot actions only: drivestop set/clear
+  (`/whs_node/set_drivestop`), closed-loop enter/exit, error clearing, and
+  per-wheel calibration (`/drive_manager/*` — the "basestation motor page"
+  expected by [docs/migration/core_drive.md](../docs/migration/core_drive.md)),
+  science controls, checklist, logs, PIN. The legacy NIR servo / "Roo
+  release" GPIO scripts are superseded by `kanga_core_microcontroller`
+  (servo and ROO interfaces over CAN) once that firmware lands.
+- **Drivestop is a first-class UI element**: current `/drivestop` and
+  closed-loop state always visible, one prominent stop control, and the WHS
+  manual override (an exceptional mid-competition recovery mechanism) clearly
+  indicated when active — required by the WHS contract in
+  [docs/architecture/README.md](../docs/architecture/README.md).
 
 **Cameras: handled in Phase 2 (see [CAMERAS.md](CAMERAS.md)).** During Phase 1
 camera feeds keep coming from the legacy stack on the rover; the new server
@@ -190,11 +246,20 @@ operator stack just collapses from four compose services to one.
   networking / `ipc: host` / `ROS_DOMAIN_ID` env, same bind-mounted
   `/workspace`, same entrypoint sourcing pattern. UI moves from :3000 to
   `http://localhost:8000/`. The `Dockerfile.basestation-frontend` nginx
-  scaffold and the three uvicorn stub services retire.
-- **Path C (end-to-end control test)** — unchanged story: run Path A with
-  robot nodes up, run Path B beside it; both are host-network DDS participants
-  on the same `ROS_DOMAIN_ID`, so the UI drives the real nodes with no extra
-  wiring. This works identically on a dev laptop and on the rover.
+  scaffold and the three uvicorn stub services retire. The server's DDS
+  transport is UDP-only ([fastdds_profile.xml](fastdds_profile.xml)):
+  Fast DDS shared memory silently fails between processes owned by
+  different users (dev container vs this container, or systemd rover
+  processes vs this container), and loopback UDP costs nothing at our
+  message sizes.
+- **Path C (end-to-end control test)** — unchanged story, now with a real
+  target instead of mocks: in Path A run either `kanga_core_bringup`
+  (hardware) or `ros2 launch kanga_sim core_simulation.launch.py` (Gazebo
+  core sim — same operator contract, checked by
+  `core_simulation_contract_check`); run Path B beside it. Both are
+  host-network DDS participants on the same `ROS_DOMAIN_ID`, so the full
+  drive loop (clear drivestop -> closed loop -> `/cmd_vel` -> wheels moving
+  in Gazebo) is testable on a laptop with no hardware.
 - **Rover (prod)**: the same compose file with `restart: unless-stopped` (or a
   thin systemd unit that runs `docker compose -f docker/compose.basestation.yaml up`),
   after the robot bringup. No separate prod stack to maintain — dev and prod
@@ -209,9 +274,9 @@ operator stack just collapses from four compose services to one.
   :8001 — one implementation in the new server)
 - `supervisord.conf`, `startup.sh`, and the legacy repo's own docker-compose
   (two-computer artifacts; `kanga_wip/docker/` is the replacement)
-- `robot_controller/` mocks + `process_manager` (:8081) — if mock publishers
-  are wanted for UI dev without hardware, that becomes a small script run
-  inside the Path A container instead
+- `robot_controller/` mocks + `process_manager` (:8081) — the Gazebo core
+  simulation (`kanga_sim`) now fills the "UI dev without hardware" role with
+  the real contract instead of mocks
 
 ### Considered and rejected
 
@@ -267,7 +332,11 @@ takes the project over next, the plan commits to:
 - Native `WebSocket` API only — no socket.io or wrapper libraries.
 - Plain JSON, a handful of documented message types, no acks or custom framing.
 - One fixed reconnect policy (fixed ~1 s retry on close), connection state
-  shown prominently in the UI.
+  shown prominently in the UI. **Newest tab wins** (added 2026-08-23 after a
+  forgotten tab silently locked out the operator in testing): a new control
+  connection bumps the previous holder with a dedicated close code; a bumped
+  tab shows "another tab took control" and a retake button instead of
+  auto-reconnecting, so tabs can never steal control back and forth.
 - **Drive-enable resets to OFF on any reconnect** — the operator must
   deliberately re-arm, so a reconnect bug can never cause motion.
 - Refresh always fully recovers — the server holds no session state worth
@@ -341,9 +410,10 @@ flowchart LR
 
 - Phase 1: build the new server in this repo while the legacy stack keeps
   running on the rover, reach feature parity page by page (validated via
-  Path C on a dev machine), then deploy the compose stack to the rover and
-  retire the legacy services. The React components mostly survive — only the
-  API/WS client layer (`config.js` and axios calls) changes.
+  Path C against the Gazebo core simulation on a dev machine), then deploy
+  the compose stack to the rover and retire the legacy services. The React
+  components mostly survive — only the API/WS client layer (`config.js` and
+  axios calls) changes.
 - Phase 2: bring up MediaMTX beside the legacy camera endpoints and migrate
   camera by camera, keeping the old MJPEG feeds as fallback until every feed
   is verified on WebRTC.
@@ -352,40 +422,85 @@ flowchart LR
 
 ## Task list
 
-### Prerequisite (separate work, in progress)
+### Prerequisite status (2026-08-23)
 
-Merge the old rover code into this repo's `src/` — including
-`kanga_interfaces`. Everything below assumes the interfaces and robot packages
-build via Path A.
+The core half is done: interfaces, WHS, core drive/controller/bringup, the
+CAN bridge, and the Gazebo core simulation build via Path A on `develop`.
+Manipulator, science, and camera packages remain placeholders — tasks marked
+*(payload-gated)* below wait on those migration slices and must not block the
+rest.
 
 ### Phase 1
 
 1. Scaffold `basestation/server/` FastAPI app with a single rclpy node on an
    executor thread, plus static file serving. Reuse the existing entrypoint
    sourcing pattern so `kanga_interfaces` and topic contracts come from the
-   bind-mounted `install/`.
+   bind-mounted `install/`. **Done 2026-08-23** — `/health` + latched
+   `/drivestop` subscription verified in the basestation container (also
+   fixed `docker-entrypoint.bash`: `set -u` broke sourcing ROS `setup.bash`,
+   which had silently blocked all Path B services).
 2. Collapse `docker/compose.basestation.yaml` to one `basestation-server`
    service (multi-stage Dockerfile: node stage runs `vite build`, Python stage
    serves it); retire the nginx frontend scaffold and the three uvicorn stubs;
    keep `basestation_up.bash` / `basestation_down.bash` working unchanged
-   (Path B), including the `install/` guard.
+   (Path B), including the `install/` guard. **Done 2026-08-23** — one
+   service on :8000, stubs and nginx scaffold removed, Path B verified
+   end-to-end. The node/vite build stage joins the Dockerfile when the React
+   frontend is migrated (task 7); until then the server serves the
+   placeholder page.
 3. Implement `/ws/control`: gamepad input sent at fixed 20-30 Hz with
-   change-detection and keepalive; server-side dead-man publishes zero Twist
-   on ~300-500 ms silence; arm command topics.
-4. Implement `/ws/telemetry`: battery, joint_states, science topics pushed at
-   a fixed rate.
-5. Port the operator REST actions from the legacy Django app: science
-   controls, checklist, logs, PIN, NIR servo GPIO.
-6. Migrate the React UI (drive, arm + 3D URDF, science, checklist, logs, PIN)
-   onto the same-origin API/WS client; verify Path C end-to-end (Path A robot
-   nodes + Path B UI on one machine).
-7. Rover deployment: same compose file started on boot (restart policy or a
+   change-detection and keepalive; the 0-100% speed scale mapped onto
+   configured chassis limits to produce a physical-unit `/cmd_vel`;
+   server-side dead-man publishes zero Twist on ~300-500 ms silence. Arm
+   command topics *(payload-gated)*. **Done 2026-08-23** (drive only) —
+   browser sends 20 Hz JSON frames; the node's own 20 Hz timer does all
+   `/cmd_vel` publishing, doubles as the dead-man (0.4 s, verified), and
+   sends a clean stop on disconnect; one tab holds control at a time;
+   limits via `BASESTATION_MAX_LINEAR_MPS` / `BASESTATION_MAX_YAW_RAD_S`
+   (defaults 0.3 m/s, 0.3 rad/s; slider maps 0–90% linearly with 90–100%
+   plateau at full).
+4. Implement `/ws/telemetry`: `/drivestop`, wheel + suspension joint states,
+   `/body/pose` / `/body/twist`, per-wheel `controller_status` /
+   `odrive_status` pushed at a fixed rate; add battery and science topics
+   when their packages land. **Done 2026-08-23** — 5 Hz push on
+   `/ws/telemetry` (any number of listener tabs); page shows drivestop,
+   wheel rad/s, body yaw and speed from the stream instead of polling
+   `/health`. Motor status subscribes when `custom_odrive` is present
+   (physical rover); sim skips it gracefully.
+5. Drive management REST + UI: drivestop set/clear with latched state
+   display, `set_closed_loop`, `clear_errors`, per-wheel calibrate (the
+   "motor page" from the core drive migration doc), with the arming sequence
+   (clear stop -> closed loop -> drive) made explicit in the UI. **Done
+   2026-08-24** — REST under `/api/drive/*`; Drive card on the dashboard
+   (drivestop with release confirmation, closed loop/idle, clear errors).
+   Gamepad **B0** / keyboard **Space** arm drive (closed loop then drive
+   input; cannot release drivestop). D-pad B12–B15 full motion. Drivestop
+   assertion disables drive input. Per-wheel calibrate endpoint exists
+   (`POST /api/drive/calibrate/{wheel}`) but no UI button yet.
+6. Port the remaining operator REST actions from the legacy Django app:
+   logs, PIN; science controls *(payload-gated)*; NIR servo / Roo release wait
+   for `kanga_core_microcontroller` firmware instead of porting the GPIO
+   scripts. **Done 2026-08-23** — `/api/auth-status/`, `/api/pin-verify/`
+   (file-backed PBKDF2 hash, session cookie), `/api/django-logs/`,
+   `/api/list-logs/`, `/api/get-log/<file>/`; `scripts/set_pin.py`. Competition
+   checklists dropped — not needed.
+7. Migrate the React UI onto the same-origin API/WS client; verify Path C
+   end-to-end against the Gazebo core simulation, then against physical core
+   bringup. **Done 2026-08-24** — `basestation/frontend/` (Vite/React) built
+   into `server/static/`; drive via `/ws/control` + `/ws/telemetry`; PIN + logs;
+   camera placeholders; battery widgets static; arm/science hidden. Verified on
+   sim and laptop dev with rover CAN hardware (motors + sensors).
+8. Rover deployment: same compose file started on boot (restart policy or a
    thin systemd wrapper), brought up after robot bringup; legacy stack retired
-   from the rover once parity is verified.
+   from the rover once parity is verified. **Scaffold done 2026-08-24** —
+   `restart: unless-stopped` on `basestation-server`; `basestation/deploy/
+   kanga-basestation.service` + `scripts/basestation_install_service.bash`.
+   Competition Jetson setup (PIN, secret, unit paths, legacy stack retirement)
+   deferred — laptop development does not require it.
 
-Carried requirement (not a task here): the ground-up drive/ODrive rebuild must
-include its own `/cmd_vel` timeout that zeroes the wheels — never trust the
-command source to keep talking.
+Carried requirement: **done** — the drive stack zeroes the wheels after 0.5 s
+of `/cmd_vel` silence (`cmd_vel_timeout_s` in `kanga_core_controller`); the
+server dead-man is the second layer, WHS `/drivestop` the third.
 
 ### Phase 2 (cameras — see CAMERAS.md)
 

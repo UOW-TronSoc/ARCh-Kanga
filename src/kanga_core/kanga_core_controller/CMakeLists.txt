@@ -15,6 +15,7 @@ include_directories(include)
 # Pure controller math — unit-tested without running ROS nodes.
 add_library(kanga_kinematics
   src/acceleration_limiter.cpp
+  src/control_time_step.cpp
   src/kinematics.cpp
 )
 target_include_directories(kanga_kinematics PUBLIC

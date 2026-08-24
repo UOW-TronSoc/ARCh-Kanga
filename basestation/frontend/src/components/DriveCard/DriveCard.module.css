@@ -1,0 +1,156 @@
+.card {
+  background: var(--card-alt-bg);
+  color: var(--card-alt-fg);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--nav-fg-active);
+}
+
+.deviceInfo {
+  font-size: 0.875rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.speedSection {
+  padding-top: 0.25rem;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.actions button {
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.65rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btnClear {
+  background: rgba(88, 214, 141, 0.2);
+  color: #58d68d;
+}
+
+.btnClosedLoop {
+  background: rgba(88, 214, 141, 0.2);
+  color: #58d68d;
+}
+
+.btnIdle {
+  background: rgba(86, 156, 214, 0.2);
+  color: #6cb6ff;
+}
+
+.btnDanger {
+  background: rgba(255, 92, 92, 0.2);
+  color: #ff5c5c;
+}
+
+.btnMuted {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.actions button:not(:disabled):hover {
+  filter: brightness(1.15);
+}
+
+.feedback {
+  font-size: 0.78rem;
+  min-height: 1em;
+  word-break: break-word;
+}
+
+.feedbackOk { color: #58d68d; }
+.feedbackErr { color: #ff5c5c; }
+
+.modalBackdrop {
+  background-color: rgba(0, 0, 0, 0.7);
+}
+
+.modalContent {
+  background: var(--card-alt-bg);
+  color: var(--card-alt-fg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+}
+
+.modalHeader {
+  background: var(--card-alt-bg);
+  color: var(--nav-fg-active);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.modalHeader :global(.btn-close) {
+  filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+.modalTitle {
+  color: var(--nav-fg-active);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.modalBody {
+  color: var(--card-alt-fg);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.modalFooter {
+  background: var(--card-alt-bg);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  gap: 0.5rem;
+}
+
+.modalBtnCancel {
+  composes: btnMuted;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.modalBtnConfirm {
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  background: rgba(248, 206, 77, 0.25);
+  color: var(--nav-fg-active);
+}
+
+.modalBtnConfirm:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.modalBtnCancel:hover,
+.modalBtnConfirm:not(:disabled):hover {
+  filter: brightness(1.15);
+}

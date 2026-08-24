@@ -5,15 +5,36 @@ This tree is **not** a colcon package domain; keep it beside `src/`, not under i
 
 ## Current status
 
-Scaffold only: health-stub services on the production ports so Docker and the
-`install/` coupling can be validated before real application code is migrated.
+**Phase 1 is done for laptop development.** One service — `basestation-server` —
+runs the FastAPI app in `server/` on port 8000, embeds a single rclpy node, and
+serves the built React operator UI from the same port.
 
-| Service (compose)       | Port | Stub role                                      |
-| ----------------------- | ---- | ---------------------------------------------- |
-| `basestation-django`    | 8000 | HTTP health (placeholder for future Django)    |
-| `basestation-fastapi`   | 8080 | HTTP health + optional `/cmd_vel` Twist pub    |
-| `basestation-arm-fastapi` | 8001 | HTTP health (placeholder for arm FastAPI)    |
-| `basestation-frontend`  | 3000 | Static page linking to the health endpoints    |
+Verified against Gazebo core simulation and physical core bringup with rover
+motors and sensors on CAN (developer laptop, shared `ROS_DOMAIN_ID`).
+
+| Piece | What it does |
+| ----- | ------------ |
+| `server/main.py` | Routes, health, WebSockets, static files |
+| `server/ros.py` | `/cmd_vel`, telemetry, drive REST service clients |
+| `frontend/` | React operator UI (Vite); builds into `server/static/` |
+| `server/static/` | Production UI bundle (rebuild with `./scripts/build_frontend.bash`) |
+
+### Drive dashboard (implemented)
+
+- Drivestop assert/release (release requires confirmation modal)
+- ODrive closed loop / idle, clear faults
+- Drive input via dashboard button, **B0**, or **Space** — arms closed loop
+  first when idle; gamepad cannot release drivestop
+- WASD + gamepad sticks; D-pad **B12–B15** full forward/back/rotate
+- Speed max slider (0–90% maps to full scale; 90–100% plateau)
+- `/ws/control` dead-man + `/ws/telemetry` at 5 Hz
+
+### Not yet
+
+- Live cameras (placeholders) — Phase 2 in [CAMERAS.md](CAMERAS.md)
+- Arm / science pages (hidden)
+- Per-wheel calibrate button (API exists)
+- Live battery telemetry
 
 ## Prerequisites
 
@@ -25,18 +46,41 @@ Scaffold only: health-stub services on the production ports so Docker and the
 From the repository root:
 
 ```bash
-./scripts/basestation_up.bash
+./scripts/basestation_up.bash    # builds frontend, then starts the container
 ./scripts/basestation_down.bash
 ```
 
-See [Basestation install](../docs/install/basestation.md) and
-[Basestation migration](../docs/migration/basestation.md).
+Rebuild the UI only:
 
-## Redesign (future work)
+```bash
+./scripts/build_frontend.bash
+```
 
-- [REDESIGN_PLAN.md](REDESIGN_PLAN.md) — full two-phase plan: consolidate the
-  four legacy services into one FastAPI backend (WebSocket teleop/telemetry,
-  built static frontend, single systemd bringup chain), then the camera
-  pipeline rework.
-- [CAMERAS.md](CAMERAS.md) — camera deep-dive: latency diagnosis,
-  MediaMTX/WebRTC design, and the Orin NX vs Orin Nano encoder comparison.
+Local UI iteration (Vite proxy to `:8000`):
+
+```bash
+cd basestation/frontend && npm ci && npm run dev
+```
+
+## Environment (optional)
+
+| Variable | Default | Purpose |
+| -------- | ------- | ------- |
+| `BASESTATION_MAX_LINEAR_MPS` | `0.3` | Forward speed cap at 100% slider |
+| `BASESTATION_MAX_YAW_RAD_S` | `0.3` | Yaw rate cap at 100% slider |
+| `BASESTATION_SECRET_KEY` | dev placeholder | Session cookie signing (set on rover) |
+| `ROS_DOMAIN_ID` | `0` | Must match robot stack |
+
+## Rover deployment (later)
+
+Systemd unit: `deploy/kanga-basestation.service` and
+`scripts/basestation_install_service.bash`. Competition Jetson setup (PIN,
+secret, paths, retiring the legacy four-service stack) is documented in
+[REDESIGN_PLAN.md](REDESIGN_PLAN.md) task 8 — not required for laptop dev.
+
+## Docs
+
+- [REDESIGN_PLAN.md](REDESIGN_PLAN.md) — architecture and task checklist
+- [CAMERAS.md](CAMERAS.md) — Phase 2 camera pipeline
+- [Basestation install](../docs/install/basestation.md)
+- [Basestation migration](../docs/migration/basestation.md)

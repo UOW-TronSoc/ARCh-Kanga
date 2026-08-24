@@ -11,6 +11,7 @@ Fibre configs, or battery logic.
 core stack. It currently composes:
 
 - the `core_2026` description and `robot_state_publisher`;
+- the sole `kanga_whs` software motion-inhibit authority;
 - the physical ODrive stack;
 - the `/cmd_vel` wheel controller;
 - differential-bar suspension state mapping;
@@ -19,17 +20,28 @@ core stack. It currently composes:
 - optional joint sliders and RViz; and
 - the existing bench gamepad launch as provisional onboard control.
 
-Battery and the ESP32 CAN bridge will be added when those packages have launchable
-implementations. A separate, lightweight production launch should be created
+The shared SocketCAN bridge and ESP32 core CAN bridge are included. Battery
+remains deferred. A separate, lightweight production launch should be created
 later; keep this file useful as a diagnostic and integration surface.
 
-The ordinary hardware-oriented defaults start drive, controller, description,
-and suspension mapping. Joint-state aggregation, its GUI, RViz, and onboard
-gamepad control default to off:
+The ordinary hardware-oriented defaults start WHS in its asserted state, the
+shared CAN and ESP32 bridges, drive, controller, description, and suspension
+mapping. Joint-state aggregation, its GUI, RViz, and onboard gamepad control
+default to off:
 
 ```bash
 ros2 launch kanga_core_bringup core.launch.py
 ```
+
+Release the software motion inhibit deliberately after checking the rover is
+safe to enable:
+
+```bash
+ros2 service call /whs_node/set_drivestop std_srvs/srv/SetBool "{data: false}"
+```
+
+`initial_drivestop:=false` is available for controlled hardware-free
+development, but should not be used for normal physical bringup.
 
 For a hardware-free suspension/RViz test:
 
@@ -290,7 +302,9 @@ ros2 topic echo /wheel_fl/controller_status --once
 Also verify global stop if you use it in the field:
 
 ```bash
-# publish /drivestop per your WHS / custom_odrive setup when ready
+ros2 service call /whs_node/set_drivestop std_srvs/srv/SetBool "{data: true}"
+# Confirm every wheel stops, then explicitly release when the area is safe:
+ros2 service call /whs_node/set_drivestop std_srvs/srv/SetBool "{data: false}"
 ```
 
 Pass criteria: idle service succeeds; setpoint stream stops when not CLOSED_LOOP.

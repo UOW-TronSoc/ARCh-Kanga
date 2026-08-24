@@ -1,0 +1,14 @@
+core_can_bridge:
+  ros__parameters:
+    # Frame names are set from launch arguments, not here, so that this node
+    # and the TF broadcaster cannot drift apart. See config/core_frames.py.
+
+    # AS5600 12-bit RAW ANGLE: 4096 counts/turn. Set zero_count to the rest
+    # position reading. Use a negative counts_per_rad if the URDF sense is
+    # opposite the DIR pin.
+    diff_bar_encoder_zero_count: 1063
+    diff_bar_encoder_counts_per_rad: 651.8986469044033  # 4096 / (2 * pi)
+
+    orientation_variance: 0.01
+    angular_velocity_variance: 0.001
+    linear_acceleration_variance: 0.01

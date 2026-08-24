@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Build and start basestation scaffold services (ports 3000/8000/8001/8080).
+# Build and start the basestation server (operator UI + API on port 8000).
 # Requires a prior workspace build so install/setup.bash exists (Path A).
 #
 set -euo pipefail
@@ -27,17 +27,19 @@ fi
 export KANGA_UID="${KANGA_UID:-$(id -u)}"
 export KANGA_GID="${KANGA_GID:-$(id -g)}"
 
+if [[ "${SKIP_FRONTEND_BUILD:-0}" != "1" ]]; then
+  ./scripts/build_frontend.bash
+fi
+
 docker compose -f docker/compose.basestation.yaml build
 docker compose -f docker/compose.basestation.yaml up -d
 
 cat <<'EOF'
 
-Basestation scaffold is up (host networking):
+Basestation server is up (host networking):
 
-  Frontend:  http://localhost:3000/
-  Django:    http://localhost:8000/health
-  Arm API:   http://localhost:8001/health
-  FastAPI:   http://localhost:8080/health
+  Operator UI:  http://localhost:8000/
+  Health:       http://localhost:8000/health
 
 Stop with: ./scripts/basestation_down.bash
 EOF

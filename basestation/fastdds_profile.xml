@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Why this file exists:
+
+  Fast DDS normally talks to other nodes on the same machine through shared
+  memory. Shared-memory segments are only writable by the user that created
+  them, and the basestation container does not run as the same user as the
+  ROS dev containers (or the rover's robot processes). When the users differ,
+  nodes silently fail to find each other - no errors, just missing topics.
+
+  This profile makes the basestation server use plain UDP instead. On the
+  same machine that is a loopback hop, which costs nothing at our message
+  sizes, and it works no matter which user runs which process.
+
+  Wired up via FASTRTPS_DEFAULT_PROFILES_FILE in
+  docker/compose.basestation.yaml.
+-->
+<profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+  <transport_descriptors>
+    <transport_descriptor>
+      <transport_id>udp_only</transport_id>
+      <type>UDPv4</type>
+    </transport_descriptor>
+  </transport_descriptors>
+  <participant profile_name="basestation_udp_only" is_default_profile="true">
+    <rtps>
+      <userTransports>
+        <transport_id>udp_only</transport_id>
+      </userTransports>
+      <useBuiltinTransports>false</useBuiltinTransports>
+    </rtps>
+  </participant>
+</profiles>

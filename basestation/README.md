@@ -16,6 +16,10 @@ motors and sensors on CAN (developer laptop, shared `ROS_DOMAIN_ID`).
 | ----- | ------------ |
 | `server/main.py` | Routes, health, WebSockets, static files |
 | `server/ros.py` | `/cmd_vel`, telemetry, drive REST service clients |
+| `server/commissioning_catalog.py` | Allowed subsystems, motors, paths, namespaces, and order |
+| `server/commissioning_config.py` | Safe config/default reads, validation, revisions, atomic writes |
+| `server/commissioning_jobs.py` | Sequential save/calibration jobs and drive interlock |
+| `server/commissioning_api.py` | Authenticated commissioning HTTP routes |
 | `frontend/` | React operator UI (Vite); builds into `server/static/` |
 | `server/static/` | Production UI bundle (rebuild with `./scripts/build_frontend.bash`) |
 
@@ -33,9 +37,10 @@ motors and sensors on CAN (developer laptop, shared `ROS_DOMAIN_ID`).
 
 - Live cameras (placeholders) — Phase 2 in [CAMERAS.md](CAMERAS.md)
 - Arm / science pages (hidden)
-- Motor commissioning — frontend-only mockup available at `/commissioning`;
-  backend and hardware work is planned in
-  [COMMISSIONING_PAGE_PLAN.md](COMMISSIONING_PAGE_PLAN.md)
+- Motor calibration browser controls — `/commissioning` now edits real backend
+  configs and runs individual or sequential motor Save jobs with live progress.
+  Calibration remains disabled pending the final Step 4 slice in
+  [COMMISSIONING_PAGE_PLAN.md](COMMISSIONING_PAGE_PLAN.md).
 - Live battery telemetry
 
 ## Prerequisites
@@ -71,7 +76,52 @@ cd basestation/frontend && npm ci && npm run dev
 | `BASESTATION_MAX_LINEAR_MPS` | `0.3` | Forward speed cap at 100% slider |
 | `BASESTATION_MAX_YAW_RAD_S` | `0.3` | Yaw rate cap at 100% slider |
 | `BASESTATION_SECRET_KEY` | dev placeholder | Session cookie signing (set on rover) |
+| `BASESTATION_WORKSPACE_ROOT` | repository root | Override catalog file root for tests/deployment |
 | `ROS_DOMAIN_ID` | `0` | Must match robot stack |
+
+## Commissioning backend
+
+The commissioning API accepts subsystem and motor IDs from its fixed catalog;
+clients cannot provide paths, ROS namespaces, CAN node IDs, or shell arguments.
+When a PIN is configured, every route below requires the existing authenticated
+session.
+
+| Method | Route | Purpose |
+| ------ | ----- | ------- |
+| `GET` | `/api/commissioning/catalog` | Core/Arm/Payload availability and ordered motors |
+| `GET`, `PUT` | `/api/commissioning/configs/{subsystem}/{scope}` | Shared file (`scope=shared`) or motor overlay (`scope=fl`, `bl`, `br`, `fr`) |
+| `GET`, `PUT` | `/api/commissioning/soft-limits/{subsystem}` | Editable limits, immutable defaults, and hard maxima |
+| `POST` | `/api/commissioning/jobs` | Start one save or calibration job |
+| `GET` | `/api/commissioning/jobs/{job_id}` | Poll overall and per-motor state |
+| `POST` | `/api/commissioning/jobs/{job_id}/confirm` | Confirm the current calibration motor is free to spin |
+| `POST` | `/api/commissioning/jobs/{job_id}/retry` | Retry the failed motor in the same job |
+| `POST` | `/api/commissioning/jobs/{job_id}/skip` | Skip a failed motor in a multi-motor job |
+| `POST` | `/api/commissioning/jobs/{job_id}/cancel` | Cancel while waiting for confirmation or a failure decision |
+
+Config reads return complete `content`, `default_content`, and a SHA-256
+`revision`. A PUT must send the last loaded revision; stale edits receive HTTP
+409 instead of overwriting another change. Motor Python is parsed as inert
+declarative assignments and is never executed by the server. Imports, calls,
+control flow, protected velocity/ramp assignments, changed CAN node IDs, and
+duplicate/empty serials are rejected. Soft-limit YAML must remain positive and
+at or below the unchanged drivetrain-profile maxima.
+
+Only one hardware job may exist at a time. Requested motors are normalized to
+catalog order (`fl -> bl -> br -> fr`), and a failure pauses the job for Retry,
+Skip, or Cancel. Save jobs proceed sequentially. Calibration jobs ask whether
+the named motor is free to spin before every motor. Save and confirmed
+calibration operations temporarily release drivestop for one motor, then attempt
+to reassert it after success, failure, exception, or timeout. WHS
+release/restoration failures fail the job and are shown to the operator. While a job is active, non-zero
+browser motion, closed-loop enable, ordinary drivestop release, error clearing,
+and config writes are blocked; asserting drivestop and requesting IDLE remain
+available.
+
+Run the backend tests without ROS hardware:
+
+```bash
+python3 -m unittest discover -s basestation/server -t basestation
+```
 
 ## Rover deployment
 

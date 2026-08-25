@@ -170,9 +170,16 @@
   background: var(--accent);
 }
 
-.commissioningJobState.state-succeeded {
+.commissioningJobState.state-succeeded,
+.commissioningJobState.state-completed_with_skips {
   color: #fff;
   background: #198754;
+}
+
+.commissioningJobState.state-failed,
+.commissioningJobState.state-cancelled {
+  color: #fff;
+  background: #dc3545;
 }
 
 .commissioningProgressList {
@@ -209,6 +216,22 @@
 
 .commissioningProgressList li.state-succeeded .commissioningProgressIndex {
   background: #198754;
+}
+
+.commissioningProgressList li.state-skipped .commissioningProgressIndex {
+  color: #212529;
+  background: #ffc107;
+}
+
+.commissioningProgressList li.state-running .commissioningProgressIndex {
+  color: #212529;
+  background: var(--accent);
+}
+
+.commissioningProgressList li.state-failed .commissioningProgressIndex,
+.commissioningProgressList li.state-cancelled .commissioningProgressIndex {
+  color: #fff;
+  background: #dc3545;
 }
 
 .commissioningProgressList li > span:nth-child(2) {

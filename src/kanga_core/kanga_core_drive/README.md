@@ -9,14 +9,15 @@ kinematics here.
 
 ## Owns
 
-- Multi-motor `custom_odrive` launch (`can_core`, wheel namespaces) — same
-  explicit Node-per-wheel style as `custom_odrive` `example_multi_launch.py`
+- Multi-motor `custom_odrive` launch (`can_core`, wheel namespaces), generated
+  from one readable `CORE_DRIVE_MOTORS` specification table
 - `wheel_actuator` — wheel-joint rad/s → selected reduction, final independent
   motor safety clamp, CLOSED_LOOP-gated motor-shaft `ControlMessage`
-- Shared + per-wheel Fibre motor configs (merged at commission time)
+- Shared + per-wheel Fibre motor configs (merged at commission time), with
+  immutable baselines under `config/defaults/motors/`
 - `commission_wheels` CLI (Python) wrapping `custom_odrive commission`
 - `drive_manager` (C++) — drive state, all-wheel error clearing, and per-wheel
-  calibration services
+  apply/save and calibrate/save services
 - `wheel_joint_state_publisher` (C++) — `/wheel_*/controller_status` → `wheel_joint_states`
 
 ## Does not own
@@ -71,7 +72,16 @@ Host must bring up `can_core` first. Then, inside the container (after build +
 ros2 launch kanga_core_drive drive.launch.py
 ```
 
-The optional `drivetrain_profile` argument defaults to `drivetrain_2025`.
+The optional `drivetrain_profile` argument defaults to `drivetrain_2025`. The
+separate `motor_limits` argument defaults to the validated editable `core`
+limits from `kanga_core_description`.
+
+`launch/drive.launch.py` keeps each wheel's ID, ROS namespace, URDF joint name,
+CAN node ID, and direction in `CORE_DRIVE_MOTORS`. The ODrive nodes and ordered
+`wheel_ids` / `joint_names` parameters are all derived from this table. CAN node
+IDs must also exist in the Fibre files because commissioning writes them into
+the hardware; an offline test keeps the active and default files aligned with
+the table.
 
 ## Services (`drive_manager`)
 
@@ -83,10 +93,20 @@ ros2 service call /drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: fa
 # Clear sticky errors on every wheel without changing axis state
 ros2 service call /drive_manager/clear_errors std_srvs/srv/Trigger "{}"
 
-# Calibrate one wheel (basestation motor-status button target)
+# Apply the active config and save one wheel to ODrive NVRAM
+ros2 service call /drive_manager/save_fl std_srvs/srv/Trigger "{}"
+# also: save_bl, save_br, save_fr
+
+# Calibrate and save one wheel. Calling this service is the off-ground
+# acknowledgement, so physically check this exact wheel before pressing Enter.
 ros2 service call /drive_manager/calibrate_fl std_srvs/srv/Trigger "{}"
 # also: calibrate_bl, calibrate_br, calibrate_fr
 ```
+
+Both service operations first request IDLE on all four wheels. The selected
+motor is then disabled, commissioned through its ROS namespace, and left
+disabled. A missing motor service is reported as an error; the service path
+never falls back to bench-mode questions.
 
 ## Commission CLI
 
@@ -94,18 +114,36 @@ ros2 service call /drive_manager/calibrate_fl std_srvs/srv/Trigger "{}"
 # Apply + save all (sequential)
 ros2 run kanga_core_drive commission_wheels -- --wheels all --can can_core --save
 
-# Calibrate one
-ros2 run kanga_core_drive commission_wheels -- --wheels fl --can can_core --calibrate
+# Calibrate and persist one; the interactive CLI asks for off-ground confirmation
+ros2 run kanga_core_drive commission_wheels -- \
+  --wheels fl --can can_core --calibrate --save
 ```
 
-Both launch and commissioning load the same selected profile, so the runtime
-reduction/limit and the saved ODrive velocity limit cannot silently diverge.
+`--off-ground-confirmed` is available only for a trusted orchestrator that has
+just collected confirmation for that exact motor. Normal terminal use omits it
+and retains the interactive prompt. Calibration remains limited to one wheel
+per CLI invocation.
+
+Both launch and commissioning load the same physical profile and editable
+operating-limit file, so the runtime clamp and saved ODrive limits cannot
+silently diverge.
+
+The generated Fibre file runs in this deliberate order:
+
+1. shared motor config;
+2. individual wheel overlay; and
+3. protected validated velocity and acceleration assignments.
+
+For ordinary settings, an individual assignment overrides the shared value.
+The protected limits are always appended last, so neither editable Python file
+can bypass them.
 
 ## Runtime notes
 
 - `config/drive.yaml` contains runtime behaviour only (publish rate and command
-  timeout). Physical reduction and motor TPS/TPS-per-second limits come from
-  the selected `kanga_core_description` drivetrain profile.
+  timeout). Physical reduction and hard maxima come from the selected
+  `kanga_core_description` drivetrain profile. Effective TPS/TPS-per-second
+  limits come from its separate validated motor-limit file.
 - `wheel_actuator` accepts one atomic `/wheel_joint_velocity_command` containing
   all four wheel-joint velocities, applies the selected reduction,
   independently clamps only as a final actuator safety guard, and sends
@@ -115,13 +153,18 @@ reduction/limit and the saved ODrive velocity limit cannot silently diverge.
   selected reduction
   so `wheel_joint_states` is expressed at the wheel joint.
 - Launch leaves `start_enabled` at the package default (do not override). Use
-  `/drivestop` for global stop. Closed-loop only via `set_closed_loop`.
+  `/drivestop` for global stop. Closed-loop only via `set_closed_loop`, which
+  restores any per-wheel `set_enabled` latch left false by commissioning before
+  clearing errors and requesting CLOSED_LOOP.
 - Invert via launch `invert_direction` (left wheels only — do not also invert
   in the controller).
 - Motor setpoint streaming is `wheel_actuator` (CLOSED_LOOP only). A stale
   joint-command vector stops transmission; the firmware watchdog
   must be enabled in the shared Fibre config for this to disarm a moving axis.
 - Calibrate: one wheel per request. Save: sequential apply+save in one CLI.
+- Per-wheel save and calibration services put every wheel in IDLE first.
+  Calibration services save the result to NVRAM and leave the selected motor
+  disabled afterward.
 
 ## Provenance
 

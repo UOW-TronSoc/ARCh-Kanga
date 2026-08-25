@@ -1,0 +1,9 @@
+# Active operating limits for the physical core wheel motors.
+#
+# These values may be lowered without changing the physical drivetrain profile.
+# The loader rejects zero, negative, non-finite, and above-profile values.
+# Runtime ROS nodes read this file at launch. ODrives receive the same values
+# the next time a motor is saved or calibrated through commission_wheels.
+
+motor_velocity_limit_tps: 22.0
+motor_acceleration_limit_tps_s: 80.0

@@ -1,311 +1,549 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Modal from "react-bootstrap/Modal";
+import { getApiBase } from "../../config";
 import "./Commissioning.css";
 
-const CORE_MOTORS = [
-  { id: "fl", label: "Front left", shortLabel: "FL", nodeId: 1, serial: "394D353B3231" },
-  { id: "bl", label: "Back left", shortLabel: "BL", nodeId: 2, serial: "396934453331" },
-  { id: "br", label: "Back right", shortLabel: "BR", nodeId: 3, serial: "394E353B3231" },
-  { id: "fr", label: "Front right", shortLabel: "FR", nodeId: 4, serial: "3964344C3331" },
+const EDITOR_TABS = [
+  ["individual", "Individual config"],
+  ["shared", "Shared config"],
+  ["limits", "Soft limits"],
 ];
 
-const SUBSYSTEMS = [
-  {
-    id: "core",
-    label: "Core",
-    available: true,
-    description: "Four wheel ODrive S1 controllers on can_core",
-  },
-  {
-    id: "arm",
-    label: "Arm",
-    available: false,
-    description: "Motor contracts and configs have not been migrated yet",
-  },
-  {
-    id: "payload",
-    label: "Payload",
-    available: false,
-    description: "Payload commissioning hardware has not been defined yet",
-  },
-];
-
-const SHARED_DEFAULT = `# Shared ODrive Fibre settings for Kanga drive wheels.
-# Soft velocity and acceleration limits are injected after this file.
-
-odrv.config.dc_bus_overvoltage_trip_level = 36
-odrv.config.dc_bus_undervoltage_trip_level = 21
-odrv.config.dc_max_positive_current = math.inf
-odrv.config.dc_max_negative_current = -math.inf
-odrv.config.brake_resistor0.enable = True
-odrv.axis0.config.motor.motor_type = MotorType.PMSM_CURRENT_CONTROL
-odrv.axis0.config.motor.pole_pairs = 20
-odrv.axis0.config.motor.torque_constant = 0.0827
-odrv.axis0.config.motor.current_soft_max = 50
-odrv.axis0.config.motor.current_hard_max = 70
-odrv.axis0.config.motor.calibration_current = 10
-odrv.axis0.config.motor.resistance_calib_max_voltage = 2
-odrv.axis0.controller.config.control_mode = ControlMode.VELOCITY_CONTROL
-odrv.axis0.controller.config.input_mode = InputMode.VEL_RAMP
-odrv.can.config.protocol = Protocol.SIMPLE
-odrv.can.config.baud_rate = 250000
-odrv.axis0.config.can.heartbeat_msg_rate_ms = 20
-odrv.axis0.config.can.encoder_msg_rate_ms = 10
-odrv.axis0.config.enable_watchdog = False
-odrv.axis0.config.watchdog_timeout = 1
-`;
-
-const SOFT_LIMITS_DEFAULT = `# Editable operating limits for the core wheel motors.
-# These values must remain positive and cannot exceed the hard limits in the
-# selected drivetrain profile (22 turns/s and 80 turns/s² for drivetrain_2025).
-
-motor_velocity_limit_tps: 22.0
-motor_acceleration_limit_tps_s: 80.0
-`;
-
-const motorConfig = (motor) => `# ODrive S1 — wheel_${motor.id} (${motor.label.toLowerCase()})
-# Merged after shared_motor_config.py by commission_wheels.
-
-SERIAL_NUMBER = "${motor.serial}"
-
-odrv.config.brake_resistor0.resistance = ${motor.id === "bl" || motor.id === "fr" ? "2.4" : "2.2"}
-odrv.axis0.config.can.node_id = ${motor.nodeId}
-`;
-
-const DEFAULT_CONFIGS = Object.freeze({
-  shared: SHARED_DEFAULT,
-  limits: SOFT_LIMITS_DEFAULT,
-  ...Object.fromEntries(CORE_MOTORS.map((motor) => [motor.id, motorConfig(motor)])),
-});
-
-const STATUS_LABELS = {
+// A failed job remains active until the operator retries, skips, or cancels it.
+const TERMINAL_JOB_STATES = new Set([
+  "succeeded",
+  "completed_with_skips",
+  "cancelled",
+]);
+const JOB_STATE_LABELS = {
   pending: "Pending",
-  awaiting_confirmation: "Needs confirmation",
+  awaiting_confirmation: "Awaiting confirmation",
   running: "Running",
   succeeded: "Complete",
+  completed_with_skips: "Complete with skips",
   failed: "Failed",
+  skipped: "Skipped",
   cancelled: "Cancelled",
 };
 
-function freshConfigs() {
-  return { ...DEFAULT_CONFIGS };
+async function commissioningRequest(
+  path,
+  { signal, method = "GET", body: requestBody } = {},
+) {
+  const response = await fetch(`${getApiBase()}/commissioning${path}`, {
+    credentials: "same-origin",
+    signal,
+    method,
+    headers: requestBody === undefined ? undefined : { "Content-Type": "application/json" },
+    body: requestBody === undefined ? undefined : JSON.stringify(requestBody),
+  });
+
+  let responseBody = {};
+  try {
+    responseBody = await response.json();
+  } catch {
+    // The status code below still gives a useful error if the body is empty.
+  }
+
+  if (!response.ok) {
+    throw new Error(responseBody.detail || `Request failed (${response.status})`);
+  }
+  return responseBody;
 }
 
-function updateJobItem(job, motorId, state) {
-  return {
-    ...job,
-    items: job.items.map((item) => (item.id === motorId ? { ...item, state } : item)),
-  };
+function configPath(editorTab, subsystemId, motorId) {
+  if (editorTab === "shared") {
+    return "kanga_core_drive/config/motors/shared_motor_config.py";
+  }
+  if (editorTab === "limits") {
+    return `kanga_core_description/config/motor_limits/${subsystemId}.yaml`;
+  }
+  return `kanga_core_drive/config/motors/wheel_${motorId}_motor_config.py`;
+}
+
+function shortMotorLabel(motor) {
+  return motor?.id?.toUpperCase() || "motor";
+}
+
+function editorEndpoint(editorTab, subsystemId, motorId) {
+  return editorTab === "limits"
+    ? `/soft-limits/${subsystemId}`
+    : `/configs/${subsystemId}/${editorTab === "shared" ? "shared" : motorId}`;
 }
 
 export default function Commissioning() {
+  const [subsystems, setSubsystems] = useState([]);
   const [subsystemId, setSubsystemId] = useState("core");
-  const [motorId, setMotorId] = useState("fl");
+  const [motorId, setMotorId] = useState("");
   const [editorTab, setEditorTab] = useState("individual");
-  const [savedConfigs, setSavedConfigs] = useState(freshConfigs);
-  const [draftConfigs, setDraftConfigs] = useState(freshConfigs);
-  const [notice, setNotice] = useState("Mock data loaded. No files or motors will be changed.");
+  const [configRecords, setConfigRecords] = useState({});
+  const [draftConfigs, setDraftConfigs] = useState({});
+
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState("");
+  const [catalogReload, setCatalogReload] = useState(0);
+  const [configsLoading, setConfigsLoading] = useState(false);
+  const [configsError, setConfigsError] = useState("");
+  const [configsReload, setConfigsReload] = useState(0);
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [notice, setNotice] = useState("");
   const [job, setJob] = useState(null);
+  const [startingJob, setStartingJob] = useState(false);
+  const [updatingJob, setUpdatingJob] = useState(false);
+  const [jobError, setJobError] = useState("");
 
-  const timerIds = useRef([]);
-  const jobToken = useRef(0);
-
-  const subsystem = SUBSYSTEMS.find((item) => item.id === subsystemId);
-  const motor = CORE_MOTORS.find((item) => item.id === motorId) ?? CORE_MOTORS[0];
-  const configKey = editorTab === "individual" ? motorId : editorTab;
-  const currentEditorDirty = draftConfigs[configKey] !== savedConfigs[configKey];
-  const hasAnyDirty = useMemo(
-    () => Object.keys(draftConfigs).some((key) => draftConfigs[key] !== savedConfigs[key]),
-    [draftConfigs, savedConfigs],
+  const subsystem = useMemo(
+    () => subsystems.find((item) => item.id === subsystemId),
+    [subsystems, subsystemId],
   );
-
-  const jobBusy = job?.state === "running" || job?.state === "awaiting_confirmation";
-  const currentJobMotor = job?.items[job.activeIndex] ?? null;
+  const motors = useMemo(() => subsystem?.motors ?? [], [subsystem]);
+  const motor = motors.find((item) => item.id === motorId) ?? motors[0];
+  const configKey = editorTab === "individual" ? motor?.id : editorTab;
+  const configRecord = configKey ? configRecords[configKey] : null;
+  const currentDraft = configKey ? draftConfigs[configKey] ?? "" : "";
+  const currentEditorDirty = Boolean(
+    configRecord && currentDraft !== configRecord.content,
+  );
+  const hasAnyDirty = useMemo(
+    () => Object.entries(configRecords).some(
+      ([key, record]) => (draftConfigs[key] ?? "") !== record.content,
+    ),
+    [configRecords, draftConfigs],
+  );
+  const jobId = job?.id;
+  const jobActive = Boolean(job && !TERMINAL_JOB_STATES.has(job.state));
+  const calibrationAwaitingConfirmation = Boolean(
+    job?.operation === "calibrate" && job.state === "awaiting_confirmation",
+  );
+  const calibrationMotor = calibrationAwaitingConfirmation
+    ? job.items[job.active_index]
+    : null;
+  const failureAwaitingDecision = Boolean(job?.state === "failed");
+  const failedMotor = failureAwaitingDecision
+    ? job.items[job.active_index]
+    : null;
+  const multiMotorSequence = Boolean(job?.items.length > 1);
 
   useEffect(() => {
     document.title = "Commissioning";
   }, []);
 
-  useEffect(
-    () => () => {
-      timerIds.current.forEach((timerId) => window.clearTimeout(timerId));
-    },
-    [],
-  );
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadCatalog() {
+      setCatalogLoading(true);
+      setCatalogError("");
+      try {
+        const catalog = await commissioningRequest("/catalog", {
+          signal: controller.signal,
+        });
+        const loadedSubsystems = catalog.subsystems ?? [];
+        setSubsystems(loadedSubsystems);
+        setSubsystemId((currentId) =>
+          loadedSubsystems.some((item) => item.id === currentId)
+            ? currentId
+            : loadedSubsystems[0]?.id || "",
+        );
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setCatalogError(error.message || "Could not load the motor catalog.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setCatalogLoading(false);
+      }
+    }
+
+    loadCatalog();
+    return () => controller.abort();
+  }, [catalogReload]);
 
   useEffect(() => {
-    const handleBeforeUnload = (event) => {
+    if (!subsystem?.available) {
+      setConfigRecords({});
+      setDraftConfigs({});
+      setConfigsError("");
+      setSaveError("");
+      setNotice("");
+      setConfigsLoading(false);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+
+    async function loadConfigs() {
+      setConfigsLoading(true);
+      setConfigsError("");
+      setConfigRecords({});
+      setDraftConfigs({});
+      setSaveError("");
+      setNotice("");
+
+      try {
+        // Each record includes active content, immutable default content, and
+        // a revision token. Drafts stay separate so Reset never needs a GET.
+        const requests = [
+          ["shared", `/configs/${subsystem.id}/shared`],
+          ["limits", `/soft-limits/${subsystem.id}`],
+          ...subsystem.motors.map((item) => [
+            item.id,
+            `/configs/${subsystem.id}/${item.id}`,
+          ]),
+        ];
+        const loaded = await Promise.all(
+          requests.map(async ([key, path]) => [
+            key,
+            await commissioningRequest(path, { signal: controller.signal }),
+          ]),
+        );
+        const records = Object.fromEntries(loaded);
+        setConfigRecords(records);
+        setDraftConfigs(
+          Object.fromEntries(
+            Object.entries(records).map(([key, record]) => [key, record.content]),
+          ),
+        );
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setConfigsError(error.message || "Could not load motor configurations.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setConfigsLoading(false);
+      }
+    }
+
+    loadConfigs();
+    return () => controller.abort();
+  }, [subsystem, configsReload]);
+
+  useEffect(() => {
+    if (motors.length && !motors.some((item) => item.id === motorId)) {
+      setMotorId(motors[0].id);
+    }
+  }, [motors, motorId]);
+
+  useEffect(() => {
+    const warnBeforeUnload = (event) => {
       if (!hasAnyDirty) return;
       event.preventDefault();
       event.returnValue = "";
     };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
   }, [hasAnyDirty]);
 
-  const schedule = (callback, delay) => {
-    const timerId = window.setTimeout(callback, delay);
-    timerIds.current.push(timerId);
+  useEffect(() => {
+    if (!jobId) return undefined;
+
+    const controller = new AbortController();
+    let pollTimer;
+
+    async function pollJob() {
+      try {
+        const latest = await commissioningRequest(`/jobs/${jobId}`, {
+          signal: controller.signal,
+        });
+        setJob(latest);
+        setJobError("");
+
+        if (latest.state === "succeeded") {
+          const calibration = latest.operation === "calibrate";
+          setNotice(
+            latest.items.length === 1
+              ? calibration
+                ? `${latest.items[0].label} calibrated and saved successfully.`
+                : `${latest.items[0].label} configuration applied and saved to ODrive.`
+              : calibration
+                ? `Sequential calibration completed for ${latest.items.length} motors.`
+                : `Save All completed for ${latest.items.length} motors.`,
+          );
+          return;
+        }
+        if (latest.state === "completed_with_skips") {
+          const skippedCount = latest.items.filter(
+            (item) => item.state === "skipped",
+          ).length;
+          setNotice(
+            `${latest.operation === "calibrate" ? "Calibration" : "Save"} sequence completed with ${skippedCount} skipped ${skippedCount === 1 ? "motor" : "motors"}.`,
+          );
+          return;
+        }
+        if (latest.state === "failed") {
+          setJobError(
+            `${latest.items[latest.active_index]?.label || "Motor"} failed. Choose how to continue.`,
+          );
+          // The job remains active while the failure dialog is open. Keep
+          // polling so a retry or skip resumes progress under the same job ID.
+          pollTimer = window.setTimeout(pollJob, 500);
+          return;
+        }
+        if (latest.state === "cancelled") {
+          setJobError(
+            latest.operation === "calibrate"
+              ? "Calibration was cancelled before the waiting motor ran."
+              : "The save job was cancelled.",
+          );
+          return;
+        }
+        pollTimer = window.setTimeout(pollJob, 500);
+      } catch (error) {
+        if (error.name === "AbortError") return;
+        setJobError(
+          `${error.message || "Could not read job progress."} Retrying…`,
+        );
+        pollTimer = window.setTimeout(pollJob, 1000);
+      }
+    }
+
+    pollTimer = window.setTimeout(pollJob, 250);
+    return () => {
+      controller.abort();
+      window.clearTimeout(pollTimer);
+    };
+  }, [jobId]);
+
+  const discardDraft = (key) => {
+    const record = configRecords[key];
+    if (!record) return;
+    setDraftConfigs((current) => ({ ...current, [key]: record.content }));
   };
 
-  const discardCurrentDraft = () => {
-    setDraftConfigs((current) => ({ ...current, [configKey]: savedConfigs[configKey] }));
-  };
-
-  const confirmDiscard = () => {
-    if (!currentEditorDirty) return true;
+  const confirmDiscard = (key) => {
+    const record = configRecords[key];
+    if (!record || (draftConfigs[key] ?? "") === record.content) return true;
     if (!window.confirm("Discard the unsaved changes in this editor?")) return false;
-    discardCurrentDraft();
+    discardDraft(key);
     return true;
   };
 
   const selectSubsystem = (nextId) => {
-    if (nextId === subsystemId || !confirmDiscard()) return;
+    if (nextId === subsystemId) return;
+    if (
+      hasAnyDirty
+      && !window.confirm("Discard all unsaved commissioning config changes?")
+    ) return;
     setSubsystemId(nextId);
-    setNotice(
-      nextId === "core"
-        ? "Core mock configuration loaded."
-        : `${SUBSYSTEMS.find((item) => item.id === nextId)?.label} is shown as a future placeholder.`,
-    );
+    setEditorTab("individual");
+    setMotorId("");
   };
 
   const selectMotor = (nextId) => {
-    if (nextId === motorId || (editorTab === "individual" && !confirmDiscard())) return;
+    if (nextId === motor?.id) return;
+    if (editorTab === "individual" && !confirmDiscard(configKey)) return;
     setMotorId(nextId);
-    setNotice(`${CORE_MOTORS.find((item) => item.id === nextId)?.label} selected.`);
+    setSaveError("");
+    setNotice("");
   };
 
   const selectTab = (nextTab) => {
-    if (nextTab === editorTab || !confirmDiscard()) return;
+    if (nextTab === editorTab || !confirmDiscard(configKey)) return;
     setEditorTab(nextTab);
+    setSaveError("");
+    setNotice("");
   };
 
-  const saveEditor = () => {
-    setSavedConfigs((current) => ({ ...current, [configKey]: draftConfigs[configKey] }));
-    const label =
-      editorTab === "individual"
-        ? motor.shortLabel
-        : editorTab === "shared"
-          ? "shared"
-          : "soft-limit";
-    setNotice(`Mock ${label} config saved locally.`);
+  const changeDraft = (content) => {
+    if (!configKey) return;
+    setDraftConfigs((current) => ({ ...current, [configKey]: content }));
+    setSaveError("");
+    setNotice("");
   };
 
   const resetEditor = () => {
-    setDraftConfigs((current) => ({ ...current, [configKey]: savedConfigs[configKey] }));
-    setNotice("Editor reset to its last mock-saved value.");
+    discardDraft(configKey);
+    setSaveError("");
+    setNotice("Reset to the last version loaded from the basestation.");
   };
 
   const restoreDefaults = () => {
-    setDraftConfigs((current) => ({ ...current, [configKey]: DEFAULT_CONFIGS[configKey] }));
-    setNotice("Defaults staged in the editor. Use Save File to keep them.");
-  };
-
-  const beginSave = (motorIds) => {
-    const token = ++jobToken.current;
-    const items = motorIds.map((id, index) => ({
-      id,
-      label: CORE_MOTORS.find((item) => item.id === id)?.label ?? id,
-      state: index === 0 ? "running" : "pending",
+    if (!configRecord || !configKey) return;
+    setDraftConfigs((current) => ({
+      ...current,
+      [configKey]: configRecord.default_content,
     }));
-    setJob({ operation: "save", state: "running", activeIndex: 0, items });
-    setNotice(`Simulating ${motorIds.length === 1 ? "one motor save" : "Save All"}…`);
-
-    motorIds.forEach((id, index) => {
-      schedule(() => {
-        if (jobToken.current !== token) return;
-        setJob((current) => {
-          if (!current) return current;
-          let next = updateJobItem(current, id, "succeeded");
-          const nextIndex = index + 1;
-          if (nextIndex < motorIds.length) {
-            next = updateJobItem(next, motorIds[nextIndex], "running");
-            return { ...next, activeIndex: nextIndex, state: "running" };
-          }
-          return { ...next, state: "succeeded" };
-        });
-        if (index === motorIds.length - 1) {
-          setNotice("Mock save complete. No ODrive was contacted.");
-        }
-      }, (index + 1) * 650);
-    });
+    setSaveError("");
+    setNotice("Defaults staged in the editor. Save File is still required.");
   };
 
-  const beginCalibration = (motorIds) => {
-    ++jobToken.current;
-    const items = motorIds.map((id, index) => ({
-      id,
-      label: CORE_MOTORS.find((item) => item.id === id)?.label ?? id,
-      state: index === 0 ? "awaiting_confirmation" : "pending",
-    }));
-    setJob({ operation: "calibrate", state: "awaiting_confirmation", activeIndex: 0, items });
-    setNotice("Calibration mock waiting for off-ground confirmation.");
-  };
+  const saveEditor = async () => {
+    if (!configRecord || !configKey || !currentEditorDirty) return;
 
-  const confirmCalibration = () => {
-    if (!currentJobMotor) return;
-    const token = jobToken.current;
-    const activeIndex = job.activeIndex;
-    const activeId = currentJobMotor.id;
-    setJob((current) => ({ ...updateJobItem(current, activeId, "running"), state: "running" }));
-    setNotice(`Simulating calibration and save for ${currentJobMotor.label}…`);
-
-    schedule(() => {
-      if (jobToken.current !== token) return;
-      setJob((current) => {
-        if (!current) return current;
-        let next = updateJobItem(current, activeId, "succeeded");
-        const nextIndex = activeIndex + 1;
-        if (nextIndex < current.items.length) {
-          const nextId = current.items[nextIndex].id;
-          next = updateJobItem(next, nextId, "awaiting_confirmation");
-          return { ...next, activeIndex: nextIndex, state: "awaiting_confirmation" };
-        }
-        return { ...next, state: "succeeded" };
-      });
-      setNotice(
-        activeIndex + 1 < job.items.length
-          ? "Motor complete. Confirm the next motor when it is safely off the ground."
-          : "Mock calibration sequence complete. No ODrive was contacted.",
+    setSavingConfig(true);
+    setSaveError("");
+    setNotice("");
+    try {
+      const saved = await commissioningRequest(
+        editorEndpoint(editorTab, subsystem.id, motor?.id),
+        {
+          method: "PUT",
+          body: {
+            content: currentDraft,
+            revision: configRecord.revision,
+          },
+        },
       );
-    }, 950);
+      setConfigRecords((current) => ({ ...current, [configKey]: saved }));
+      setDraftConfigs((current) => ({ ...current, [configKey]: saved.content }));
+      setNotice("Configuration saved and its revision refreshed.");
+    } catch (error) {
+      setSaveError(error.message || "Could not save this configuration.");
+    } finally {
+      setSavingConfig(false);
+    }
   };
 
-  const cancelCalibration = () => {
-    ++jobToken.current;
-    setJob((current) => {
-      if (!current) return current;
-      return {
-        ...current,
-        state: "cancelled",
-        items: current.items.map((item) =>
-          item.state === "pending" || item.state === "awaiting_confirmation"
-            ? { ...item, state: "cancelled" }
-            : item,
-        ),
-      };
-    });
-    setNotice("Mock calibration sequence cancelled.");
+  const beginJob = async (operation, motorIds) => {
+    if (
+      !subsystem?.available
+      || !motorIds.length
+      || hasAnyDirty
+      || savingConfig
+      || startingJob
+      || jobActive
+    ) return;
+
+    setStartingJob(true);
+    setJobError("");
+    const calibration = operation === "calibrate";
+    if (calibration) {
+      setNotice("Starting calibration and waiting for confirmation that the motor is free to spin…");
+    } else {
+      setNotice(
+        motorIds.length === 1
+          ? `Starting save for ${motor?.label || motorIds[0]}…`
+          : "Starting sequential Save All…",
+      );
+    }
+    try {
+      const created = await commissioningRequest("/jobs", {
+        method: "POST",
+        body: {
+          subsystem: subsystem.id,
+          operation,
+          motor_ids: motorIds,
+        },
+      });
+      setJob(created);
+    } catch (error) {
+      setJobError(
+        error.message
+        || `Could not start the motor ${calibration ? "calibration" : "save"} job.`,
+      );
+      setNotice("");
+    } finally {
+      setStartingJob(false);
+    }
   };
 
-  const actionsDisabled = !subsystem?.available || jobBusy || hasAnyDirty;
+  const confirmCalibration = async () => {
+    if (!calibrationAwaitingConfirmation || updatingJob) return;
+    setUpdatingJob(true);
+    setJobError("");
+    setNotice(
+      `Temporarily releasing drivestop and calibrating ${calibrationMotor.label}…`,
+    );
+    try {
+      const updated = await commissioningRequest(`/jobs/${job.id}/confirm`, {
+        method: "POST",
+      });
+      setJob(updated);
+    } catch (error) {
+      setJobError(error.message || "Could not confirm this motor calibration.");
+    } finally {
+      setUpdatingJob(false);
+    }
+  };
+
+  const cancelCalibration = async () => {
+    if (!calibrationAwaitingConfirmation || updatingJob) return;
+    setUpdatingJob(true);
+    setJobError("");
+    try {
+      const updated = await commissioningRequest(`/jobs/${job.id}/cancel`, {
+        method: "POST",
+      });
+      setJob(updated);
+    } catch (error) {
+      setJobError(error.message || "Could not cancel this calibration job.");
+    } finally {
+      setUpdatingJob(false);
+    }
+  };
+
+  const resolveFailedJob = async (action) => {
+    if (!failureAwaitingDecision || updatingJob) return;
+    setUpdatingJob(true);
+    setJobError("");
+    try {
+      const updated = await commissioningRequest(`/jobs/${job.id}/${action}`, {
+        method: "POST",
+      });
+      setJob(updated);
+
+      if (action === "retry") {
+        setNotice(
+          job.operation === "calibrate"
+            ? `Retry requested for ${failedMotor.label}; confirm it is free to spin.`
+            : `Retrying the save for ${failedMotor.label}…`,
+        );
+      } else if (action === "skip") {
+        setNotice(`${failedMotor.label} skipped; continuing the sequence.`);
+      } else {
+        setNotice("");
+      }
+    } catch (error) {
+      setJobError(error.message || `Could not ${action} this commissioning job.`);
+    } finally {
+      setUpdatingJob(false);
+    }
+  };
+
+  const loading = catalogLoading || configsLoading;
+  const loadError = catalogError || configsError;
+  const pageError = loadError || saveError;
+  const controlsLocked = savingConfig || startingJob || updatingJob || jobActive;
+  const motorActionsDisabled = Boolean(
+    !subsystem?.available
+    || loading
+    || controlsLocked
+    || hasAnyDirty
+    || !motors.length,
+  );
 
   return (
     <div className="commissioningPage">
       <div className="container-fluid px-3 py-2">
         <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
           <h3 className="text-white mb-0">Motor Commissioning</h3>
-          <span className="badge bg-secondary">UI mockup</span>
+          <span className="badge bg-secondary">Backend configuration editor</span>
         </div>
 
-        <div className="alert alert-info py-2 mb-3 commissioningPreview" role="status">
-          <strong>Preview mode:</strong> no backend or rover connection. {notice}
-        </div>
+        {pageError ? (
+          <div className="alert alert-danger py-2 mb-3 commissioningPreview" role="alert">
+            <div className="d-flex flex-wrap justify-content-between align-items-center gap-2">
+              <span>
+                <strong>{saveError ? "Save failed:" : "Could not load commissioning data:"}</strong>{" "}
+                {pageError}
+              </span>
+              {loadError ? (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-danger"
+                  onClick={() => (catalogError
+                    ? setCatalogReload((value) => value + 1)
+                    : setConfigsReload((value) => value + 1))}
+                >
+                  Retry
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : notice ? (
+          <p className="small text-white-50 mb-3" role="status">{notice}</p>
+        ) : null}
 
-        <section
-          className="commissioningPanel p-3 mb-3"
-          aria-label="Motor selection"
-        >
+        <section className="commissioningPanel p-3 mb-3" aria-label="Motor selection">
           <div className="row g-3 align-items-end">
             <div className="col-sm-6 col-lg-3">
               <label className="form-label" htmlFor="commissioning-subsystem">
@@ -315,12 +553,12 @@ export default function Commissioning() {
                 id="commissioning-subsystem"
                 className="form-select form-select-sm"
                 value={subsystemId}
+                disabled={catalogLoading || controlsLocked || !subsystems.length}
                 onChange={(event) => selectSubsystem(event.target.value)}
               >
-                {SUBSYSTEMS.map((item) => (
+                {subsystems.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.label}
-                    {item.available ? "" : " — coming later"}
+                    {item.label}{item.available ? "" : " — coming later"}
                   </option>
                 ))}
               </select>
@@ -333,13 +571,13 @@ export default function Commissioning() {
               <select
                 id="commissioning-motor"
                 className="form-select form-select-sm"
-                value={motorId}
-                disabled={!subsystem?.available}
+                value={motor?.id || ""}
+                disabled={!subsystem?.available || configsLoading || controlsLocked || !motors.length}
                 onChange={(event) => selectMotor(event.target.value)}
               >
-                {CORE_MOTORS.map((item) => (
+                {motors.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.label} · wheel_{item.id}
+                    {item.label} · {item.namespace}
                   </option>
                 ))}
               </select>
@@ -352,49 +590,54 @@ export default function Commissioning() {
                 >
                   {subsystem?.available ? "Available" : "Unavailable"}
                 </span>
-                {subsystem?.description}
+                {subsystem?.description || (catalogLoading ? "Loading catalog…" : "No subsystem selected")}
               </div>
             </div>
           </div>
         </section>
 
-        {!subsystem?.available ? (
+        {subsystem && !subsystem.available ? (
           <div className="alert alert-secondary">
-            <h5 className="alert-heading">{subsystem?.label} commissioning is not available yet</h5>
+            <h5 className="alert-heading">{subsystem.label} commissioning is not available yet</h5>
             <p className="mb-0">
-              This selector is included to preview the final navigation. It will become active when
-              the subsystem provides motor IDs, configs, namespaces, and a CAN interface.
+              It will become active after the subsystem provides motor IDs, configuration files,
+              namespaces, and a CAN interface through the commissioning catalog.
             </p>
           </div>
-        ) : (
+        ) : subsystem?.available ? (
           <div className="row g-3 pb-3">
             <div className="col-xl-8">
               <section className="commissioningPanel p-3">
                 <div className="d-flex justify-content-between align-items-center gap-2 mb-3">
                   <h5 className="text-white mb-0">
                     {editorTab === "individual"
-                      ? `${motor.label} configuration`
+                      ? `${motor?.label || "Motor"} configuration`
                       : editorTab === "shared"
                         ? "Shared motor configuration"
                         : "Soft-limit configuration"}
                   </h5>
-                  <span className={`badge ${currentEditorDirty ? "text-bg-warning" : "text-bg-secondary"}`}>
-                    {currentEditorDirty ? "Unsaved" : "Saved"}
+                  <span
+                    className={`badge ${currentEditorDirty ? "text-bg-warning" : "text-bg-secondary"}`}
+                  >
+                    {savingConfig
+                      ? "Saving"
+                      : configsLoading
+                        ? "Loading"
+                        : currentEditorDirty
+                          ? "Unsaved"
+                          : "Saved"}
                   </span>
                 </div>
 
                 <div className="nav nav-tabs commissioningTabs mb-3" role="tablist">
-                  {[
-                    ["individual", "Individual config"],
-                    ["shared", "Shared config"],
-                    ["limits", "Soft limits"],
-                  ].map(([id, label]) => (
+                  {EDITOR_TABS.map(([id, label]) => (
                     <button
                       key={id}
                       type="button"
                       role="tab"
                       aria-selected={editorTab === id}
                       className={`nav-link ${editorTab === id ? "active" : ""}`}
+                      disabled={controlsLocked}
                       onClick={() => selectTab(id)}
                     >
                       {label}
@@ -404,25 +647,16 @@ export default function Commissioning() {
 
                 <div>
                   <div className="commissioningFileMeta">
-                    <code>
-                      {editorTab === "shared"
-                        ? "kanga_core_drive/config/motors/shared_motor_config.py"
-                        : editorTab === "limits"
-                          ? "kanga_core_drive/config/motors/soft_limits.yaml"
-                          : `kanga_core_drive/config/motors/wheel_${motor.id}_motor_config.py`}
-                    </code>
+                    <code>{configPath(editorTab, subsystem.id, motor?.id)}</code>
                   </div>
                   <textarea
                     className="commissioningTextEditor"
                     spellCheck="false"
                     aria-label={`${editorTab} configuration`}
-                    value={draftConfigs[configKey]}
-                    onChange={(event) =>
-                      setDraftConfigs((current) => ({
-                        ...current,
-                        [configKey]: event.target.value,
-                      }))
-                    }
+                    disabled={configsLoading || controlsLocked || !configRecord}
+                    value={currentDraft}
+                    onChange={(event) => changeDraft(event.target.value)}
+                    placeholder={configsLoading ? "Loading configuration…" : "Configuration unavailable"}
                   />
                   {editorTab === "limits" ? (
                     <div className="form-text text-white-50 mt-2">
@@ -435,6 +669,7 @@ export default function Commissioning() {
                   <button
                     type="button"
                     className="commissioningButton commissioningButtonMuted"
+                    disabled={configsLoading || controlsLocked || !configRecord}
                     onClick={restoreDefaults}
                   >
                     Restore defaults
@@ -442,7 +677,7 @@ export default function Commissioning() {
                   <button
                     type="button"
                     className="commissioningButton commissioningButtonMuted"
-                    disabled={!currentEditorDirty}
+                    disabled={configsLoading || controlsLocked || !currentEditorDirty}
                     onClick={resetEditor}
                   >
                     Reset
@@ -450,10 +685,10 @@ export default function Commissioning() {
                   <button
                     type="button"
                     className="commissioningButton commissioningButtonAccent"
-                    disabled={!currentEditorDirty}
+                    disabled={configsLoading || controlsLocked || !currentEditorDirty}
                     onClick={saveEditor}
                   >
-                    Save file
+                    {savingConfig ? "Saving…" : "Save file"}
                   </button>
                 </div>
               </section>
@@ -463,31 +698,21 @@ export default function Commissioning() {
               <section className="commissioningPanel p-3 mb-3">
                 <div className="d-flex justify-content-between align-items-center gap-2 mb-2">
                   <h5 className="text-white mb-0">Commission motors</h5>
-                  <span className="badge text-bg-secondary">can_core</span>
+                  <span className="badge text-bg-secondary">
+                    {subsystem.can_interface || "CAN unavailable"}
+                  </span>
                 </div>
 
                 <dl className="commissioningMotorDetails">
-                  <div>
-                    <dt>Selected</dt>
-                    <dd>{motor.label}</dd>
-                  </div>
-                  <div>
-                    <dt>Namespace</dt>
-                    <dd>/wheel_{motor.id}</dd>
-                  </div>
-                  <div>
-                    <dt>Node</dt>
-                    <dd>{motor.nodeId}</dd>
-                  </div>
-                  <div>
-                    <dt>Serial</dt>
-                    <dd>{motor.serial}</dd>
-                  </div>
+                  <div><dt>Selected</dt><dd>{motor?.label}</dd></div>
+                  <div><dt>Namespace</dt><dd>/{motor?.namespace}</dd></div>
+                  <div><dt>Node</dt><dd>{motor?.node_id}</dd></div>
+                  <div><dt>Profile</dt><dd>{subsystem.drivetrain_profile}</dd></div>
                 </dl>
 
                 {hasAnyDirty ? (
                   <div className="alert alert-warning py-2 small">
-                    Save or reset all editor changes before commissioning.
+                    Save or reset editor changes before commissioning motors.
                   </div>
                 ) : null}
 
@@ -496,125 +721,189 @@ export default function Commissioning() {
                   <button
                     type="button"
                     className="commissioningButton commissioningButtonMuted"
-                    disabled={actionsDisabled}
-                    onClick={() => beginSave([motor.id])}
+                    disabled={motorActionsDisabled}
+                    onClick={() => beginJob("save", [motor.id])}
                   >
-                    Save {motor.shortLabel}
+                    {startingJob ? "Starting…" : `Save ${shortMotorLabel(motor)}`}
                   </button>
                   <button
                     type="button"
                     className="commissioningButton commissioningButtonAccent"
-                    disabled={actionsDisabled}
-                    onClick={() => beginCalibration([motor.id])}
+                    disabled={motorActionsDisabled}
+                    onClick={() => beginJob("calibrate", [motor.id])}
                   >
-                    Calibrate {motor.shortLabel}
+                    Calibrate {shortMotorLabel(motor)}
                   </button>
                 </div>
 
                 <hr className="border-secondary" />
 
                 <div className="commissioningActionGroup">
-                  <div className="small text-white-50 mb-2">All core motors</div>
+                  <div className="small text-white-50 mb-2">All {subsystem.label.toLowerCase()} motors</div>
                   <button
                     type="button"
                     className="commissioningButton commissioningButtonMuted"
-                    disabled={actionsDisabled}
-                    onClick={() => beginSave(CORE_MOTORS.map((item) => item.id))}
+                    disabled={motorActionsDisabled}
+                    onClick={() => beginJob("save", motors.map((item) => item.id))}
                   >
-                    Save all
+                    {startingJob ? "Starting…" : "Save all"}
                   </button>
                   <button
                     type="button"
                     className="commissioningButton commissioningButtonAccent"
-                    disabled={actionsDisabled}
-                    onClick={() => beginCalibration(CORE_MOTORS.map((item) => item.id))}
+                    disabled={motorActionsDisabled}
+                    onClick={() => beginJob(
+                      "calibrate",
+                      motors.map((item) => item.id),
+                    )}
                   >
                     Calibrate all sequentially
                   </button>
                 </div>
 
                 <p className="small text-white-50 mt-3 mb-0">
-                  Calibration runs one motor at a time and requires confirmation before each motor.
+                  Save and calibration temporarily release drivestop for each motor, then
+                  reassert it after every attempt. Calibration still requires confirmation.
                 </p>
               </section>
 
               <section className="commissioningPanel p-3">
                 <div className="d-flex justify-content-between align-items-center gap-2 mb-2">
-                  <h5 className="text-white mb-0">
-                    {job
-                      ? job.operation === "save"
-                        ? "Save progress"
-                        : "Calibration progress"
-                      : "Operation progress"}
-                  </h5>
+                  <h5 className="text-white mb-0">Commissioning progress</h5>
                   {job ? (
                     <span className={`commissioningJobState state-${job.state}`}>
-                      {STATUS_LABELS[job.state] ?? job.state}
+                      {JOB_STATE_LABELS[job.state] ?? job.state}
                     </span>
                   ) : null}
                 </div>
 
+                {jobError ? (
+                  <div className="alert alert-danger py-2 small mb-2">{jobError}</div>
+                ) : null}
+
                 {job ? (
                   <ol className="commissioningProgressList">
                     {job.items.map((item, index) => (
-                      <li key={item.id} className={`state-${item.state}`}>
+                      <li key={item.motor_id} className={`state-${item.state}`}>
                         <span className="commissioningProgressIndex">{index + 1}</span>
                         <span>
                           <strong>{item.label}</strong>
-                          <small>wheel_{item.id}</small>
+                          <small>
+                            {item.message || `/${motors.find(
+                              (candidate) => candidate.id === item.motor_id,
+                            )?.namespace || item.motor_id}`}
+                          </small>
                         </span>
                         <span className="commissioningProgressStatus">
-                          {STATUS_LABELS[item.state]}
+                          {JOB_STATE_LABELS[item.state] ?? item.state}
                         </span>
                       </li>
                     ))}
                   </ol>
                 ) : (
                   <p className="small text-white-50 mb-0">
-                    Choose an action above to preview individual or sequential progress.
+                    Choose a save or calibration action to start a backend job.
                   </p>
                 )}
               </section>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
 
       <Modal
-        show={job?.state === "awaiting_confirmation"}
+        show={calibrationAwaitingConfirmation}
         onHide={cancelCalibration}
         centered
-        backdrop="static"
-        keyboard={false}
         contentClassName="commissioningModal"
         backdropClassName="commissioningModalBackdrop"
+        backdrop="static"
+        keyboard={!updatingJob}
       >
-        <Modal.Header>
-          <Modal.Title>Prepare {currentJobMotor?.label}</Modal.Title>
+        <Modal.Header closeButton={!updatingJob}>
+          <Modal.Title>Is {calibrationMotor?.label} free to spin?</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <div className="alert alert-warning py-2">Motor movement will occur.</div>
-          <p>
-            Calibration will energize <strong>{currentJobMotor?.label}</strong>{" "}
-            (<code>/wheel_{currentJobMotor?.id}</code>). Make sure it cannot contact the ground,
-            tools, cables, or people.
-          </p>
-          {job?.items.length > 1 ? (
-            <small className="commissioningSequenceHint">
-              Motor {job.activeIndex + 1} of {job.items.length}. You will confirm every motor separately.
-            </small>
-          ) : null}
+          This motor will spin during calibration. Confirm it is clear of the ground and cannot
+          contact people or equipment.
+          <span className="commissioningSequenceHint">
+            Drivestop will be released only for this motor and reasserted when the attempt finishes.
+          </span>
         </Modal.Body>
         <Modal.Footer>
-          <button type="button" className="btn btn-sm btn-outline-light" onClick={cancelCalibration}>
-            Cancel sequence
+          <button
+            type="button"
+            className="commissioningButton commissioningButtonMuted"
+            disabled={updatingJob}
+            onClick={cancelCalibration}
+          >
+            Cancel
           </button>
           <button
             type="button"
-            className="btn btn-sm btn-warning"
+            className="commissioningButton commissioningButtonAccent"
+            disabled={updatingJob}
             onClick={confirmCalibration}
           >
-            Confirm & calibrate
+            {updatingJob ? "Starting…" : "Confirm and calibrate"}
+          </button>
+        </Modal.Footer>
+      </Modal>
+
+      <Modal
+        show={failureAwaitingDecision}
+        onHide={() => resolveFailedJob("cancel")}
+        centered
+        contentClassName="commissioningModal"
+        backdropClassName="commissioningModalBackdrop"
+        backdrop="static"
+        keyboard={!updatingJob}
+      >
+        <Modal.Header closeButton={!updatingJob}>
+          <Modal.Title>{failedMotor?.label} failed</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p className="mb-2">
+            The {job?.operation === "calibrate" ? "calibration" : "save"} attempt did not
+            complete.
+          </p>
+          <div className="alert alert-danger py-2 small mb-0">
+            {failedMotor?.message || "No failure detail was returned."}
+          </div>
+          {job?.operation === "calibrate" ? (
+            <span className="commissioningSequenceHint">
+              Retrying will ask you to confirm that this motor is free to spin again.
+            </span>
+          ) : null}
+        </Modal.Body>
+        <Modal.Footer className="flex-wrap">
+          <button
+            type="button"
+            className="commissioningButton commissioningButtonMuted"
+            disabled={updatingJob}
+            onClick={() => resolveFailedJob("cancel")}
+          >
+            Cancel{multiMotorSequence ? " sequence" : ""}
+          </button>
+          {multiMotorSequence ? (
+            <button
+              type="button"
+              className="commissioningButton commissioningButtonMuted"
+              disabled={updatingJob}
+              onClick={() => resolveFailedJob("skip")}
+            >
+              Skip motor
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="commissioningButton commissioningButtonAccent"
+            disabled={updatingJob}
+            onClick={() => resolveFailedJob("retry")}
+          >
+            {updatingJob
+              ? "Updating…"
+              : `Retry ${job?.operation === "calibrate" ? "calibration" : "save"}`}
           </button>
         </Modal.Footer>
       </Modal>

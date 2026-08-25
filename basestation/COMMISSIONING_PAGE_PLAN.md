@@ -1,16 +1,18 @@
 # Motor Commissioning Page Plan
 
-Status: **frontend mockup implemented; backend and hardware integration not
-implemented**. Last reviewed 2026-08-25.
+Status: **backend Steps 1–3 implemented and rover-tested; Step 4a–4c frontend
+config editing and save jobs implemented**. Last reviewed 2026-08-25.
 
 This document defines the next basestation feature slice: a protected browser
 page for editing motor configuration, applying and saving it to ODrives, and
 calibrating motors individually or as a controlled sequence.
 
-The current `/commissioning` route is a browser-only preview. It uses mock
-configs and simulated job timing so the layout and safety workflow can be
-reviewed without a rover. Its banner explicitly states that it does not read or
-write files, call ROS, or contact motors.
+The `/commissioning` route now reads its subsystem and motor definitions from
+the protected backend catalog. It loads the complete active and immutable
+default content for shared, individual, and soft-limit configs. Editors now
+support revision-protected writes, Reset, Restore Defaults, validation feedback,
+and unsaved-change protection. Individual Save and sequential Save All now use
+real backend jobs; calibration remains disabled until its final Step 4 slice.
 
 ## Current state
 
@@ -20,14 +22,17 @@ The repository already has the lower-level core commissioning path:
   limits, and one wheel-specific overlay before invoking `custom_odrive`.
 - Save operations can already process several wheels sequentially from the CLI.
 - Calibration is deliberately limited to one wheel per CLI invocation.
-- `drive_manager` exposes per-wheel calibration Trigger services, and the
-  basestation exposes a REST endpoint, but there is no commissioning page.
+- `drive_manager` exposes per-wheel save and calibration Trigger services. The
+  calibration service applies config, calibrates, saves, and leaves the motor
+  disabled.
 
-The current browser endpoint cannot complete a physical calibration because
-the underlying CLI asks for off-ground confirmation on interactive stdin. There
-is also no browser or ROS service for applying and saving one or all motor
-configs. Only the four core wheel motors have real configs; Arm and Payload are
-still package placeholders.
+The protected backend now supplies complete config/default content, validated
+atomic writes, and ordered save/calibration jobs. The existing one-wheel route
+also executes through that job coordinator and requires explicit off-ground
+acknowledgement. The page now consumes the catalog, config read/write, job
+creation, and job polling routes for save operations. It does not yet create or
+confirm calibration jobs. Only the four core wheel motors have real configs;
+Arm and Payload remain unavailable catalog entries.
 
 ## Intended result
 
@@ -39,7 +44,7 @@ Complete the protected `/commissioning` page with:
 - file Save, Reset, and Restore Defaults controls;
 - Apply & Save and Calibrate & Save for one motor;
 - Save All and sequential Calibrate All actions; and
-- an off-ground confirmation before every motor calibration.
+- confirmation that the selected motor is free to spin before every calibration.
 
 Core is the first functional subsystem. Arm and Payload appear in the catalog
 as unavailable placeholders until their motor IDs, namespaces, CAN interfaces,
@@ -72,7 +77,7 @@ this feature is introduced.
 
 ## Implementation steps
 
-### 1. Add soft limits and defaults
+### 1. Add soft limits and defaults — implemented 2026-08-25
 
 - Add the active soft-limit config with velocity and acceleration initially set
   to the current drivetrain hard caps.
@@ -85,7 +90,12 @@ this feature is introduced.
 - Generate protected velocity and ramp assignments after the editable shared
   and per-wheel content so an overlay cannot bypass the limits.
 
-### 2. Complete the lower-level commissioning operations
+The active file is
+`kanga_core_description/config/motor_limits/core.yaml`. The immutable limit
+baseline is under `config/defaults/motor_limits/` in the same package; motor
+config baselines are under `kanga_core_drive/config/defaults/motors/`.
+
+### 2. Complete the lower-level commissioning operations — implemented and rover-tested 2026-08-25
 
 - Add an explicit `--off-ground-confirmed` commissioning flag. Manual CLI use
   without the flag retains the current interactive prompt.
@@ -98,13 +108,13 @@ this feature is introduced.
 - Always use the motor ROS namespace from the browser path. Do not add bench or
   “ROS is running” questionnaires; surface unavailable services as errors.
 
-### 3. Add protected configuration and job APIs
+### 3. Add protected configuration and job APIs — implemented 2026-08-25
 
 Add a backend catalog with Core, Arm, and Payload entries. It is the only source
 of paths, motor IDs, namespaces, operation order, and availability; API clients
 must never supply arbitrary filesystem paths or shell arguments.
 
-Planned HTTP interface:
+HTTP interface:
 
 | Method | Route | Purpose |
 | --- | --- | --- |
@@ -113,7 +123,7 @@ Planned HTTP interface:
 | `GET`, `PUT` | `/api/commissioning/soft-limits/{subsystem}` | Read or save the soft-limit file and report hard maxima |
 | `POST` | `/api/commissioning/jobs` | Start a save or calibration job for ordered motor IDs |
 | `GET` | `/api/commissioning/jobs/{job_id}` | Read queue and per-motor status |
-| `POST` | `/api/commissioning/jobs/{job_id}/confirm` | Confirm the current motor is off the ground |
+| `POST` | `/api/commissioning/jobs/{job_id}/confirm` | Confirm the current motor is free to spin |
 | `POST` | `/api/commissioning/jobs/{job_id}/cancel` | Cancel work that is waiting for confirmation |
 
 When a PIN is configured, all commissioning reads and writes require the
@@ -137,35 +147,71 @@ Soft-limit saves must parse as YAML and validate both values against the
 unchanged drivetrain-profile maxima before atomically replacing the file.
 
 Only one commissioning job may be active. Save All and Calibrate All use the
-established order `fl -> bl -> br -> fr` and stop at the first failure.
-Calibration waits for a fresh confirmation before every motor. While a job is
+established order `fl -> bl -> br -> fr`. A failure pauses the same active job
+and offers Retry, Skip, or Cancel. Retry repeats the failed motor and then
+continues the sequence after success. Skip is available only for multi-motor
+sequences and advances to the next motor; Cancel ends the remaining sequence.
+Calibration waits for a fresh free-to-spin confirmation before every motor. While a job is
 active, the server rejects drive enable, drivestop release, config writes, and
 non-zero browser drive commands; asserting drivestop and requesting IDLE remain
-available.
+available. The backend temporarily releases drivestop around each save or
+calibration service call and attempts to reassert it after every success,
+failure, exception, or timeout. Calibration only reaches that release after the
+operator confirms the current motor is free to spin. Both operations fail
+closed if WHS cannot be reached to release the stop, and a failed stop
+restoration is reported as a job failure requiring immediate operator
+attention.
 
 Each motor reports one of `pending`, `awaiting_confirmation`, `running`,
-`succeeded`, `failed`, or `cancelled`. Jobs are runtime state and do not need to
+`succeeded`, `failed`, `skipped`, or `cancelled`. A calibration retry requires
+another free-to-spin confirmation. Jobs are runtime state and do not need to
 survive a basestation-server restart.
 
-### 4. Build the page
+Implementation is split by responsibility under `basestation/server/`:
 
-- Add a protected navbar entry and `/commissioning` route.
+- `commissioning_catalog.py` owns the fixed Core/Arm/Payload catalog, permitted
+  source-tree paths, motor order, ROS namespaces, and CAN node IDs;
+- `commissioning_config.py` owns raw file reads, immutable-default content,
+  SHA-256 revisions, declarative AST validation, soft-limit validation, and
+  atomic replacement;
+- `commissioning_jobs.py` owns the single active job, sequential operation
+  state, per-motor calibration confirmation, and commissioning interlock; and
+- `commissioning_api.py` exposes authenticated routes and keeps the legacy
+  one-wheel calibration route as a job-backed compatibility path.
+
+The server now rejects non-zero browser motion, drive enable, drivestop release,
+error clearing, and config writes while a job is active. Asserting drivestop,
+requesting IDLE, reading configs, and polling job state remain available. Step
+3 is covered offline with injected ROS fakes and has been exercised on the
+rover for individual Save, individual calibration, and sequential Save All.
+
+### 4. Build the page — Steps 4a–4d implemented 2026-08-25
+
+Completed in the catalog, loading, and file-editing slices:
+
+- Use the protected navbar entry and `/commissioning` route.
 - Populate subsystem and motor dropdowns from the backend catalog.
 - Show Arm and Payload as unavailable and disable their controls.
-- Provide the same simple monospace text editor for shared, individual, and
-  soft-limit configuration files.
-- Keep file persistence separate from hardware actions:
-  - **Save File** writes the editor content.
-  - **Reset** returns to the last server-saved content.
-  - **Restore Defaults** stages the immutable baseline and still requires Save.
-  - **Apply & Save Motor** and **Save All** write configs to ODrive NVRAM.
-  - **Calibrate & Save Motor** and **Calibrate All** calibrate and persist.
-- Warn before changing selection or leaving the page with unsaved edits.
-- Before every calibration, name the exact motor in a modal; clicking
-  **Confirm & Calibrate** is the fresh off-ground acknowledgement for that
-  motor.
-- Poll job status and display the ordered queue, current operation, results, and
-  failure messages.
+- Load complete active and default shared, individual, and soft-limit files in
+  parallel, with loading, failure, and retry feedback.
+- Show active content in the existing monospace editor without permitting
+  simulated jobs or hardware actions.
+- Keep editable drafts separate from server-saved content, and protect them
+  when changing motor, tab, subsystem, or leaving the browser page.
+- Connect **Save File** with the loaded revision token, retain rejected drafts
+  for correction, and refresh content and revision after successful writes.
+- Connect **Reset** to the last server-saved content and **Restore Defaults** to
+  the immutable baseline without saving it automatically.
+- Connect individual **Save Motor** and sequential **Save All** to backend jobs,
+  disabling them while configs are dirty or another operation is active.
+- Poll save-job status and show catalog order, per-motor state and messages,
+  overall completion, and stop-on-first-failure feedback.
+- Before every calibration, ask whether the exact named motor is free to spin;
+  clicking **Confirm & Calibrate** is the fresh acknowledgement for that motor.
+- Connect individual **Calibrate & Save Motor** and sequential **Calibrate All**
+  to backend jobs, including cancellation while awaiting confirmation.
+- Keep drivestop asserted while a calibration waits, release it only for the
+  confirmed motor operation, and reassert it before advancing or finishing.
 
 ## Test plan
 

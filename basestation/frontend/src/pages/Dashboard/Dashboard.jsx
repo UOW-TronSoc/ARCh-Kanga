@@ -15,6 +15,7 @@ const CONTROL_KEYS = new Set(["w", "s", "a", "d", "q", "e"]);
 const ZERO_VECTOR = { x: 0, y: 0, z: 0 };
 
 const BUTTON_DRIVE_INPUT = 0;
+const BUTTON_ASSERT_DRIVESTOP = 1;
 const BUTTON_FULL_FORWARD = 12;
 const BUTTON_FULL_BACKWARD = 13;
 const BUTTON_FULL_ROTATE_LEFT = 14;
@@ -96,6 +97,7 @@ export default function Dashboard() {
   const pressedKeysRef = useRef(new Set());
   const prevButtonsRef = useRef([]);
   const armBusyRef = useRef(false);
+  const drivestopBusyRef = useRef(false);
   const driveEnabledRef = useRef(driveEnabled);
   const drivestopRef = useRef(telemetry.drivestop);
   const closedLoopRef = useRef(telemetry.closed_loop);
@@ -161,6 +163,21 @@ export default function Dashboard() {
     });
   }, [toggleDriveInputArm]);
 
+  const assertDrivestop = useCallback(() => {
+    // Stop drive input locally before waiting for the HTTP request or the next
+    // telemetry update. This action is intentionally one-way: keyboard and
+    // gamepad shortcuts may assert drivestop, but never release it.
+    setDriveEnabled(false);
+    if (drivestopBusyRef.current) return;
+
+    drivestopBusyRef.current = true;
+    driveApi("/drive/drivestop", { stop: true })
+      .catch(() => false)
+      .finally(() => {
+        drivestopBusyRef.current = false;
+      });
+  }, []);
+
   useEffect(() => {
     document.title = "Drive";
   }, []);
@@ -174,6 +191,13 @@ export default function Dashboard() {
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (event.code === "Space" || event.key === " ") {
+        event.preventDefault();
+        if (event.repeat) return;
+        assertDrivestop();
+        return;
+      }
+
+      if (event.code === "Enter" || event.key === "Enter") {
         event.preventDefault();
         if (event.repeat) return;
         requestDriveInputArm();
@@ -195,6 +219,11 @@ export default function Dashboard() {
         return;
       }
 
+      if (event.code === "Enter" || event.key === "Enter") {
+        event.preventDefault();
+        return;
+      }
+
       const key = event.key.toLowerCase();
       if (!CONTROL_KEYS.has(key)) return;
       event.preventDefault();
@@ -207,7 +236,7 @@ export default function Dashboard() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [recalcKeyboardTwist, requestDriveInputArm]);
+  }, [assertDrivestop, recalcKeyboardTwist, requestDriveInputArm]);
 
   useEffect(() => {
     const pollGamepad = () => {
@@ -222,8 +251,12 @@ export default function Dashboard() {
 
       const prevPressed = prevButtonsRef.current;
       const driveInputPressed = isButtonPressed(gp, BUTTON_DRIVE_INPUT);
+      const drivestopPressed = isButtonPressed(gp, BUTTON_ASSERT_DRIVESTOP);
       if (prevPressed.length > 0 && driveInputPressed && !prevPressed[BUTTON_DRIVE_INPUT]) {
         requestDriveInputArm();
+      }
+      if (drivestopPressed && !prevPressed[BUTTON_ASSERT_DRIVESTOP]) {
+        assertDrivestop();
       }
       prevButtonsRef.current = gp.buttons.map((button) => Boolean(button?.pressed));
 
@@ -290,7 +323,7 @@ export default function Dashboard() {
 
     const interval = setInterval(pollGamepad, 50);
     return () => clearInterval(interval);
-  }, [requestDriveInputArm, updateControllerInfo]);
+  }, [assertDrivestop, requestDriveInputArm, updateControllerInfo]);
 
   const combinedLinear = useMemo(
     () => ({

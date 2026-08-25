@@ -21,6 +21,7 @@ if(BUILD_TESTING)
     test/test_core_2026_description.py
   )
   ament_add_pytest_test(test_drivetrain_profile test/test_drivetrain_profile.py)
+  ament_add_pytest_test(test_motor_limits test/test_motor_limits.py)
 endif()
 
 ament_package()

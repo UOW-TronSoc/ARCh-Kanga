@@ -7,10 +7,11 @@ Use the version-controlled `kanga_vendor.repos` manifest in this directory and
 `vcs import` so each dependency is pinned to an intentional revision. Do not
 manually copy third-party source trees into this repository.
 
-`scripts/build_workspace.bash` imports repositories that are missing from a
-fresh checkout before running rosdep and colcon. Existing vendor directories
-are not fetched or overwritten, so routine builds can still run offline and
-preserve intentional local vendor work.
+`./scripts/build_workspace.bash` automatically imports repositories that are
+missing from a fresh checkout before running rosdep and colcon. Existing vendor
+directories are not fetched or overwritten, so routine builds can still run
+offline and preserve intentional local vendor work. You can also import them by
+hand:
 
 ```bash
 # Optional manual import from the repository root (host or container):
@@ -18,7 +19,9 @@ vcs import src/vendor < src/vendor/kanga_vendor.repos
 ```
 
 Imported trees under `src/vendor/` are gitignored. Only this README and
-`kanga_vendor.repos` are tracked.
+`kanga_vendor.repos` are tracked. Existing checkouts are skipped on re-import;
+after changing a pin in `kanga_vendor.repos`, delete that checkout under
+`src/vendor/` and rebuild (or re-run the command above).
 
 ## ros2_socketcan
 

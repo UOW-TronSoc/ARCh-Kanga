@@ -11,11 +11,13 @@ and ROS node — runs from a single service on port 8000. Design and progress:
 ### Docker handles
 
 - Basestation Python image (`ros:humble-ros-base-jammy` + pip deps)
+- Frontend UI build (`node:20` via `./scripts/build_frontend.bash`, and the
+  Node stage in `Dockerfile.basestation-python`)
 - Sourcing `/opt/ros/humble` and `/workspace/install` in the entrypoint
 
 ### The host still handles
 
-- Docker Engine + Compose
+- Docker Engine + Compose (no host Node/npm required for Path B)
 - Building the ROS workspace (`install/`) via Path A
 - SocketCAN / drivers when testing against hardware (see [docker.md](docker.md)
   and [can.md](can.md))

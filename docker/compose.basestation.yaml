@@ -3,8 +3,10 @@
 # workspace build (install/) exists.
 #
 # The server serves the operator web UI and the API from a single port (8000).
-# A frontend build stage joins the image once the React UI is migrated; until
-# then the server serves the placeholder page from basestation/server/static/.
+# Dockerfile.basestation-python has a Node 20 stage that builds the React UI.
+# The bind mount below overlays host basestation/; basestation_up.bash runs
+# scripts/build_frontend.bash (Docker Node 20) so server/static/ on the host
+# matches before compose up.
 services:
   basestation-server:
     build:

@@ -50,16 +50,17 @@ From the repository root:
 ./scripts/basestation_down.bash
 ```
 
-Rebuild the UI only:
+Rebuild the UI only (Docker Node 20 by default — no host Node needed):
 
 ```bash
 ./scripts/build_frontend.bash
 ```
 
-Local UI iteration (Vite proxy to `:8000`):
+Local UI iteration on the host (needs Node 18+; Vite proxy to `:8000`):
 
 ```bash
 cd basestation/frontend && npm ci && npm run dev
+# or force a host build: USE_HOST_NPM=1 ./scripts/build_frontend.bash
 ```
 
 ## Environment (optional)

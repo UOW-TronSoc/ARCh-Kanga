@@ -49,11 +49,21 @@ PY
 
     # 3. Resolve dependencies for packages under src/.
     echo "Resolving dependencies with rosdep..."
-    rosdep install --from-paths src --ignore-src --rosdistro humble -r -y
+    ROSDEP_ARGUMENTS=(install --from-paths src --ignore-src --rosdistro humble -r -y)
+    COLCON_ARGUMENTS=(build --symlink-install)
+    if [ "${KANGA_ENABLE_SIM:-1}" = "0" ]; then
+        echo "Skipping Gazebo simulation packages (KANGA_ENABLE_SIM=0)."
+        ROSDEP_ARGUMENTS+=(
+            --skip-keys
+            "ignition-gazebo6 ignition-plugin ros_gz_bridge ros_gz_sim"
+        )
+        COLCON_ARGUMENTS+=(--packages-skip kanga_core_simulation kanga_sim)
+    fi
+    rosdep "${ROSDEP_ARGUMENTS[@]}"
 
     # 4. Build the workspace.
     echo "Building workspace with colcon..."
-    colcon build --symlink-install
+    colcon "${COLCON_ARGUMENTS[@]}"
 
     echo
     echo "Build complete. Source the overlay with:"

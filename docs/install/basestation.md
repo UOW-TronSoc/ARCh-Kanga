@@ -45,6 +45,11 @@ missing.
 ./scripts/basestation_up.bash
 ```
 
+On Linux, `basestation_up.bash` also applies host networking so the server
+joins the same ROS graph as other host processes. Docker Desktop on macOS and
+Windows runs Linux containers in a VM, so host networking is **not** your
+browser's localhost; the default compose file publishes `8000:8000` instead.
+
 | URL | What you get |
 | --- | --- |
 | http://localhost:8000/ | React operator UI (PIN → Drive, Logs) |

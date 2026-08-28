@@ -3,6 +3,7 @@
 # Convenience script to open an interactive shell in the Kanga dev container.
 #
 # Builds (if needed) and runs the kanga-dev service, removing the container on exit.
+# Set KANGA_SIM=none to skip Gazebo Fortress and ros_gz (needed on Apple Silicon).
 #
 set -euo pipefail
 
@@ -34,6 +35,30 @@ export KANGA_ODRIVE_CACHE="${KANGA_ODRIVE_CACHE:-${KANGA_CACHE_BASE}/odrivetool}
 mkdir -p "${KANGA_ODRIVE_CACHE}"
 
 COMPOSE_ARGUMENTS=(-f docker/compose.dev.yaml)
+
+# Linux (including the rover's Orin): real host networking for SocketCAN and
+# the ROS graph. macOS/Windows Docker Desktop stays on the default bridge
+# network set in compose.dev.yaml (see comment there).
+if [[ "$(uname -s)" == "Linux" ]]; then
+    COMPOSE_ARGUMENTS+=(-f docker/compose.dev.host.yaml)
+fi
+
+# KANGA_SIM=full (default) installs Gazebo Fortress and ros_gz. KANGA_SIM=none
+# skips those packages so the image builds on hosts without Humble sim binaries,
+# such as Apple Silicon.
+KANGA_SIM_MODE="${KANGA_SIM:-full}"
+case "${KANGA_SIM_MODE}" in
+    full)
+        ;;
+    none)
+        COMPOSE_ARGUMENTS+=(-f docker/compose.nosim.yaml)
+        echo "Gazebo / ros_gz packages omitted from the image."
+        ;;
+    *)
+        echo "ERROR: KANGA_SIM must be one of: full, none." >&2
+        exit 1
+        ;;
+esac
 
 # Forward an available desktop X11 session so RViz and other Qt tools work in
 # the ordinary development shell. Headless/SSH sessions continue without the

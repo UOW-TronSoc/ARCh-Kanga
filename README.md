@@ -54,6 +54,12 @@ docker compose -f docker/compose.dev.yaml build
 ./scripts/docker_shell.bash
 ```
 
+On macOS or other hosts that cannot install Humble Gazebo binaries:
+
+```bash
+KANGA_SIM=none ./scripts/docker_shell.bash
+```
+
 Inside the container:
 
 ```bash

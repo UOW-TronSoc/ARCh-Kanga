@@ -1,7 +1,7 @@
 #pragma once
 
 /*
- * DriveManager — drive state, all-wheel error clearing, and calibration.
+ * DriveManager — drive state, all-wheel error clearing, and commissioning.
  *
  * Owns ROS services only; does not stream setpoints (that is kanga_core_controller)
  * and does not talk Fibre/CAN itself (commission_wheels → custom_odrive commission).
@@ -9,20 +9,26 @@
  * Services this node offers (names relative to the node, e.g. /drive_manager/…):
  *
  *   ~/set_closed_loop  (std_srvs/SetBool)
- *     Put every wheel into CLOSED_LOOP or IDLE via custom_odrive request_axis_state.
- *     data=true  → clear_errors, then CLOSED_LOOP (state 8) on each wheel
+ *     Put every wheel into CLOSED_LOOP or IDLE through custom_odrive services.
+ *     data=true  → set_enabled(true), clear_errors, then CLOSED_LOOP (state 8)
  *     data=false → IDLE (state 1) on each wheel
- *     Does NOT call set_enabled / start_enabled — use /drivestop for global stop.
+ *     set_enabled is only used to restore the local latch left false by
+ *     commissioning. /drivestop remains the operator-facing global stop.
  *
  *   ~/clear_errors  (std_srvs/Trigger)
  *     Clear sticky errors on every wheel without changing requested axis state.
  *
- *   ~/calibrate_fl, ~/calibrate_bl, ~/calibrate_br, ~/calibrate_fr  (std_srvs/Trigger)
- *     Run Fibre FULL_CALIBRATION on that one wheel.
- *     Shells: ros2 run kanga_core_drive commission_wheels -- --wheels <id> --calibrate
+ *   ~/save_fl, ~/save_bl, ~/save_br, ~/save_fr  (std_srvs/Trigger)
+ *     Apply the active config to one wheel and save it to ODrive NVRAM.
  *
- * All handlers share drive_operation_mutex_ (try_lock): a second call while one is running
- * fails immediately with message "busy" instead of queueing long work.
+ *   ~/calibrate_fl, ~/calibrate_bl, ~/calibrate_br, ~/calibrate_fr  (std_srvs/Trigger)
+ *     Apply config, run Fibre FULL_CALIBRATION on one wheel, and save to NVRAM.
+ *     Calling this internal service is an off-ground acknowledgement. Human-facing
+ *     callers must collect confirmation for the exact motor before calling it.
+ *
+ * Before either commissioning operation, all four wheels are requested to IDLE.
+ * All handlers share drive_operation_mutex_ (try_lock): a second call while one
+ * is running fails immediately with message "busy" instead of queueing long work.
  */
 
 #include <memory>
@@ -51,9 +57,13 @@ private:
   // Clients we call on each /wheel_<id>/ custom_odrive_node.
   struct WheelClients
   {
+    rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr enabled_client;
     rclcpp::Client<std_srvs::srv::Empty>::SharedPtr clear_errors_client;
     rclcpp::Client<custom_odrive::srv::AxisState>::SharedPtr axis_state_client;
   };
+
+  // Restore the local latch used to park custom_odrive_node for commissioning.
+  std::vector<std::string> enable_all_wheels();
 
   // Send clear-errors requests to every wheel together and return any failures.
   std::vector<std::string> clear_errors_for_all_wheels();
@@ -80,15 +90,17 @@ private:
     const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
     std::shared_ptr<std_srvs::srv::Trigger::Response> response);
 
-  // Shared body for ~/calibrate_<id> Trigger services.
-  void handle_calibrate(
+  // Shared body for per-wheel save and calibration Trigger services.
+  void handle_commission(
     const std::string & wheel_id,
+    bool calibrate,
     const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
     std::shared_ptr<std_srvs::srv::Trigger::Response> response);
 
   std::vector<std::string> wheel_ids_;
-  std::string can_interface_;    // forwarded to commission_wheels --can
-  std::string drivetrain_profile_;    // forwarded to commission_wheels
+  std::string can_interface_;  // forwarded to commission_wheels --can
+  std::string drivetrain_profile_;  // immutable hard profile
+  std::string motor_limits_;  // editable validated operating-limit config
   std::mutex drive_operation_mutex_;
   // Callback group that allows overlapping callbacks (ROS type name:
   // CallbackGroupType::Reentrant). Needed because handlers wait for service
@@ -98,6 +110,8 @@ private:
   std::unordered_map<std::string, WheelClients> wheel_clients_by_id_;
   rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr set_closed_loop_service_;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr clear_errors_service_;
+  std::vector<rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr>
+  save_services_;
   std::vector<rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr>
   calibration_services_;
 };

@@ -266,16 +266,18 @@ for future packages. It must not receive miscellaneous implementation directly.
 
 ## Operator UI (basestation)
 
-`basestation/` is the ground-station HTTP stack (Django/FastAPI/frontend). It is
-**not** a ROS package domain and must not live under `src/`. Those services are
-still ROS 2 participants: they use `rclpy`, publish and subscribe on rover
-topics, and import message types from `kanga_interfaces` after a workspace
-`install/` overlay is sourced.
+`basestation/` is the ground-station HTTP stack: one FastAPI server embeds an
+`rclpy` node and serves the built React frontend on the same port. It is **not**
+a ROS package domain and must not live under `src/`. The server is still a ROS 2
+participant: it publishes and subscribes on rover topics and imports message
+types from `kanga_interfaces` after a workspace `install/` overlay is sourced.
 
 Docker for basestation is separate from `compose.dev.yaml` so members can work
 on ROS packages without starting the operator stack. See
 [Basestation install](../install/basestation.md) and
-[Basestation migration](../migration/basestation.md).
+[Basestation migration](../migration/basestation.md). Planned motor config and
+calibration behavior is documented in the
+[commissioning page plan](../../basestation/COMMISSIONING_PAGE_PLAN.md).
 
 ## Cross-cutting decisions
 

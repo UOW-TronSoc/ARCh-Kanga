@@ -45,7 +45,7 @@ missing.
 
 | URL | What you get |
 | --- | --- |
-| http://localhost:8000/ | React operator UI (PIN → Drive, Logs) |
+| http://localhost:8000/ | React operator UI (PIN, Drive, and Logs) |
 | http://localhost:8000/health | Server + ROS node status as JSON |
 
 Drive arming on the dashboard: release drivestop (confirmed), then **B0**,
@@ -57,6 +57,10 @@ Stop:
 ```bash
 ./scripts/basestation_down.bash
 ```
+
+For frontend-only iteration, keep the backend running and start Vite from
+`basestation/frontend/` with `npm ci && npm run dev`. Vite normally listens on
+port 5173 and proxies API and WebSocket traffic to port 8000.
 
 ## Rover (systemd)
 
@@ -85,6 +89,16 @@ sudo systemctl edit kanga-basestation
 
 Basestation services are ROS participants. “Path B” only means you do not need
 an interactive ROS shell open; the containers still use Humble and `install/`.
+
+## Commissioning mockup
+
+A frontend-only preview is available at `/commissioning`. Its editors, action
+buttons, confirmation dialogs, and progress queue use mock data and do not
+change files or contact ROS/motors. The agreed backend and hardware behavior is
+documented in
+[the commissioning page plan](../../basestation/COMMISSIONING_PAGE_PLAN.md).
+Until that integration is implemented, use the `kanga_core_drive`
+commissioning CLI and per-wheel ROS services documented in that package.
 
 ## Shared contract
 

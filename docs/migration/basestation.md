@@ -24,7 +24,11 @@ Still outstanding (not migration blockers):
 - **Rover boot deployment** — systemd unit and compose restart policy exist;
   PIN, session secret, and legacy stack retirement on the competition Jetson
   are manual follow-ups.
-- **Per-wheel calibrate UI** — REST endpoint only (`POST /api/drive/calibrate/{wheel}`).
+- **Motor commissioning integration** — a frontend-only mockup now previews the
+  config editor and sequential workflow, but it does not change files or
+  contact ROS/motors. The per-wheel calibration REST endpoint exists; the full
+  save/calibration backend remains planned. See
+  [the commissioning page plan](../../basestation/COMMISSIONING_PAGE_PLAN.md).
 - **Live battery** — widget present; `kanga_core_battery` not wired through yet.
 
 ## Primary reference (legacy application code)
@@ -46,6 +50,9 @@ the old repo.
 
 [basestation/REDESIGN_PLAN.md](../../basestation/REDESIGN_PLAN.md) — architecture,
 WebSocket contracts, and Phase 1/2 checklist.
+
+[basestation/COMMISSIONING_PAGE_PLAN.md](../../basestation/COMMISSIONING_PAGE_PLAN.md)
+— follow-on motor config, save, and sequential calibration design.
 
 ## Validation
 

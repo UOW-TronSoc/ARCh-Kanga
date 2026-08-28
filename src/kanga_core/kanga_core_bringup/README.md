@@ -120,17 +120,22 @@ ros2 launch kanga_core_bringup core_drive.launch.py
 ros2 service call /drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: true}"
 ```
 
-The bringup selects one versioned drivetrain profile and passes it to
-controller, drive, feedback, and commissioning:
+The bringup selects one versioned physical profile and one editable operating
+limit config, then passes the same validated effective values to controller,
+drive, feedback, and commissioning:
 
 ```bash
 ros2 launch kanga_core_bringup core_drive.launch.py \
-  drivetrain_profile:=drivetrain_2025
+  drivetrain_profile:=drivetrain_2025 \
+  motor_limits:=core
 ```
 
 Add/select a new profile in `kanga_core_description` when the physical
 drivetrain changes; do not duplicate its dimensions, reduction, or motor TPS
-limit in consumer YAML files.
+hard limits in consumer YAML files. Lower normal operating limits in
+`kanga_core_description/config/motor_limits/core.yaml`, then rebuild/relaunch
+the core stack. Recommission affected motors when their saved ODrive limits
+must also change.
 
 ---
 
@@ -192,11 +197,14 @@ CLI:
 
 ```bash
 ros2 run kanga_core_drive commission_wheels -- \
-  --wheels fl --can can_core --calibrate
+  --wheels fl --can can_core --calibrate --save
 # repeat bl, br, fr as needed
 ```
 
-Or after bringup is running, via services:
+Or after bringup is running, via services. Calling a calibration service is the
+off-ground acknowledgement for that exact wheel; verify it before pressing
+Enter. The service applies config, calibrates, saves to NVRAM, and leaves that
+motor disabled:
 
 ```bash
 ros2 service call /drive_manager/calibrate_fl std_srvs/srv/Trigger "{}"

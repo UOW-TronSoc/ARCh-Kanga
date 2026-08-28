@@ -153,7 +153,7 @@ not copies of consumer-specific derived values:
 - overall wheel-envelope length and width
 - grouser angle and limited-holonomic hardware capability
 - motor revolutions per wheel revolution
-- commissioned motor velocity and acceleration limits in turns/s and turns/s²
+- maximum motor velocity and acceleration capability in turns/s and turns/s²
 - a deliberately high wheel-joint effort ceiling for simulation (not a
   measured drivetrain torque limit)
 - suspension linkage L1/L2/L3 dimensions and physical theta at beta = 0
@@ -180,6 +180,26 @@ ros2 launch kanga_core_bringup core_drive.launch.py \
 Selection is a launch-time hardware choice, not a live tuning parameter. Add a
 new profile when the suspension/drivetrain changes; do not copy physical values
 into controller or drive YAML files.
+
+## Editable motor limits
+
+The physical profile values are hard ceilings. Normal operating values live in
+[`config/motor_limits/core.yaml`](config/motor_limits/core.yaml) so an operator
+can lower them without rewriting the rover's physical description. The initial
+values match the `drivetrain_2025` ceilings:
+
+- `motor_velocity_limit_tps: 22.0`
+- `motor_acceleration_limit_tps_s: 80.0`
+
+`load_effective_drivetrain_configuration()` validates both numbers as finite
+and positive, rejects values above the selected profile, then recalculates the
+wheel-joint velocity and acceleration parameters. Physical controller, drive,
+and commissioning launches all use that same effective dictionary.
+
+Runtime nodes read the file only at launch. Saving a lower value therefore
+requires a core relaunch; saving or calibrating a motor also writes the same
+validated limits to that ODrive. The factory baseline used by the future
+browser Restore Defaults action is under `config/defaults/motor_limits/`.
 
 ## Migration provenance
 

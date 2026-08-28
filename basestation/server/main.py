@@ -1,4 +1,5 @@
-"""Basestation server entry point.
+"""
+Basestation server entry point.
 
 Phase 1 scaffold (see ../REDESIGN_PLAN.md, task 1): one FastAPI app, one
 rclpy node on a background executor thread, static file serving, and a
@@ -17,15 +18,29 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
+from .commissioning_api import (
+    create_commissioning_router,
+    create_legacy_commissioning_router,
+)
+from .commissioning_catalog import build_commissioning_catalog
+from .commissioning_config import CommissioningConfigStore
+from .commissioning_jobs import CommissioningManager
 from .log_buffer import attach_log_buffer
 from .operator import router as operator_router
 from .ros import MAX_LINEAR_MPS, MAX_YAW_RAD_S, TELEMETRY_HZ, RosRuntime
+from .spa_static import SPAStaticFiles
 
 runtime = RosRuntime()
+commissioning_catalog = build_commissioning_catalog()
+commissioning_store = CommissioningConfigStore(commissioning_catalog)
+commissioning_manager = CommissioningManager(
+    commissioning_catalog,
+    commissioning_store,
+    runtime,
+)
 
 
 @asynccontextmanager
@@ -46,6 +61,8 @@ app.add_middleware(
     https_only=False,
 )
 app.include_router(operator_router)
+app.include_router(create_commissioning_router(commissioning_manager))
+app.include_router(create_legacy_commissioning_router(commissioning_manager))
 
 
 @app.get("/health")
@@ -76,24 +93,32 @@ class EnableRequest(BaseModel):
 
 @app.post("/api/drive/drivestop")
 async def api_drivestop(body: StopRequest) -> dict:
+    if commissioning_manager.job_active() and not body.stop:
+        raise HTTPException(
+            status_code=409,
+            detail="cannot release drivestop during commissioning",
+        )
     return await asyncio.to_thread(runtime.set_drivestop, body.stop)
 
 
 @app.post("/api/drive/closed-loop")
 async def api_closed_loop(body: EnableRequest) -> dict:
+    if commissioning_manager.job_active() and body.enable:
+        raise HTTPException(
+            status_code=409,
+            detail="cannot enable closed loop during commissioning",
+        )
     return await asyncio.to_thread(runtime.set_closed_loop, body.enable)
 
 
 @app.post("/api/drive/clear-errors")
 async def api_clear_errors() -> dict:
+    if commissioning_manager.job_active():
+        raise HTTPException(
+            status_code=409,
+            detail="cannot clear drive errors during commissioning",
+        )
     return await asyncio.to_thread(runtime.clear_drive_errors)
-
-
-@app.post("/api/drive/calibrate/{wheel}")
-async def api_calibrate(wheel: str) -> dict:
-    if wheel.lower() not in ("fl", "bl", "br", "fr"):
-        raise HTTPException(status_code=400, detail="wheel must be fl, bl, br, or fr")
-    return await asyncio.to_thread(runtime.calibrate_wheel, wheel.lower())
 
 
 # Close code sent to a tab that lost control to a newer one. The page must
@@ -106,7 +131,8 @@ _holder: Optional[WebSocket] = None
 
 @app.websocket("/ws/control")
 async def ws_control(ws: WebSocket) -> None:
-    """Drive commands from the operator's browser.
+    """
+    Drive commands from the operator's browser.
 
     The browser sends small JSON frames at ~20 Hz while driving:
         {"t": "drive", "x": -1..1, "yaw": -1..1, "scale": 0..100}
@@ -152,7 +178,8 @@ async def ws_control(ws: WebSocket) -> None:
 
 @app.websocket("/ws/telemetry")
 async def ws_telemetry(ws: WebSocket) -> None:
-    """Push robot state to the operator page at a fixed rate.
+    """
+    Push robot state to the operator page at a fixed rate.
 
     Unlike /ws/control, any number of tabs may listen — this is read-only.
     """
@@ -170,4 +197,4 @@ async def ws_telemetry(ws: WebSocket) -> None:
 
 # Static frontend last so API routes above take precedence.
 _static_dir = Path(__file__).resolve().parent / "static"
-app.mount("/", StaticFiles(directory=_static_dir, html=True), name="static")
+app.mount("/", SPAStaticFiles(directory=_static_dir, html=True), name="static")

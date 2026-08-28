@@ -1,0 +1,6 @@
+# Factory baseline for config/motor_limits/core.yaml.
+# Restore Defaults copies this content into the editor; Save File is still
+# required before the active configuration changes.
+
+motor_velocity_limit_tps: 22.0
+motor_acceleration_limit_tps_s: 80.0

@@ -57,10 +57,15 @@ class TestConfigMerge(unittest.TestCase):
         self.assertIn("spinout_electrical_power_bandwidth = 20", text)
         self.assertIn("spinout_mechanical_power_threshold = -30", text)
         self.assertIn("spinout_electrical_power_threshold = 30", text)
-        # Shared block before per-wheel overlay assignment
+        # Shared block runs before the per-wheel overlay.
         self.assertLess(
             text.find("baud_rate = 250000"),
             text.find('SERIAL_NUMBER = "394D353B3231"'),
+        )
+        # The protected assignments run after the per-wheel overlay.
+        self.assertLess(
+            text.find("node_id = 1"),
+            text.find("odrv.axis0.controller.config.vel_limit ="),
         )
 
     def test_all_wheels_have_serial(self):
@@ -75,7 +80,7 @@ class TestConfigMerge(unittest.TestCase):
             self.assertIn("SERIAL_NUMBER", merged)
             self.assertIn("node_id", merged)
 
-    def test_motor_velocity_limit_has_one_profile_source(self):
+    def test_motor_velocity_limit_is_not_editable_in_shared_config(self):
         shared_text = (self.motors / "shared_motor_config.py").read_text(
             encoding="utf-8"
         )
@@ -87,9 +92,10 @@ class TestConfigMerge(unittest.TestCase):
             self.profile.parameters["motor_acceleration_limit_tps_s"],
         )
         self.assertNotIn("MOTOR_VELOCITY_LIMIT_TPS = 22", shared_text)
+        self.assertNotIn("odrv.axis0.controller.config.vel_limit =", shared_text)
         self.assertIn("MOTOR_VELOCITY_LIMIT_TPS = 22.0", merged)
 
-    def test_motor_acceleration_limit_has_one_profile_source(self):
+    def test_motor_acceleration_limit_is_not_editable_in_shared_config(self):
         shared_text = (self.motors / "shared_motor_config.py").read_text(
             encoding="utf-8"
         )
@@ -100,6 +106,7 @@ class TestConfigMerge(unittest.TestCase):
             self.profile.parameters["motor_acceleration_limit_tps_s"],
         )
         self.assertNotIn("MOTOR_ACCELERATION_LIMIT_TPS_S = 80", shared_text)
+        self.assertNotIn("odrv.axis0.controller.config.vel_ramp_rate =", shared_text)
         self.assertIn("MOTOR_ACCELERATION_LIMIT_TPS_S = 80.0", merged)
 
     def test_profile_supplies_drive_reduction(self):

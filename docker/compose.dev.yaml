@@ -8,12 +8,11 @@ services:
         USER_GID: ${KANGA_GID:-1000}
     image: kanga-dev:humble
     container_name: kanga-dev
-    # Default: Docker's bridge network. On Docker Desktop (macOS) real host
-    # networking isn't reachable from outside the VM anyway, and this lets
+    # Default: Docker's bridge network. On Docker Desktop (macOS/Windows/WSL2)
+    # real host networking isn't reachable from outside the VM, and this lets
     # kanga-dev share a network with basestation-server for local dev (both
-    # land on the same default project network). Linux (native hardware,
-    # the rover's Orin) opts into real host networking via
-    # compose.dev.host.yaml, which SocketCAN and the ROS graph need.
+    # land on the same default project network). Native Linux (rover Orin)
+    # opts into real host networking via compose.dev.host.yaml.
     ipc: host
     privileged: true
     # SDL-based ROS joy reads /dev/input/event*, which are owned by this host group.

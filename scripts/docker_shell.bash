@@ -34,12 +34,15 @@ KANGA_CACHE_BASE="${XDG_CACHE_HOME:-${HOME}/.cache}"
 export KANGA_ODRIVE_CACHE="${KANGA_ODRIVE_CACHE:-${KANGA_CACHE_BASE}/odrivetool}"
 mkdir -p "${KANGA_ODRIVE_CACHE}"
 
+# shellcheck source=kanga_host_network.bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/kanga_host_network.bash"
+
 COMPOSE_ARGUMENTS=(-f docker/compose.dev.yaml)
 
-# Linux (including the rover's Orin): real host networking for SocketCAN and
-# the ROS graph. macOS/Windows Docker Desktop stays on the default bridge
-# network set in compose.dev.yaml (see comment there).
-if [[ "$(uname -s)" == "Linux" ]]; then
+# Native Linux (rover Orin, etc.): real host networking for SocketCAN and the
+# ROS graph. Docker Desktop — macOS, Windows, and WSL2 — stays on the default
+# bridge in compose.dev.yaml so published ports still work.
+if kanga_use_compose_host_network; then
     COMPOSE_ARGUMENTS+=(-f docker/compose.dev.host.yaml)
 fi
 

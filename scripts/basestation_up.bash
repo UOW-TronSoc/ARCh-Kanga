@@ -31,10 +31,13 @@ if [[ "${SKIP_FRONTEND_BUILD:-0}" != "1" ]]; then
   ./scripts/build_frontend.bash
 fi
 
-# Default compose publishes 8000:8000 (required on Docker Desktop). Linux can
-# opt into host networking to share the ROS graph with other host processes.
+# shellcheck source=kanga_host_network.bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/kanga_host_network.bash"
+
+# Default compose publishes 8000:8000 (required on Docker Desktop / WSL).
+# Native Linux can opt into host networking to share the ROS graph.
 COMPOSE_FILES=(-f docker/compose.basestation.yaml)
-if [[ "$(uname -s)" == "Linux" ]]; then
+if kanga_use_compose_host_network; then
   COMPOSE_FILES+=(-f docker/compose.basestation.host.yaml)
 fi
 

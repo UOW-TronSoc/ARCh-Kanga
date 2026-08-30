@@ -15,9 +15,9 @@ services:
     image: kanga-basestation-python:humble
     container_name: basestation-server
     restart: unless-stopped
-    # Do not use network_mode: host here. On Docker Desktop (macOS/Windows)
+    # Do not use network_mode: host here. On Docker Desktop (macOS/Windows/WSL2)
     # that binds inside the Linux VM, so the host browser cannot reach :8000.
-    # Published ports work on Linux, macOS, and Windows. Linux ROS host
+    # Published ports work on those platforms. Native Linux ROS host
     # networking remains available via compose.basestation.host.yaml.
     ports:
       - "8000:8000"

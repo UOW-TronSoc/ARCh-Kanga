@@ -1,5 +1,6 @@
-# Linux-only overlay: join the host ROS graph. Incompatible with published
+# Native-Linux overlay: join the host ROS graph. Incompatible with published
 # ports; localhost:8000 still works because the process binds on the host.
+# Skipped on Docker Desktop / WSL2 (see scripts/kanga_host_network.bash).
 services:
   basestation-server:
     network_mode: host

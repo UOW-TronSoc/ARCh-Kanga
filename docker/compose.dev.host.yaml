@@ -1,8 +1,8 @@
-# Linux-only overlay: join the host network to reach SocketCAN interfaces and
+# Native-Linux overlay: join the host network to reach SocketCAN interfaces and
 # share the host's real ROS 2 graph (see docs/install/docker.md). On Docker
-# Desktop (macOS/Windows) "host" networking is the internal VM, not the real
-# machine, so this is skipped there in favor of compose.dev.yaml's default
-# bridge network. Applied by docker_shell.bash when uname -s == Linux.
+# Desktop (macOS/Windows/WSL2) "host" networking is the internal VM, not the
+# real machine, so this is skipped there in favor of compose.dev.yaml's default
+# bridge network. Applied by docker_shell.bash via kanga_use_compose_host_network.
 services:
   kanga-dev:
     network_mode: host

@@ -59,9 +59,9 @@ source install/setup.bash
 ```
 
 `custom_odrive` comes from the vendor pin under `src/vendor/` (see
-[`src/vendor/README.md`](../../../src/vendor/README.md)). Import that once when
-setting up a machine / after changing `kanga_vendor.repos` — not before every
-build.
+[`src/vendor/README.md`](../../../src/vendor/README.md)).
+`build_workspace.bash` imports it automatically; after changing
+`kanga_vendor.repos`, delete the old checkout under `src/vendor/` and rebuild.
 
 ## Launch
 

@@ -1,0 +1,6 @@
+# Linux-only overlay: join the host ROS graph. Incompatible with published
+# ports; localhost:8000 still works because the process binds on the host.
+services:
+  basestation-server:
+    network_mode: host
+    ports: []

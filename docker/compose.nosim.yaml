@@ -1,0 +1,11 @@
+services:
+  kanga-dev:
+    # Overlay for hosts that cannot install Humble Gazebo Fortress binaries
+    # (Apple Silicon / arm64). Use with compose.dev.yaml.
+    build:
+      args:
+        APT_PACKAGES: docker/apt-packages.nosim.txt
+        KANGA_ENABLE_SIM: "0"
+    image: kanga-dev:humble-nosim
+    environment:
+      - KANGA_ENABLE_SIM=0

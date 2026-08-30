@@ -71,10 +71,19 @@ Then build the workspace (inside the container):
 ./scripts/docker_shell.bash
 # equivalent to:
 # docker compose -f docker/compose.dev.yaml run --rm --build kanga-dev
+
+# Skip Gazebo Fortress and ros_gz (Apple Silicon / hosts without those binaries):
+KANGA_SIM=none ./scripts/docker_shell.bash
+# equivalent to:
+# docker compose -f docker/compose.dev.yaml -f docker/compose.nosim.yaml \
+#   run --rm --build kanga-dev
 ```
 
 The shell helper checks the image build before starting. Docker reuses cached
-layers when `Dockerfile.dev` and `apt-packages.txt` have not changed.
+layers when `Dockerfile.dev` and the selected apt package list have not changed.
+`KANGA_SIM=none` uses `docker/apt-packages.nosim.txt` and tags `kanga-dev:humble-nosim`.
+Inside that image, `./scripts/build_workspace.bash` skips `kanga_sim` and
+`kanga_core_simulation`.
 
 From a graphical Linux desktop, the helper also applies
 `docker/compose.gui.yaml` automatically. It forwards the current X11 display
@@ -139,7 +148,9 @@ KANGA_UID="$(id -u)" KANGA_GID="$(id -g)" \
 ```
 
 Reusable operating-system dependencies are listed in
-`docker/apt-packages.txt`. Add a package there and rebuild the image.
+`docker/apt-packages.txt`. Gazebo Fortress and `ros_gz` live only on that list.
+`docker/apt-packages.nosim.txt` is the same set without those packages. Add a
+package to the list the image actually copies, then rebuild.
 
 Python packages used inside the dev container (e.g. `odrive` for Fibre-over-CAN
 commissioning) are listed in `docker/pip-packages.txt` and installed during the

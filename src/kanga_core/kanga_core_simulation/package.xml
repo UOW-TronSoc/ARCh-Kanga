@@ -12,7 +12,7 @@
   <depend>builtin_interfaces</depend>
   <depend>geometry_msgs</depend>
   <depend>ignition-gazebo6</depend>
-  <depend>ignition-plugin1</depend>
+  <depend>ignition-plugin</depend>
   <depend>kanga_core_microcontroller</depend>
   <depend>kanga_interfaces</depend>
   <depend>nav_msgs</depend>

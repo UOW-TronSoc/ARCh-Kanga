@@ -12,8 +12,12 @@ SHELL ["/bin/bash", "-c"]
 ARG USER_NAME=kanga
 ARG USER_UID=1000
 ARG USER_GID=1000
+ARG APT_PACKAGES=docker/apt-packages.txt
+ARG KANGA_ENABLE_SIM=1
 
-COPY docker/apt-packages.txt /tmp/apt-packages.txt
+ENV KANGA_ENABLE_SIM=${KANGA_ENABLE_SIM}
+
+COPY ${APT_PACKAGES} /tmp/apt-packages.txt
 COPY docker/pip-packages.txt /tmp/pip-packages.txt
 
 # Strip CR so Windows-checkout CRLF package lists still install cleanly.
@@ -28,7 +32,10 @@ RUN apt-get update \
 
 # Match the development user to the host so bind-mounted build files are not
 # owned by root. sudo is retained for rosdep to install declared dependencies.
-RUN groupadd --gid "${USER_GID}" "${USER_NAME}" \
+# macOS staff is GID 20, which is already dialout in Ubuntu; reuse that group.
+RUN if ! getent group "${USER_GID}" >/dev/null; then \
+         groupadd --gid "${USER_GID}" "${USER_NAME}"; \
+       fi \
     && useradd --uid "${USER_UID}" --gid "${USER_GID}" --create-home \
         --shell /bin/bash "${USER_NAME}" \
     && echo "${USER_NAME} ALL=(root) NOPASSWD:ALL" \

@@ -31,12 +31,19 @@ if [[ "${SKIP_FRONTEND_BUILD:-0}" != "1" ]]; then
   ./scripts/build_frontend.bash
 fi
 
-docker compose -f docker/compose.basestation.yaml build
-docker compose -f docker/compose.basestation.yaml up -d
+# Default compose publishes 8000:8000 (required on Docker Desktop). Linux can
+# opt into host networking to share the ROS graph with other host processes.
+COMPOSE_FILES=(-f docker/compose.basestation.yaml)
+if [[ "$(uname -s)" == "Linux" ]]; then
+  COMPOSE_FILES+=(-f docker/compose.basestation.host.yaml)
+fi
+
+docker compose "${COMPOSE_FILES[@]}" build
+docker compose "${COMPOSE_FILES[@]}" up -d
 
 cat <<'EOF'
 
-Basestation server is up (host networking):
+Basestation server is up:
 
   Operator UI:  http://localhost:8000/
   Health:       http://localhost:8000/health

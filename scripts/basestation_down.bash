@@ -7,6 +7,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 
-docker compose -f docker/compose.basestation.yaml down
+COMPOSE_FILES=(-f docker/compose.basestation.yaml)
+if [[ "$(uname -s)" == "Linux" ]]; then
+  COMPOSE_FILES+=(-f docker/compose.basestation.host.yaml)
+fi
+
+docker compose "${COMPOSE_FILES[@]}" down
 
 echo "Basestation server stopped."

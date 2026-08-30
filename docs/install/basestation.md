@@ -6,6 +6,11 @@ lives under `basestation/` (not under `src/`) and shares the host network /
 and ROS node — runs from a single service on port 8000. Design and progress:
 [basestation/REDESIGN_PLAN.md](../../basestation/REDESIGN_PLAN.md).
 
+Rover launch processes do not run in this container. The active ROS runtime
+(`kanga-dev` during development or `kanga-onboard` in production) runs
+`kanga_launch_agent`, and FastAPI talks to it over ROS services. The basestation
+has neither a local launch subprocess nor access to the Docker socket.
+
 ## Responsibility split
 
 ### Docker handles
@@ -30,11 +35,13 @@ Docker access on the host: your user must be able to talk to the Docker engine
 From the repository root, build the workspace at least once:
 
 ```bash
-docker compose -f docker/compose.dev.yaml build
 ./scripts/docker_shell.bash
 # inside the container:
 ./scripts/build_workspace.bash
 ```
+
+`docker_shell.bash` builds/updates the Docker image when creating the runtime.
+`build_workspace.bash` is the separate colcon workspace build.
 
 `./scripts/basestation_up.bash` exits with an error if `install/setup.bash` is
 missing.
@@ -44,6 +51,10 @@ missing.
 ```bash
 ./scripts/basestation_up.bash
 ```
+
+This command starts only the basestation. During development, start the launch
+agent inside the existing `kanga-dev` container. On the rover, systemd starts
+the separate production `kanga-onboard` container before the basestation.
 
 On Linux, `basestation_up.bash` also applies host networking so the server
 joins the same ROS graph as other host processes. Docker Desktop on macOS and
@@ -75,27 +86,79 @@ After workspace build and a one-time frontend build on the rover:
 
 ```bash
 ./scripts/build_frontend.bash          # or SKIP_FRONTEND_BUILD=1 if already built
+./scripts/onboard_up.bash              # builds the no-simulation image once
+sudo ./scripts/onboard_install_service.bash
 sudo ./scripts/basestation_install_service.bash
-sudo systemctl enable --now kanga-basestation
+sudo systemctl enable --now kanga-onboard kanga-basestation
 ```
 
 The compose service uses `restart: unless-stopped`. Boot-time starts skip
-frontend rebuild (`SKIP_FRONTEND_BUILD=1`). Edit the unit if the repo path or
-robot bringup unit name differs:
+image and frontend rebuilds. The host configures `can_core` before starting the
+agent, but a missing adapter does not prevent the agent and UI from coming up.
+Edit the units if the repo path differs:
 
 ```bash
 sudo systemctl edit kanga-basestation
 ```
 
+Stable `can_core` naming remains a host udev responsibility. The unit only
+applies bitrate and queue configuration to the already named interface.
+
 ## Workflows
 
-- **Path A (ROS only):** `docker_shell.bash` + `build_workspace.bash`
+- **Path A (ROS only):** `docker_shell.bash` + `build_workspace.bash`. Repeated
+  `docker_shell.bash` calls enter the same persistent `kanga-dev` container.
 - **Path B (basestation):** `basestation_up.bash` after `install/` exists
 - **Path C (control test):** Path A with nodes running, then Path B on the same
   machine and `ROS_DOMAIN_ID`
 
 Basestation services are ROS participants. “Path B” only means you do not need
 an interactive ROS shell open; the containers still use Humble and `install/`.
+
+### Development and simulation
+
+Use `kanga-dev` and `basestation-server`; do not also start `kanga-onboard`:
+
+```bash
+# Terminal 1: persistent ROS runtime and launch agent
+./scripts/docker_shell.bash
+ros2 launch kanga_launch_agent launch_agent.launch.py
+
+# Terminal 2: same ROS runtime, for diagnostics or a manually managed sim
+./scripts/docker_shell.bash
+
+# Host terminal: separate web/API container
+./scripts/basestation_up.bash
+```
+
+Running `docker_shell.bash` again never creates another development container.
+If more than one legacy `kanga-dev` container is detected, the helper stops with
+an error instead of selecting one. Use `./scripts/docker_dev_down.bash` when the
+persistent runtime is no longer needed.
+
+### Rover production
+
+Use `kanga-onboard` and `basestation-server`; do not run `kanga-dev` as another
+rover runtime. Systemd starts the onboard agent first, then the basestation. The
+agent initially owns no subsystem process: Core remains stopped until an
+allowlisted start request arrives.
+
+## System-startup API
+
+The backend exposes only fixed lifecycle operations:
+
+```text
+GET  /api/systems
+POST /api/systems/{system_id}/start
+POST /api/systems/{system_id}/stop
+POST /api/systems/{system_id}/restart
+```
+
+Action requests have no command or launch-argument body. FastAPI forwards the
+system id and fixed action to the onboard ROS agent, which applies its own
+profile allowlist and lifecycle rules. When a PIN is configured, all four
+routes require the authenticated operator session. An unreachable agent returns
+HTTP 503; a rejected transition, including an `UNMANAGED` stack, returns 409.
 
 ## Commissioning mockup
 

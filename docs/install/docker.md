@@ -69,15 +69,48 @@ Then build the workspace (inside the container):
 
 ```bash
 ./scripts/docker_shell.bash
-# equivalent to:
-# docker compose -f docker/compose.dev.yaml run --rm --build kanga-dev
+# equivalent in principle to:
+# docker compose -f docker/compose.dev.yaml up -d --build kanga-dev
+# docker compose -f docker/compose.dev.yaml exec kanga-dev bash
 
 # Skip Gazebo Fortress and ros_gz (Apple Silicon / hosts without those binaries):
 KANGA_SIM=none ./scripts/docker_shell.bash
-# equivalent to:
-# docker compose -f docker/compose.dev.yaml -f docker/compose.nosim.yaml \
-#   run --rm --build kanga-dev
 ```
+
+`kanga-dev` is persistent. Opening `docker_shell.bash` in another terminal
+enters the same container, so an agent, simulation, and diagnostic shells share
+one process namespace and ROS environment. Stop it explicitly when finished:
+
+```bash
+./scripts/docker_dev_down.bash
+```
+
+Image, simulation, networking, and GUI/GPU options are evaluated only when the
+container is first created. Stop it before changing options such as
+`KANGA_SIM=none`; entering from another terminal never recreates a running
+container.
+
+`KANGA_GPU=auto` is the default and selects NVIDIA only when both the host
+driver and Docker runtime are ready. `KANGA_GPU=nvidia` makes that requirement
+mandatory, while `KANGA_GPU=none` disables NVIDIA selection. GPU selection is
+used only when a graphical session is available.
+
+Launch-manager development uses two shells in that one container:
+
+```bash
+# Terminal 1
+./scripts/docker_shell.bash
+ros2 launch kanga_launch_agent launch_agent.launch.py
+
+# Terminal 2: enters the already-running kanga-dev container
+./scripts/docker_shell.bash
+ros2 service call /launch_manager/list \
+  kanga_interfaces/srv/ListManagedLaunches "{}"
+```
+
+Core should be started through the agent while testing lifecycle ownership. A
+manually started physical or simulated Core stack is intentionally reported as
+`UNMANAGED` and will not be stopped by the agent.
 
 The shell helper checks the image build before starting. Docker reuses cached
 layers when `Dockerfile.dev` and the selected apt package list have not changed.
@@ -163,15 +196,32 @@ docker compose -f docker/compose.dev.yaml build
 Declare ROS package dependencies in the relevant `package.xml` so rosdep can
 resolve them.
 
+## Persistent onboard runtime
+
+The rover runtime is a separate `kanga-onboard` service built from the same
+reproducible ROS recipe without Gazebo packages. It starts only
+`kanga_launch_agent`; operator-selected subsystem launches become its child
+process groups:
+
+```bash
+./scripts/onboard_up.bash
+./scripts/onboard_down.bash
+```
+
+The ordinary `docker_shell.bash` workflow remains the single interactive
+development and simulation environment. Run the launch agent inside it when
+testing the launch manager. Adding a production launch profile does not add a
+container: it adds one fixed entry to the onboard agent's profile catalog.
+
 ## ODrive Fibre commissioning
 
 `commission_wheels` and `custom_odrive commission` run inside the dev container
 like the rest of the stack.
 
 `docker_shell.bash` bind-mounts the host odrivetool cache at
-`/home/kanga/.cache/odrivetool`. Without it, each disposable `docker compose run
---rm` shell must re-download the firmware device descriptor over CAN; on a busy
-bus that can look like a serial discovery failure.
+`/home/kanga/.cache/odrivetool`. Without it, each container recreation must
+re-download the firmware device descriptor over CAN; on a busy bus that can
+look like a serial discovery failure.
 
 ```bash
 # default: ~/.cache/odrivetool on the host

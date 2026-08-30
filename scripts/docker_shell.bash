@@ -2,7 +2,8 @@
 #
 # Convenience script to open an interactive shell in the Kanga dev container.
 #
-# Builds (if needed) and runs the kanga-dev service, removing the container on exit.
+# Builds/starts one persistent kanga-dev service, then enters it. Repeated calls
+# open additional shells in the same container.
 # Set KANGA_SIM=none to skip Gazebo Fortress and ros_gz (needed on Apple Silicon).
 #
 set -euo pipefail
@@ -17,6 +18,30 @@ EOF
     exit 1
 fi
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "${ROOT_DIR}"
+
+# Do this before evaluating build, GUI, GPU, or simulation options. A second
+# terminal must enter the existing runtime exactly as it is and must never
+# recreate it because that terminal has a different DISPLAY or environment.
+# The label lookup also reuses an older compose-run container during migration.
+mapfile -t RUNNING_DEV_CONTAINERS < <(
+    docker ps \
+        --filter label=com.docker.compose.service=kanga-dev \
+        --format '{{.Names}}'
+)
+if [ "${#RUNNING_DEV_CONTAINERS[@]}" -gt 1 ]; then
+    echo "ERROR: multiple kanga-dev containers are running:" >&2
+    printf '  %s\n' "${RUNNING_DEV_CONTAINERS[@]}" >&2
+    echo "Stop the obsolete container before continuing." >&2
+    exit 1
+fi
+if [ "${#RUNNING_DEV_CONTAINERS[@]}" -eq 1 ]; then
+    echo "Entering existing ${RUNNING_DEV_CONTAINERS[0]} container."
+    docker exec -it "${RUNNING_DEV_CONTAINERS[0]}" bash
+    exit 0
+fi
+
 # Pass the host identity into image builds so bind-mounted workspace artifacts
 # remain editable by the host user. Defaults in Compose still cover UID/GID 1000.
 export KANGA_UID="${KANGA_UID:-$(id -u)}"
@@ -26,10 +51,9 @@ export KANGA_INPUT_GID="${KANGA_INPUT_GID:-$(stat -c '%g' /dev/input/event0 2>/d
 # Let the non-root container user open the host's direct-rendering nodes.
 export KANGA_RENDER_GID="${KANGA_RENDER_GID:-$(stat -c '%g' /dev/dri/renderD128 2>/dev/null || echo 109)}"
 
-# docker compose run --rm gives the development user a fresh home directory on
-# every invocation. Persist odrivetool's device descriptor cache from the host;
-# otherwise the first Fibre-over-CAN connection must download ~50 KiB of JSON
-# over the live CAN bus again. The matched UID/GID keeps the bind mount writable.
+# Persist odrivetool's device descriptor cache from the host; otherwise the
+# first Fibre-over-CAN connection after container recreation must download
+# roughly 50 KiB of JSON over the live CAN bus again.
 KANGA_CACHE_BASE="${XDG_CACHE_HOME:-${HOME}/.cache}"
 export KANGA_ODRIVE_CACHE="${KANGA_ODRIVE_CACHE:-${KANGA_CACHE_BASE}/odrivetool}"
 mkdir -p "${KANGA_ODRIVE_CACHE}"
@@ -143,4 +167,5 @@ EOF
     fi
 fi
 
-docker compose "${COMPOSE_ARGUMENTS[@]}" run --rm --build kanga-dev
+docker compose "${COMPOSE_ARGUMENTS[@]}" up -d --build kanga-dev
+docker compose "${COMPOSE_ARGUMENTS[@]}" exec kanga-dev bash

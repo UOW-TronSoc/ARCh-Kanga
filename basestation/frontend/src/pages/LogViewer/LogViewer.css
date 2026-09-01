@@ -51,6 +51,40 @@
   opacity: 0.45;
 }
 
+.logsFolder--ns {
+  font-weight: 500;
+  font-size: 0.78rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  padding: 0.28rem 0.45rem;
+}
+
+.logsFolder.is-active,
+.logsFolder--ns.is-active {
+  color: var(--accent);
+  background: rgba(248, 206, 77, 0.12);
+}
+
+.logsNsRow {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.logsNsToggle {
+  flex: 0 0 1.4rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.2rem 0;
+  color: rgba(255, 255, 255, 0.65);
+  background: transparent;
+  cursor: pointer;
+}
+
+.logsNsToggle:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .logsLeaves {
   list-style: none;
   margin: 0 0 0.5rem;
@@ -81,6 +115,11 @@
 .logsLeaf.is-active {
   color: var(--accent);
   background: rgba(248, 206, 77, 0.12);
+}
+
+.logsLeaf--nested {
+  margin-left: 1.55rem;
+  width: calc(100% - 1.55rem);
 }
 
 .logsPane {

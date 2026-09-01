@@ -49,12 +49,12 @@ Logs
 
 ROS children under `ROS` are **graph names** seen in the current `/rosout`
 buffer (`/wheel_bl/can_node`), not launch process labels
-(`custom_odrive_node-13`). Nested namespaces can use nested folders later
-(`ROS / wheel_bl / can_node`); the first slice can be a flat list of names
-under `ROS`.
+(`custom_odrive_node-13`). Names with `/` nest automatically
+(`ROS / wheel_bl / can_node`). Click a namespace to show every logger under
+that prefix; click a leaf for that one name.
 
 Selecting `ROS / All` shows every `/rosout` line (still subject to the
-level floor). Selecting a name shows only that logger.
+level floor).
 
 Do not merge ROS and HTTP rows in one table. Switching leaves switches the
 pane.
@@ -228,7 +228,7 @@ stages must not be started until the previous stage is checked.
 
 ### Later (not this branch unless pulled in)
 
-- [ ] Nested ROS folders by namespace (`ROS / wheel_bl / can_node`).
+- [x] Nested ROS folders by namespace (`ROS / wheel_bl / can_node`).
 - [ ] Docker leaf (`docker logs` for `kanga-dev` / `basestation-server` /
       onboard).
 - [ ] Launch stdout leaf (`process has died`, lifecycle errors, process

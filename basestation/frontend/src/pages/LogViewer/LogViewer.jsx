@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { getApiBase, getWsBase } from "../../config";
 import { ROS_LOG_INFO, ROS_LOG_WARN, http_level_value } from "./logLevels";
+import {
+  buildRosNameTree,
+  nameMatchesSelection,
+  sortedChildNodes,
+} from "./rosNameTree";
 import "./LogViewer.css";
 
 const LEVELS = [
@@ -57,6 +62,89 @@ function downloadText(filename, text) {
   URL.revokeObjectURL(url);
 }
 
+function RosNameBranch({
+  nodes,
+  source,
+  selection,
+  collapsed,
+  onToggle,
+  onSelectExact,
+  onSelectPrefix,
+}) {
+  return (
+    <ul className="logsLeaves">
+      {nodes.map((node) => {
+        const childNodes = sortedChildNodes(node);
+        const hasChildren = childNodes.length > 0;
+        const isOpen = hasChildren && !collapsed.has(node.path);
+        const prefixActive =
+          source === "ros"
+          && selection.type === "prefix"
+          && selection.path === node.path;
+        const exactActive =
+          source === "ros"
+          && selection.type === "exact"
+          && selection.path === node.path;
+
+        return (
+          <li key={node.path}>
+            {hasChildren ? (
+              <div className="logsNsRow">
+                <button
+                  type="button"
+                  className="logsNsToggle"
+                  aria-expanded={isOpen}
+                  onClick={() => onToggle(node.path)}
+                >
+                  {isOpen ? "▾" : "▸"}
+                </button>
+                <button
+                  type="button"
+                  className={`logsFolder logsFolder--ns${prefixActive ? " is-active" : ""}`}
+                  onClick={() => onSelectPrefix(node.path)}
+                  title={node.path}
+                >
+                  {node.label}
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className={`logsLeaf${exactActive ? " is-active" : ""}`}
+                onClick={() => onSelectExact(node.path)}
+                title={node.path}
+              >
+                {node.label}
+              </button>
+            )}
+            {hasChildren && node.hasLogger ? (
+              <button
+                type="button"
+                className={`logsLeaf logsLeaf--nested${exactActive ? " is-active" : ""}`}
+                onClick={() => onSelectExact(node.path)}
+                title={node.path}
+              >
+                {node.label}
+              </button>
+            ) : null}
+            {hasChildren && isOpen ? (
+              <RosNameBranch
+                nodes={childNodes}
+                source={source}
+                selection={selection}
+                collapsed={collapsed}
+                onToggle={onToggle}
+                onSelectExact={onSelectExact}
+                onSelectPrefix={onSelectPrefix}
+              />
+            ) : null}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function stampForFilename() {
   const now = new Date();
   const pad = (value) => String(value).padStart(2, "0");
@@ -70,7 +158,8 @@ export default function LogViewer() {
   const [rosOpen, setRosOpen] = useState(true);
   const [httpOpen, setHttpOpen] = useState(true);
   const [source, setSource] = useState("ros");
-  const [leaf, setLeaf] = useState("all");
+  const [selection, setSelection] = useState({ type: "all" });
+  const [collapsed, setCollapsed] = useState(() => new Set());
   const [levelFloor, setLevelFloor] = useState(ROS_LOG_WARN);
   const [nameQuery, setNameQuery] = useState("");
   const [paused, setPaused] = useState(false);
@@ -155,9 +244,9 @@ export default function LogViewer() {
     };
   }, [source]);
 
-  const rosNames = useMemo(() => {
-    const names = new Set(rosRecords.map((record) => record.name).filter(Boolean));
-    return [...names].sort();
+  const rosTree = useMemo(() => {
+    const names = rosRecords.map((record) => record.name).filter(Boolean);
+    return buildRosNameTree(names);
   }, [rosRecords]);
 
   const httpRecords = useMemo(
@@ -172,8 +261,8 @@ export default function LogViewer() {
     if (source !== "ros") return [];
     return rosRecords.filter((record) => {
       if (record.level < levelFloor) return false;
-      if (leaf !== "all" && record.name !== leaf) return false;
-      if (leaf === "all" && nameQuery) {
+      if (!nameMatchesSelection(record.name, selection)) return false;
+      if (selection.type === "all" && nameQuery) {
         const query = nameQuery.toLowerCase();
         return (
           record.name.toLowerCase().includes(query)
@@ -182,7 +271,7 @@ export default function LogViewer() {
       }
       return true;
     });
-  }, [source, httpRecords, rosRecords, levelFloor, leaf, nameQuery]);
+  }, [source, httpRecords, rosRecords, levelFloor, selection, nameQuery]);
 
   useEffect(() => {
     const node = streamRef.current;
@@ -197,9 +286,28 @@ export default function LogViewer() {
       node.scrollHeight - node.scrollTop - node.clientHeight < 40;
   };
 
-  const selectRos = (nextLeaf) => {
+  const selectRosAll = () => {
     setSource("ros");
-    setLeaf(nextLeaf);
+    setSelection({ type: "all" });
+  };
+
+  const selectRosExact = (path) => {
+    setSource("ros");
+    setSelection({ type: "exact", path });
+  };
+
+  const selectRosPrefix = (path) => {
+    setSource("ros");
+    setSelection({ type: "prefix", path });
+  };
+
+  const toggleNs = (path) => {
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
   };
 
   const saveVisible = () => {
@@ -237,28 +345,28 @@ export default function LogViewer() {
               <span>{rosOpen ? "▾" : "▸"}</span>
             </button>
             {rosOpen ? (
-              <ul className="logsLeaves">
-                <li>
-                  <button
-                    type="button"
-                    className={`logsLeaf${source === "ros" && leaf === "all" ? " is-active" : ""}`}
-                    onClick={() => selectRos("all")}
-                  >
-                    All
-                  </button>
-                </li>
-                {rosNames.map((name) => (
-                  <li key={name}>
+              <>
+                <ul className="logsLeaves">
+                  <li>
                     <button
                       type="button"
-                      className={`logsLeaf${source === "ros" && leaf === name ? " is-active" : ""}`}
-                      onClick={() => selectRos(name)}
+                      className={`logsLeaf${source === "ros" && selection.type === "all" ? " is-active" : ""}`}
+                      onClick={selectRosAll}
                     >
-                      {name}
+                      All
                     </button>
                   </li>
-                ))}
-              </ul>
+                </ul>
+                <RosNameBranch
+                  nodes={sortedChildNodes(rosTree)}
+                  source={source}
+                  selection={selection}
+                  collapsed={collapsed}
+                  onToggle={toggleNs}
+                  onSelectExact={selectRosExact}
+                  onSelectPrefix={selectRosPrefix}
+                />
+              </>
             ) : null}
 
             <button
@@ -277,7 +385,7 @@ export default function LogViewer() {
                     className={`logsLeaf${source === "http" ? " is-active" : ""}`}
                     onClick={() => {
                       setSource("http");
-                      setLeaf("uvicorn");
+                      setSelection({ type: "all" });
                     }}
                   >
                     uvicorn
@@ -314,7 +422,7 @@ export default function LogViewer() {
                       </option>
                     ))}
                   </select>
-                  {source === "ros" && leaf === "all" ? (
+                  {source === "ros" && selection.type === "all" ? (
                     <input
                       type="search"
                       placeholder="Filter name or message"

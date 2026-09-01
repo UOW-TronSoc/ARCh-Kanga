@@ -66,7 +66,7 @@ function RosNameBranch({
   nodes,
   source,
   selection,
-  collapsed,
+  expanded,
   onToggle,
   onSelectExact,
   onSelectPrefix,
@@ -76,7 +76,7 @@ function RosNameBranch({
       {nodes.map((node) => {
         const childNodes = sortedChildNodes(node);
         const hasChildren = childNodes.length > 0;
-        const isOpen = hasChildren && !collapsed.has(node.path);
+        const isOpen = hasChildren && expanded.has(node.path);
         const prefixActive =
           source === "ros"
           && selection.type === "prefix"
@@ -117,7 +117,7 @@ function RosNameBranch({
                 {node.label}
               </button>
             )}
-            {hasChildren && node.hasLogger ? (
+            {hasChildren && isOpen && node.hasLogger ? (
               <button
                 type="button"
                 className={`logsLeaf logsLeaf--nested${exactActive ? " is-active" : ""}`}
@@ -132,7 +132,7 @@ function RosNameBranch({
                 nodes={childNodes}
                 source={source}
                 selection={selection}
-                collapsed={collapsed}
+                expanded={expanded}
                 onToggle={onToggle}
                 onSelectExact={onSelectExact}
                 onSelectPrefix={onSelectPrefix}
@@ -159,7 +159,7 @@ export default function LogViewer() {
   const [httpOpen, setHttpOpen] = useState(true);
   const [source, setSource] = useState("ros");
   const [selection, setSelection] = useState({ type: "all" });
-  const [collapsed, setCollapsed] = useState(() => new Set());
+  const [expanded, setExpanded] = useState(() => new Set());
   const [levelFloor, setLevelFloor] = useState(ROS_LOG_WARN);
   const [nameQuery, setNameQuery] = useState("");
   const [paused, setPaused] = useState(false);
@@ -302,7 +302,7 @@ export default function LogViewer() {
   };
 
   const toggleNs = (path) => {
-    setCollapsed((current) => {
+    setExpanded((current) => {
       const next = new Set(current);
       if (next.has(path)) next.delete(path);
       else next.add(path);
@@ -361,7 +361,7 @@ export default function LogViewer() {
                   nodes={sortedChildNodes(rosTree)}
                   source={source}
                   selection={selection}
-                  collapsed={collapsed}
+                  expanded={expanded}
                   onToggle={toggleNs}
                   onSelectExact={selectRosExact}
                   onSelectPrefix={selectRosPrefix}

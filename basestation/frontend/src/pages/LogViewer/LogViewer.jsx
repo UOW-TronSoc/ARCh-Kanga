@@ -1,20 +1,19 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { getApiBase, getWsBase } from "../../config";
-import { ROS_LOG_INFO, ROS_LOG_WARN, http_level_value } from "./logLevels";
+import {
+  HTTP_LEVEL_OPTIONS,
+  HTTP_LOG_INFO,
+  ROS_LEVEL_OPTIONS,
+  ROS_LOG_WARN,
+  http_level_name,
+  http_level_value,
+} from "./logLevels";
 import {
   buildRosNameTree,
   nameMatchesSelection,
   sortedChildNodes,
 } from "./rosNameTree";
 import "./LogViewer.css";
-
-const LEVELS = [
-  ["DEBUG", 10],
-  ["INFO", 20],
-  ["WARN", 30],
-  ["ERROR", 40],
-  ["FATAL", 50],
-];
 
 const HTTP_LINE = /^(\w+)\s+([\d\-:,\s.]+)\s+([^:]+):\s*(.*)$/;
 
@@ -24,18 +23,17 @@ function parseHttpLine(line) {
     return {
       seq: line,
       stamp: "",
-      level: ROS_LOG_INFO,
+      level: HTTP_LOG_INFO,
       level_name: "INFO",
       name: "uvicorn",
       msg: line,
     };
   }
-  const levelName = match[1].toUpperCase() === "WARNING" ? "WARN" : match[1].toUpperCase();
   return {
     seq: line,
     stamp: match[2].trim(),
     level: http_level_value(match[1]),
-    level_name: levelName === "CRITICAL" ? "FATAL" : levelName,
+    level_name: http_level_name(match[1]),
     name: match[3].trim(),
     msg: match[4],
   };
@@ -416,11 +414,13 @@ export default function LogViewer() {
                     value={levelFloor}
                     onChange={(event) => setLevelFloor(Number(event.target.value))}
                   >
-                    {LEVELS.map(([label, value]) => (
-                      <option key={label} value={value}>
-                        {label}+
-                      </option>
-                    ))}
+                    {(source === "http" ? HTTP_LEVEL_OPTIONS : ROS_LEVEL_OPTIONS).map(
+                      ([label, value]) => (
+                        <option key={label} value={value}>
+                          {label}+
+                        </option>
+                      ),
+                    )}
                   </select>
                   {source === "ros" && selection.type === "all" ? (
                     <input

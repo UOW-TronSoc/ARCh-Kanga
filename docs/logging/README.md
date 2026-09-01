@@ -88,7 +88,7 @@ Apply to the **selected leaf** only.
 
 | Filter | ROS | HTTP |
 | --- | --- | --- |
-| Level floor (DEBUG … FATAL, default **WARN+**) | Yes | Yes, mapped onto logging levels |
+| Level floor | DEBUG … FATAL, default **WARN+** | DEBUG … CRITICAL, default **WARNING+** |
 | Graph-name substring (in addition to the tree) | Optional extra box | Not used |
 
 The tree is the primary ROS name filter. A substring box can still find

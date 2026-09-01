@@ -189,9 +189,11 @@
 
 .logsLevel--DEBUG { color: #9aa7b8; }
 .logsLevel--INFO { color: #b8e0ff; }
-.logsLevel--WARN { color: #ffe08a; }
+.logsLevel--WARN,
+.logsLevel--WARNING { color: #ffe08a; }
 .logsLevel--ERROR,
-.logsLevel--FATAL { color: #ffb4b4; font-weight: 600; }
+.logsLevel--FATAL,
+.logsLevel--CRITICAL { color: #ffb4b4; font-weight: 600; }
 
 .logsName {
   color: #cddcaf;

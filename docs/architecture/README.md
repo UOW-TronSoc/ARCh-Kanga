@@ -277,7 +277,9 @@ types from `kanga_interfaces` after a workspace `install/` overlay is sourced.
 Docker for basestation is separate from `compose.dev.yaml` so members can work
 on ROS packages without starting the operator stack. See
 [Basestation install](../install/basestation.md) and
-[Basestation migration](../migration/basestation.md). Planned motor config and
+[Basestation migration](../migration/basestation.md). System startup and launch
+ownership are documented in the
+[launch-manager plan](../launch-manager/README.md). Planned motor config and
 calibration behavior is documented in the
 [commissioning page plan](../../basestation/COMMISSIONING_PAGE_PLAN.md).
 

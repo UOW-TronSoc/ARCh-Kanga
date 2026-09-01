@@ -8,6 +8,41 @@
 #
 # Override: KANGA_HOST_NETWORK=1 force on, KANGA_HOST_NETWORK=0 force off.
 
+kanga_require_docker() {
+    local docker_output=""
+    local docker_status=0
+
+    if ! command -v docker >/dev/null 2>&1; then
+        cat >&2 <<'EOF'
+ERROR: docker is not on PATH.
+
+Install Docker Engine, or on Windows/WSL2 start Docker Desktop and enable
+this distro under Settings → Resources → WSL integration.
+EOF
+        exit 1
+    fi
+
+    docker_output="$(docker info 2>&1)" || docker_status=$?
+    if [[ "${docker_status}" -eq 0 ]]; then
+        return 0
+    fi
+
+    cat >&2 <<'EOF'
+ERROR: Docker is not available.
+
+This is not a second kanga-dev container. The docker CLI cannot talk to an
+engine, so later scripts must not treat its error text as container names.
+
+On WSL2 this usually means Docker Desktop is stopped, or Ubuntu is not enabled
+under Settings → Resources → WSL integration. Start Docker Desktop, wait until
+it is running, then open a new terminal.
+EOF
+    if [[ -n "${docker_output}" ]]; then
+        printf '\n%s\n' "${docker_output}" >&2
+    fi
+    exit 1
+}
+
 kanga_use_compose_host_network() {
     case "${KANGA_HOST_NETWORK:-auto}" in
         1|true|yes)

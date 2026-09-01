@@ -130,7 +130,8 @@ During development the agent runs in `kanga-dev`. On the rover, systemd starts
 `kanga-onboard` before the basestation.
 
 See [Docker setup](docs/install/docker.md), [CAN setup](docs/install/can.md),
-and [Basestation setup](docs/install/basestation.md).
+[Basestation setup](docs/install/basestation.md), and the complete
+[system startup and launch-manager plan](docs/launch-manager/README.md).
 
 ## Branch workflow
 

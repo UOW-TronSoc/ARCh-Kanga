@@ -1,5 +1,9 @@
 # Kanga launch agent
 
+The complete architecture, lifecycle, Core sensor/TF contract, deployment
+decisions, and delivery roadmap are maintained in the
+[system startup and launch-manager plan](../../../docs/launch-manager/README.md).
+
 This package runs in the onboard ROS container and is the only component that
 owns rover launch processes. The basestation communicates with it over typed
 ROS services; it never sends a shell command and does not require access to the
@@ -38,8 +42,9 @@ Services:
 - `/launch_manager/change` (`kanga_interfaces/srv/ChangeManagedLaunch`)
 
 The basestation maps these services to `GET /api/systems` and the three fixed
-`POST /api/systems/{system_id}/{start|stop|restart}` routes. HTTP callers cannot
-provide a process command or launch argument.
+`POST /api/systems/{system_id}/{start|stop|restart}` routes, and the operator
+UI consumes them from `/systems`. HTTP callers cannot provide a process command
+or launch argument.
 
 Simulation is intentionally not an owned profile yet. A locally started sim is
 visible through the same ROS graph and remains externally managed.

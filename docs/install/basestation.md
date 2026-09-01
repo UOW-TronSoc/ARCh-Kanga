@@ -143,7 +143,13 @@ rover runtime. Systemd starts the onboard agent first, then the basestation. The
 agent initially owns no subsystem process: Core remains stopped until an
 allowlisted start request arrives.
 
-## System-startup API
+## System Startup
+
+The operator page is `/systems`. It lists allowlisted profiles from the onboard
+launch agent and offers only the actions the agent currently allows. Process
+state and health are shown separately; health stays `NOT_CHECKED` until
+monitoring exists. An externally started stack is shown as `UNMANAGED` and
+cannot be started, stopped, or restarted from the page.
 
 The backend exposes only fixed lifecycle operations:
 
@@ -159,6 +165,9 @@ system id and fixed action to the onboard ROS agent, which applies its own
 profile allowlist and lifecycle rules. When a PIN is configured, all four
 routes require the authenticated operator session. An unreachable agent returns
 HTTP 503; a rejected transition, including an `UNMANAGED` stack, returns 409.
+
+The full lifecycle contract and remaining roadmap live in
+[the launch-manager plan](../launch-manager/README.md).
 
 ## Commissioning mockup
 

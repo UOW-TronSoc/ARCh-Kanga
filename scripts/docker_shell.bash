@@ -21,6 +21,10 @@ fi
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 
+# shellcheck source=kanga_host_network.bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/kanga_host_network.bash"
+kanga_require_docker
+
 # Do this before evaluating build, GUI, GPU, or simulation options. A second
 # terminal must enter the existing runtime exactly as it is and must never
 # recreate it because that terminal has a different DISPLAY or environment.
@@ -57,9 +61,6 @@ export KANGA_RENDER_GID="${KANGA_RENDER_GID:-$(stat -c '%g' /dev/dri/renderD128 
 KANGA_CACHE_BASE="${XDG_CACHE_HOME:-${HOME}/.cache}"
 export KANGA_ODRIVE_CACHE="${KANGA_ODRIVE_CACHE:-${KANGA_CACHE_BASE}/odrivetool}"
 mkdir -p "${KANGA_ODRIVE_CACHE}"
-
-# shellcheck source=kanga_host_network.bash
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/kanga_host_network.bash"
 
 COMPOSE_ARGUMENTS=(-f docker/compose.dev.yaml)
 

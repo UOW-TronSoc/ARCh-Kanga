@@ -1,0 +1,158 @@
+.systemsPage {
+  min-height: 100%;
+  color: #fff;
+  background: var(--bg-page);
+}
+
+.systemsPanel {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  color: var(--card-alt-fg);
+  background: var(--card-alt-bg);
+}
+
+.systemsState {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.55rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.systemsState--running {
+  color: #fff;
+  background: #198754;
+}
+
+.systemsState--failed {
+  color: #fff;
+  background: #dc3545;
+}
+
+.systemsState--unmanaged {
+  color: #212529;
+  background: var(--accent);
+}
+
+.systemsState--transition {
+  color: #212529;
+  background: #6cb6ff;
+}
+
+.systemsState--stopped {
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.systemsState--health {
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.systemsMeta {
+  margin: 0 0 1rem;
+}
+
+.systemsMeta div {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.78rem;
+}
+
+.systemsMeta dt {
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: 400;
+}
+
+.systemsMeta dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.systemsProgress,
+.systemsError {
+  margin-bottom: 0.85rem;
+  font-size: 0.82rem;
+}
+
+.systemsProgress {
+  color: #cfe8ff;
+}
+
+.systemsError {
+  color: #ff8a8a;
+}
+
+.systemsActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.systemsButton {
+  padding: 0.45rem 0.75rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s, filter 0.15s;
+}
+
+.systemsButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.systemsButton:not(:disabled):hover {
+  filter: brightness(1.15);
+}
+
+.systemsButton--start {
+  color: #58d68d;
+  background: rgba(88, 214, 141, 0.2);
+}
+
+.systemsButton--stop {
+  color: #ff5c5c;
+  background: rgba(255, 92, 92, 0.2);
+}
+
+.systemsButton--restart {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.systemsModalBackdrop {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.systemsModal {
+  border: 1px solid #6c757d;
+  color: #fff;
+  background: #212529;
+}
+
+.systemsModal .modal-header,
+.systemsModal .modal-footer {
+  border-color: #495057;
+}
+
+.systemsModal .modal-title {
+  font-size: 1.1rem;
+  color: var(--accent);
+}
+
+.systemsModal .btn-close {
+  filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+.systemsPage code {
+  color: #cddcaf;
+}

@@ -33,6 +33,16 @@ motors and sensors on CAN (developer laptop, shared `ROS_DOMAIN_ID`).
 - Speed max slider (0–90% maps to full scale; 90–100% plateau)
 - `/ws/control` dead-man + `/ws/telemetry` at 5 Hz
 
+### System Startup (implemented)
+
+- Protected `/systems` page polls `GET /api/systems`
+- Start / stop / restart only when the onboard agent lists them in
+  `allowed_actions`; stop and restart require confirmation
+- Process state and health are shown independently (health remains
+  `NOT_CHECKED` until monitoring exists)
+- Unmanaged external stacks are explained and have no controls
+- Callers cannot supply a command or launch argument
+
 ### Not yet
 
 - Live cameras (placeholders) — Phase 2 in [CAMERAS.md](CAMERAS.md)

@@ -37,6 +37,7 @@ the frontend stage of the basestation Docker image.
 - `src/hooks/` owns control and telemetry WebSocket clients.
 - `src/config.js` builds same-origin HTTP and WebSocket URLs.
 
-See the [basestation overview](../README.md) for runtime instructions and the
-[commissioning page plan](../COMMISSIONING_PAGE_PLAN.md) for the next operator
-feature slice.
+See the [basestation overview](../README.md) for runtime instructions, the
+[launch-manager plan](../../docs/launch-manager/README.md) for System Startup,
+and the [commissioning page plan](../COMMISSIONING_PAGE_PLAN.md) for motor
+configuration.

@@ -278,6 +278,8 @@ on ROS packages without starting the operator stack. See
 [Basestation migration](../migration/basestation.md). Planned motor config and
 calibration behavior is documented in the
 [commissioning page plan](../../basestation/COMMISSIONING_PAGE_PLAN.md).
+The Logs page (folder tree of ROS, HTTP, and later Docker/stdout)
+is documented in [the logs plan](../logging/README.md).
 
 ## Cross-cutting decisions
 

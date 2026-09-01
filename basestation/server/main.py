@@ -17,7 +17,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -31,6 +31,7 @@ from .commissioning_jobs import CommissioningManager
 from .log_buffer import attach_log_buffer
 from .operator import router as operator_router
 from .ros import MAX_LINEAR_MPS, MAX_YAW_RAD_S, TELEMETRY_HZ, RosRuntime
+from .pin_auth import is_pin_configured
 from .spa_static import SPAStaticFiles
 
 runtime = RosRuntime()
@@ -63,6 +64,20 @@ app.add_middleware(
 app.include_router(operator_router)
 app.include_router(create_commissioning_router(commissioning_manager))
 app.include_router(create_legacy_commissioning_router(commissioning_manager))
+
+
+def _logs_pin_ok(session: dict) -> bool:
+    return (not is_pin_configured()) or session.get("pin_verified") is True
+
+
+@app.get("/api/logs")
+def api_ros_logs(request: Request) -> dict:
+    if not _logs_pin_ok(request.session):
+        raise HTTPException(
+            status_code=401,
+            detail="PIN authentication is required for logs",
+        )
+    return {"records": runtime.rosout.snapshot()}
 
 
 @app.get("/health")
@@ -192,6 +207,42 @@ async def ws_telemetry(ws: WebSocket) -> None:
     except WebSocketDisconnect:
         pass
     except Exception:  # noqa: BLE001 — client gone mid-send; normal for tabs
+        pass
+
+
+@app.websocket("/ws/logs")
+async def ws_logs(ws: WebSocket) -> None:
+    """Snapshot plus live /rosout records. Connect only from the Logs page."""
+    await ws.accept()
+    session = ws.scope.get("session") or {}
+    if not _logs_pin_ok(session):
+        await ws.send_json(
+            {"t": "error", "message": "PIN authentication is required for logs"}
+        )
+        await ws.close(code=4401)
+        return
+    try:
+        await ws.send_json(
+            {"t": "snapshot", "records": runtime.rosout.snapshot()}
+        )
+        last_seq = 0
+        records = runtime.rosout.snapshot()
+        if records:
+            last_seq = records[-1]["seq"]
+        while True:
+            await asyncio.sleep(0.15)
+            newer = [
+                record
+                for record in runtime.rosout.snapshot()
+                if record["seq"] > last_seq
+            ]
+            if not newer:
+                continue
+            last_seq = newer[-1]["seq"]
+            await ws.send_json({"t": "records", "records": newer})
+    except WebSocketDisconnect:
+        pass
+    except Exception:  # noqa: BLE001 — client gone mid-send
         pass
 
 

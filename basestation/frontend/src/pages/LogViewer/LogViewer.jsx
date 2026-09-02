@@ -337,6 +337,43 @@ export default function LogViewer() {
     downloadText(`kanga-logs-${kind}-${stampForFilename()}.txt`, `${lines.join("\n")}\n`);
   };
 
+  const clearVisible = async () => {
+    try {
+      if (source === "http") {
+        const response = await fetch(`${getApiBase()}/django-logs/clear/`, {
+          method: "POST",
+          credentials: "same-origin",
+        });
+        if (!response.ok) return;
+        setHttpLines([]);
+        return;
+      }
+      if (source !== "ros") return;
+
+      const response = await fetch(`${getApiBase()}/logs/clear`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          selection_type: selection.type,
+          path: selection.path ?? "",
+        }),
+      });
+      if (!response.ok) return;
+
+      pendingRef.current = [];
+      if (selection.type === "all") {
+        setRosRecords([]);
+        return;
+      }
+      setRosRecords((current) =>
+        current.filter((record) => !nameMatchesSelection(record.name, selection)),
+      );
+    } catch {
+      /* keep current buffer on failure */
+    }
+  };
+
   const stubSelected = source === "docker" || source === "stdout";
 
   return (
@@ -473,6 +510,9 @@ export default function LogViewer() {
                   </button>
                   <button type="button" className="logsButton" onClick={saveVisible}>
                     Save
+                  </button>
+                  <button type="button" className="logsButton" onClick={clearVisible}>
+                    Clear
                   </button>
                   <span className="small text-white-50">
                     {source === "ros"

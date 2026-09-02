@@ -10,8 +10,8 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from .log_buffer import get_log_lines
-from .pin_auth import is_pin_configured, verify_pin
+from .log_buffer import clear_log_lines, get_log_lines
+from .pin_auth import is_pin_configured, logs_session_ok, verify_pin
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +62,17 @@ def pin_verify(request: Request, body: PinVerifyBody):
 @router.get("/django-logs/")
 def django_logs() -> dict:
     return {"lines": get_log_lines()}
+
+
+@router.post("/django-logs/clear/")
+def clear_django_logs(request: Request) -> dict:
+    if not logs_session_ok(request.session):
+        raise HTTPException(
+            status_code=401,
+            detail="PIN authentication is required for logs",
+        )
+    clear_log_lines()
+    return {"ok": True}
 
 
 @router.get("/list-logs/")

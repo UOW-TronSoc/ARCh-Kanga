@@ -54,6 +54,19 @@ class RosoutBufferTests(unittest.TestCase):
         self.assertEqual([item["msg"] for item in snap], ["two", "three"])
         self.assertEqual([item["seq"] for item in snap], [2, 3])
 
+    def test_clear_and_remove_matching_by_namespace(self) -> None:
+        buffer = RosoutBuffer(max_records=10)
+        buffer.append_fields(level=ROS_LOG_INFO, name="wheel_bl.can_node", msg="a")
+        buffer.append_fields(level=ROS_LOG_INFO, name="wheel_fr.can_node", msg="b")
+        buffer.append_fields(level=ROS_LOG_INFO, name="wheel_bl.other", msg="c")
+        removed = buffer.remove_matching(
+            lambda record: record["name"].startswith("wheel_bl.")
+        )
+        self.assertEqual(removed, 2)
+        self.assertEqual([item["msg"] for item in buffer.snapshot()], ["b"])
+        buffer.clear()
+        self.assertEqual(buffer.snapshot(), [])
+
 
 if __name__ == "__main__":
     unittest.main()

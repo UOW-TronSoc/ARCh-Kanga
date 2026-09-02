@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import threading
 from collections import deque
 from datetime import datetime, timezone
@@ -33,6 +34,27 @@ HTTP_LEVEL_VALUES = {
 }
 
 DEFAULT_MAX_RECORDS = 4000
+
+
+def graph_segments(name: str) -> list[str]:
+    return [part.strip() for part in re.split(r"[/.]+", name or "") if part.strip()]
+
+
+def name_matches_selection(name: str, selection_type: str, path: str) -> bool:
+    if selection_type in ("", "all"):
+        return True
+    name_parts = graph_segments(name)
+    sel_parts = graph_segments(path)
+    if not sel_parts:
+        return True
+    if selection_type == "exact":
+        return (
+            len(name_parts) == len(sel_parts)
+            and all(name_parts[index] == sel_parts[index] for index in range(len(sel_parts)))
+        )
+    return len(name_parts) >= len(sel_parts) and all(
+        name_parts[index] == sel_parts[index] for index in range(len(sel_parts))
+    )
 
 
 def ros_level_name(level: int) -> str:
@@ -126,3 +148,15 @@ class RosoutBuffer:
     def snapshot(self) -> list[dict[str, Any]]:
         with self._lock:
             return list(self._records)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._records.clear()
+
+    def remove_matching(self, predicate) -> int:
+        with self._lock:
+            kept = [record for record in self._records if not predicate(record)]
+            removed = len(self._records) - len(kept)
+            self._records.clear()
+            self._records.extend(kept)
+            return removed

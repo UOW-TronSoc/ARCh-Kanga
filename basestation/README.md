@@ -148,5 +148,6 @@ verified unit paths/startup ordering, and retirement of the legacy stack. See
 - [COMMISSIONING_PAGE_PLAN.md](COMMISSIONING_PAGE_PLAN.md) — planned motor
   config, save, and sequential calibration page
 - [CAMERAS.md](CAMERAS.md) — Phase 2 camera pipeline
+- [Logs plan](../docs/logging/README.md) — one Logs page, folder tree of sources
 - [Basestation install](../docs/install/basestation.md)
 - [Basestation migration](../docs/migration/basestation.md)

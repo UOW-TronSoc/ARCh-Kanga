@@ -282,6 +282,8 @@ ownership are documented in the
 [launch-manager plan](../launch-manager/README.md). Planned motor config and
 calibration behavior is documented in the
 [commissioning page plan](../../basestation/COMMISSIONING_PAGE_PLAN.md).
+The Logs page (folder tree of ROS, HTTP, and later Docker/stdout)
+is documented in [the logs plan](../logging/README.md).
 
 The basestation and onboard runtime remain separate deployment units. The
 FastAPI process never launches rover nodes locally and is not given the Docker

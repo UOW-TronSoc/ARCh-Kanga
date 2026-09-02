@@ -17,7 +17,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -32,6 +32,8 @@ from .log_buffer import attach_log_buffer
 from .launch_api import create_launch_router
 from .operator import router as operator_router
 from .ros import MAX_LINEAR_MPS, MAX_YAW_RAD_S, TELEMETRY_HZ, RosRuntime
+from .pin_auth import logs_session_ok
+from .rosout_buffer import name_matches_selection
 from .spa_static import SPAStaticFiles
 
 runtime = RosRuntime()
@@ -67,6 +69,45 @@ app.include_router(operator_router)
 app.include_router(create_launch_router(runtime))
 app.include_router(create_commissioning_router(commissioning_manager))
 app.include_router(create_legacy_commissioning_router(commissioning_manager))
+
+
+def _logs_pin_ok(session: dict) -> bool:
+    return logs_session_ok(session)
+
+
+class RosLogsClearBody(BaseModel):
+    selection_type: str = Field(default="all")
+    path: str = Field(default="")
+
+
+@app.get("/api/logs")
+def api_ros_logs(request: Request) -> dict:
+    if not _logs_pin_ok(request.session):
+        raise HTTPException(
+            status_code=401,
+            detail="PIN authentication is required for logs",
+        )
+    return {"records": runtime.rosout.snapshot()}
+
+
+@app.post("/api/logs/clear")
+def api_ros_logs_clear(request: Request, body: RosLogsClearBody) -> dict:
+    if not _logs_pin_ok(request.session):
+        raise HTTPException(
+            status_code=401,
+            detail="PIN authentication is required for logs",
+        )
+    if body.selection_type == "all":
+        runtime.rosout.clear()
+    else:
+        runtime.rosout.remove_matching(
+            lambda record: name_matches_selection(
+                record["name"],
+                body.selection_type,
+                body.path,
+            )
+        )
+    return {"ok": True}
 
 
 @app.get("/health")
@@ -196,6 +237,42 @@ async def ws_telemetry(ws: WebSocket) -> None:
     except WebSocketDisconnect:
         pass
     except Exception:  # noqa: BLE001 — client gone mid-send; normal for tabs
+        pass
+
+
+@app.websocket("/ws/logs")
+async def ws_logs(ws: WebSocket) -> None:
+    """Snapshot plus live /rosout records. Connect only from the Logs page."""
+    await ws.accept()
+    session = ws.scope.get("session") or {}
+    if not _logs_pin_ok(session):
+        await ws.send_json(
+            {"t": "error", "message": "PIN authentication is required for logs"}
+        )
+        await ws.close(code=4401)
+        return
+    try:
+        await ws.send_json(
+            {"t": "snapshot", "records": runtime.rosout.snapshot()}
+        )
+        last_seq = 0
+        records = runtime.rosout.snapshot()
+        if records:
+            last_seq = records[-1]["seq"]
+        while True:
+            await asyncio.sleep(0.15)
+            newer = [
+                record
+                for record in runtime.rosout.snapshot()
+                if record["seq"] > last_seq
+            ]
+            if not newer:
+                continue
+            last_seq = newer[-1]["seq"]
+            await ws.send_json({"t": "records", "records": newer})
+    except WebSocketDisconnect:
+        pass
+    except Exception:  # noqa: BLE001 — client gone mid-send
         pass
 
 

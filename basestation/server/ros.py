@@ -42,6 +42,8 @@ DRIVE_TICK_SECONDS = 0.05
 # this tuple only validates direct ROS service helpers in this module.
 CORE_WHEEL_IDS = ("fl", "bl", "br", "fr")
 
+from .rosout_buffer import RosoutBuffer
+
 
 # ODrive axis states (custom_odrive) used when inferring closed loop from motors.
 ODRIVE_AXIS_IDLE = 1
@@ -216,6 +218,7 @@ class RosRuntime:
         self._svc_lock = threading.Lock()
         self._launch_svc_lock = threading.Lock()
         self._commissioning_active = threading.Event()
+        self.rosout = RosoutBuffer()
 
     # ---- one-shot drive management (REST) ----
 
@@ -490,13 +493,14 @@ class RosRuntime:
             import rclpy
             from geometry_msgs.msg import (
                 PoseWithCovarianceStamped,
+                Twist,
                 TwistWithCovarianceStamped,
             )
-            from geometry_msgs.msg import Twist
             from kanga_interfaces.srv import (
                 ChangeManagedLaunch,
                 ListManagedLaunches,
             )
+            from rcl_interfaces.msg import Log
             from rclpy.executors import SingleThreadedExecutor
             from rclpy.node import Node
             from rclpy.qos import (
@@ -560,6 +564,15 @@ class RosRuntime:
                     )
                     self._subscribe_motor_status()
                     self._cmd_vel_pub = self.create_publisher(Twist, "/cmd_vel", 10)
+                    rosout_qos = QoSProfile(
+                        history=HistoryPolicy.KEEP_LAST,
+                        depth=1000,
+                        reliability=ReliabilityPolicy.RELIABLE,
+                        durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                    )
+                    self.create_subscription(
+                        Log, "/rosout", self._on_rosout, rosout_qos
+                    )
                     # One-shot actions the operator page triggers over REST.
                     self._clients_set_bool = {
                         "/whs_node/set_drivestop": self.create_client(
@@ -602,6 +615,9 @@ class RosRuntime:
                         f"(max {MAX_LINEAR_MPS} m/s, {MAX_YAW_RAD_S} rad/s, "
                         f"dead-man {DEADMAN_SECONDS}s)"
                     )
+
+                def _on_rosout(self, msg: Log) -> None:
+                    runtime.rosout.append_ros_log(msg)
 
                 def _on_drivestop(self, msg: Bool) -> None:
                     with state.lock:

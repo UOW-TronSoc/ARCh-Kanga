@@ -50,6 +50,25 @@ function formatStamp(stamp) {
   return stamp;
 }
 
+function formatDisplayTime(stamp) {
+  if (!stamp) return "";
+  try {
+    const date = new Date(stamp);
+    if (!Number.isNaN(date.getTime())) {
+      return date.toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      });
+    }
+  } catch {
+    /* keep raw */
+  }
+  const timePart = stamp.match(/\d{1,2}:\d{2}:\d{2}/);
+  return timePart ? timePart[0] : stamp;
+}
+
 function downloadText(filename, text) {
   const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -161,6 +180,7 @@ export default function LogViewer() {
   const [levelFloor, setLevelFloor] = useState(ROS_LOG_WARN);
   const [nameQuery, setNameQuery] = useState("");
   const [paused, setPaused] = useState(false);
+  const [treeOpen, setTreeOpen] = useState(true);
   const [rosRecords, setRosRecords] = useState([]);
   const [httpLines, setHttpLines] = useState([]);
   const [connected, setConnected] = useState(false);
@@ -330,10 +350,24 @@ export default function LogViewer() {
               basestation uvicorn buffer.
             </p>
           </div>
+          <button
+            type="button"
+            className="logsButton"
+            onClick={() => setTreeOpen((value) => !value)}
+            aria-expanded={treeOpen}
+            aria-controls="logs-source-tree"
+          >
+            {treeOpen ? "Hide sources" : "Show sources"}
+          </button>
         </div>
 
-        <div className="logsLayout">
-          <nav className="logsTree" aria-label="Log sources">
+        <div className={`logsLayout${treeOpen ? "" : " logsLayout--treeCollapsed"}`}>
+          <nav
+            id="logs-source-tree"
+            className="logsTree"
+            aria-label="Log sources"
+            aria-hidden={!treeOpen}
+          >
             <button
               type="button"
               className="logsFolder"
@@ -457,7 +491,9 @@ export default function LogViewer() {
                   ) : (
                     visible.map((record, index) => (
                       <div className="logsRow" key={`${record.seq}-${index}`}>
-                        <span className="text-white-50">{formatStamp(record.stamp)}</span>
+                        <span className="logsTime text-white-50" title={formatStamp(record.stamp)}>
+                          {formatDisplayTime(record.stamp)}
+                        </span>
                         <span className={`logsLevel logsLevel--${record.level_name}`}>
                           {record.level_name}
                         </span>

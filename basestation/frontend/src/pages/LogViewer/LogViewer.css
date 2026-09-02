@@ -2,14 +2,29 @@
   min-height: 100%;
   color: #fff;
   background: var(--bg-page);
+  overflow: hidden;
+}
+
+.logsPage .container-fluid {
+  flex: 1;
+  min-height: 0;
 }
 
 .logsLayout {
   display: grid;
   grid-template-columns: minmax(12rem, 18rem) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: 0.75rem;
   min-height: 0;
   flex: 1;
+}
+
+.logsLayout--treeCollapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.logsLayout--treeCollapsed .logsTree {
+  display: none;
 }
 
 .logsTree,
@@ -169,7 +184,7 @@
 
 .logsStream {
   flex: 1;
-  min-height: 12rem;
+  min-height: 0;
   overflow: auto;
   padding: 0.5rem 0.65rem;
   border: 1px solid #495057;
@@ -182,9 +197,20 @@
 
 .logsRow {
   display: grid;
-  grid-template-columns: 11rem 4.2rem minmax(8rem, 16rem) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 6rem) minmax(0, 2.8rem) minmax(20%, 16rem) minmax(50%, 1fr);
   gap: 0.55rem;
   padding: 0.12rem 0;
+  min-width: max(100%, calc(6rem + 2.8rem + 1.65rem + 20% + 50%));
+}
+
+.logsRow > *:not(.logsMsg) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logsTime {
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .logsLevel--DEBUG { color: #9aa7b8; }
@@ -197,9 +223,6 @@
 
 .logsName {
   color: #cddcaf;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .logsMsg {
@@ -216,6 +239,15 @@
 @media (max-width: 767.98px) {
   .logsLayout {
     grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .logsLayout--treeCollapsed {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .logsTree {
+    max-height: min(40vh, 16rem);
   }
 
   .logsRow {
@@ -223,5 +255,6 @@
     gap: 0.15rem;
     padding: 0.35rem 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    min-width: 0;
   }
 }

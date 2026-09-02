@@ -1,0 +1,10 @@
+uint8 START=1
+uint8 STOP=2
+uint8 RESTART=3
+
+string system_id
+uint8 action
+---
+bool accepted
+string message
+kanga_interfaces/ManagedLaunchStatus status

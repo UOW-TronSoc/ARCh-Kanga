@@ -10,6 +10,8 @@ itself a ROS package and must not become a miscellaneous code dump.
 - `kanga_onboard_control`: control from a controller connected directly to the
   onboard computer.
 - `kanga_joy`: shared ROS 2 joystick interfaces and integration.
+- `kanga_launch_agent`: onboard ownership and supervision of fixed, allowlisted
+  ROS launch profiles requested through typed ROS services.
 
 New utility packages require a clear reusable responsibility and must not own
 domain-specific drive, manipulator, excavator, science, or autonomy behaviour.

@@ -7,6 +7,7 @@ import PinPage from "pages/PinPage/PinPage";
 import Dashboard from "pages/Dashboard/Dashboard";
 import LogViewer from "pages/LogViewer/LogViewer";
 import Commissioning from "pages/Commissioning/Commissioning";
+import Systems from "pages/Systems/Systems";
 
 import "./styles/variables.css";
 import "./App.css";
@@ -24,6 +25,7 @@ function AppContent() {
             <Route path="/pin" element={<PinPage />} />
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/systems" element={<ProtectedRoute><Systems /></ProtectedRoute>} />
             <Route path="/logs" element={<ProtectedRoute><LogViewer /></ProtectedRoute>} />
             <Route path="/commissioning" element={<ProtectedRoute><Commissioning /></ProtectedRoute>} />
             <Route path="*" element={<ProtectedRoute><div className="text-center mt-4">404 Not Found</div></ProtectedRoute>} />

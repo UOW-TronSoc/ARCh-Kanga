@@ -14,7 +14,6 @@ ERROR: install/setup.bash not found.
 
 Build the ROS workspace first (Path A), then retry:
 
-  docker compose -f docker/compose.dev.yaml build
   ./scripts/docker_shell.bash
   # inside the container:
   ./scripts/build_workspace.bash

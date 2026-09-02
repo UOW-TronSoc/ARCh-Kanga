@@ -97,6 +97,11 @@ export default function MainNavbar() {
               </NavLink>
             </li>
             <li className="nav-item">
+              <NavLink className={navLinkClass} to="/systems">
+                Startup
+              </NavLink>
+            </li>
+            <li className="nav-item">
               <NavLink className={navLinkClass} to="/commissioning">
                 Commissioning
               </NavLink>

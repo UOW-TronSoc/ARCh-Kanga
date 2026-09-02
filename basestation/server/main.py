@@ -29,6 +29,7 @@ from .commissioning_catalog import build_commissioning_catalog
 from .commissioning_config import CommissioningConfigStore
 from .commissioning_jobs import CommissioningManager
 from .log_buffer import attach_log_buffer
+from .launch_api import create_launch_router
 from .operator import router as operator_router
 from .ros import MAX_LINEAR_MPS, MAX_YAW_RAD_S, TELEMETRY_HZ, RosRuntime
 from .pin_auth import logs_session_ok
@@ -49,8 +50,10 @@ commissioning_manager = CommissioningManager(
 async def lifespan(_: FastAPI):
     attach_log_buffer()
     runtime.start()
-    yield
-    runtime.stop()
+    try:
+        yield
+    finally:
+        runtime.stop()
 
 
 app = FastAPI(title="basestation-server", version="0.1.0", lifespan=lifespan)
@@ -63,6 +66,7 @@ app.add_middleware(
     https_only=False,
 )
 app.include_router(operator_router)
+app.include_router(create_launch_router(runtime))
 app.include_router(create_commissioning_router(commissioning_manager))
 app.include_router(create_legacy_commissioning_router(commissioning_manager))
 

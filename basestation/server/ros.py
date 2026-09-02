@@ -185,6 +185,23 @@ def _yaw_deg_from_quat(x: float, y: float, z: float, w: float) -> float:
     return math.degrees(math.atan2(siny, cosy))
 
 
+def _managed_launch_to_dict(msg) -> dict:
+    """Convert the launch-agent status message into a JSON-ready object."""
+    return {
+        "id": msg.system_id,
+        "label": msg.label,
+        "state": msg.state,
+        "health": msg.health,
+        "available": bool(msg.available),
+        "owned": bool(msg.owned),
+        "allowed_actions": list(msg.allowed_actions),
+        "started_at": msg.started_at or None,
+        "transitioned_at": msg.transitioned_at,
+        "exit_code": int(msg.exit_code) if msg.has_exit_code else None,
+        "last_error": msg.last_error or None,
+    }
+
+
 class RosRuntime:
     """Own rclpy init/shutdown, the single node, and its executor thread."""
 
@@ -199,6 +216,7 @@ class RosRuntime:
         self._control_held = False
         self._motion_gate_lock = threading.Lock()
         self._svc_lock = threading.Lock()
+        self._launch_svc_lock = threading.Lock()
         self._commissioning_active = threading.Event()
         self.rosout = RosoutBuffer()
 
@@ -341,6 +359,31 @@ class RosRuntime:
         with self._svc_lock:
             return self._node.invoke_trigger(service, timeout_sec)
 
+    # ---- onboard launch-agent boundary ----
+
+    def list_managed_launches(self) -> dict:
+        """Read lifecycle state from the separate onboard process owner."""
+        if not self.ready or self._node is None:
+            return {
+                "ok": False,
+                "error": "unavailable",
+                "message": "ROS node not ready",
+                "systems": [],
+            }
+        with self._launch_svc_lock:
+            return self._node.invoke_list_managed_launches()
+
+    def change_managed_launch(self, system_id: str, action: str) -> dict:
+        """Request an allowlisted action without supplying a command."""
+        if not self.ready or self._node is None:
+            return {
+                "ok": False,
+                "error": "unavailable",
+                "message": "ROS node not ready",
+            }
+        with self._launch_svc_lock:
+            return self._node.invoke_change_managed_launch(system_id, action)
+
     # ---- commissioning motion interlock ----
 
     def set_commissioning_active(self, active: bool) -> None:
@@ -453,6 +496,10 @@ class RosRuntime:
                 Twist,
                 TwistWithCovarianceStamped,
             )
+            from kanga_interfaces.srv import (
+                ChangeManagedLaunch,
+                ListManagedLaunches,
+            )
             from rcl_interfaces.msg import Log
             from rclpy.executors import SingleThreadedExecutor
             from rclpy.node import Node
@@ -552,6 +599,12 @@ class RosRuntime:
                             for w in CORE_WHEEL_IDS
                         },
                     }
+                    self._launch_list_client = self.create_client(
+                        ListManagedLaunches, "/launch_manager/list"
+                    )
+                    self._launch_change_client = self.create_client(
+                        ChangeManagedLaunch, "/launch_manager/change"
+                    )
                     # One timer does both jobs: republish the operator's
                     # command while it is fresh, and stop the rover when the
                     # operator goes quiet (closed tab, frozen browser,
@@ -683,6 +736,83 @@ class RosRuntime:
                     if resp is None:
                         return {"ok": False, "message": f"{service} call failed"}
                     return {"ok": bool(resp.success), "message": resp.message}
+
+                def invoke_list_managed_launches(self) -> dict:
+                    client = self._launch_list_client
+                    if not client.wait_for_service(timeout_sec=3.0):
+                        return {
+                            "ok": False,
+                            "error": "unavailable",
+                            "message": "onboard launch agent not available",
+                            "systems": [],
+                        }
+                    try:
+                        resp = _wait_for_ros_response(
+                            client.call_async(ListManagedLaunches.Request()),
+                            timeout_sec=5.0,
+                        )
+                    except Exception as exc:  # noqa: BLE001 - ROS boundary
+                        return {
+                            "ok": False,
+                            "error": "unavailable",
+                            "message": (
+                                f"launch-agent status call failed: {exc}"
+                            ),
+                            "systems": [],
+                        }
+                    return {
+                        "ok": bool(resp.success),
+                        "message": resp.message,
+                        "systems": [
+                            _managed_launch_to_dict(status)
+                            for status in resp.systems
+                        ],
+                    }
+
+                def invoke_change_managed_launch(
+                    self, system_id: str, action: str
+                ) -> dict:
+                    action_values = {
+                        "start": ChangeManagedLaunch.Request.START,
+                        "stop": ChangeManagedLaunch.Request.STOP,
+                        "restart": ChangeManagedLaunch.Request.RESTART,
+                    }
+                    action_value = action_values.get(action.lower())
+                    if action_value is None:
+                        return {
+                            "ok": False,
+                            "error": "rejected",
+                            "message": f"unknown launch action {action!r}",
+                        }
+                    client = self._launch_change_client
+                    if not client.wait_for_service(timeout_sec=3.0):
+                        return {
+                            "ok": False,
+                            "error": "unavailable",
+                            "message": "onboard launch agent not available",
+                        }
+                    request = ChangeManagedLaunch.Request()
+                    request.system_id = system_id
+                    request.action = action_value
+                    try:
+                        # Graceful stop takes 10 seconds before escalation.
+                        resp = _wait_for_ros_response(
+                            client.call_async(request), timeout_sec=25.0
+                        )
+                    except Exception as exc:  # noqa: BLE001 - ROS boundary
+                        return {
+                            "ok": False,
+                            "error": "unavailable",
+                            "message": f"launch-agent action failed: {exc}",
+                        }
+                    result = {
+                        "ok": bool(resp.accepted),
+                        "error": "" if resp.accepted else "rejected",
+                        "message": resp.message,
+                    }
+                    if resp.status.system_id:
+                        result["system"] = _managed_launch_to_dict(resp.status)
+                    return result
 
                 def _publish_twist(self, linear: float, yaw: float) -> None:
                     msg = Twist()

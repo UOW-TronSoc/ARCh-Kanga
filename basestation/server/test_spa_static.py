@@ -41,7 +41,7 @@ class SPAStaticFilesTests(unittest.TestCase):
         return asyncio.run(self.static.get_response(path.lstrip("/"), _scope(path, accept)))
 
     def test_client_routes_return_the_react_entrypoint(self) -> None:
-        for path in ("/commissioning", "/logs", "/dashboard"):
+        for path in ("/commissioning", "/logs", "/dashboard", "/systems"):
             with self.subTest(path=path):
                 response = self.get_response(path)
                 self.assertEqual(response.status_code, 200)

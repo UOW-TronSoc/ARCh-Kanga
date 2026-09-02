@@ -21,10 +21,13 @@ services:
     stdin_open: true
     tty: true
     working_dir: /workspace
+    # Keep one named development runtime alive. docker_shell.bash opens any
+    # number of interactive shells in this same container with compose exec.
+    command: ["sleep", "infinity"]
     volumes:
       - ..:/workspace
       # Persist libodrive's firmware-specific device descriptor JSON across
-      # disposable `docker compose run --rm` development shells.
+      # container recreation.
       - ${KANGA_ODRIVE_CACHE:-${HOME}/.cache/odrivetool}:/home/kanga/.cache/odrivetool
     environment:
       - TERM=xterm-256color

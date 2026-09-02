@@ -15,6 +15,9 @@ if kanga_use_compose_host_network; then
   COMPOSE_FILES+=(-f docker/compose.basestation.host.yaml)
 fi
 
-docker compose "${COMPOSE_FILES[@]}" down
+# The local onboard agent and simulation may still use the shared ROS network.
+# Remove only the web service and leave that network intact.
+docker compose "${COMPOSE_FILES[@]}" stop
+docker compose "${COMPOSE_FILES[@]}" rm -f
 
 echo "Basestation server stopped."

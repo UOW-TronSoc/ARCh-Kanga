@@ -22,6 +22,12 @@ const ACTION_LABELS = {
   restart: "Restart",
 };
 
+const LAUNCH_AGENT_COMMAND = "ros2 launch kanga_launch_agent launch_agent.launch.py";
+
+function selectCommandField(event) {
+  event.target.select();
+}
+
 function httpDetail(body, status) {
   if (typeof body?.detail === "string" && body.detail) {
     return body.detail;
@@ -56,11 +62,33 @@ async function systemsRequest(path, { method = "GET", signal } = {}) {
   return body;
 }
 
-function formatTimestamp(value) {
-  if (!value) return "—";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString();
+function formatDuration(ms) {
+  const seconds = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  if (hours > 0) {
+    return `${hours}h ${String(minutes).padStart(2, "0")}m ${String(secs).padStart(2, "0")}s`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${String(secs).padStart(2, "0")}s`;
+  }
+  return `${secs}s`;
+}
+
+function formatElapsed(system) {
+  if (!system.started_at) return "—";
+  const start = new Date(system.started_at);
+  if (Number.isNaN(start.getTime())) return "—";
+  const live = TRANSITIONAL_STATES.has(system.state) || system.state === "RUNNING";
+  let end = Date.now();
+  if (!live) {
+    if (system.state !== "FAILED" || !system.transitioned_at) return "—";
+    const stopped = new Date(system.transitioned_at);
+    if (Number.isNaN(stopped.getTime())) return "—";
+    end = stopped.getTime();
+  }
+  return formatDuration(end - start.getTime());
 }
 
 function processStateClass(state) {
@@ -199,7 +227,19 @@ export default function Systems() {
             {connectionStatus === 503 ? (
               <>
                 {" "}Start it in the ROS container with
-                {" "}<code>ros2 launch kanga_launch_agent launch_agent.launch.py</code>.
+                {" "}
+                <input
+                  className="systemsCommand"
+                  type="text"
+                  readOnly
+                  spellCheck="false"
+                  value={LAUNCH_AGENT_COMMAND}
+                  size={LAUNCH_AGENT_COMMAND.length}
+                  aria-label="Launch agent command"
+                  onFocus={selectCommandField}
+                  onDoubleClick={selectCommandField}
+                />
+                .
               </>
             ) : null}
           </div>
@@ -231,7 +271,7 @@ export default function Systems() {
             return (
               <div className="col-12 col-lg-6 col-xxl-4" key={system.id}>
                 <section className="systemsPanel p-3 h-100" aria-label={system.label}>
-                  <div className="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+                  <div className="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
                     <div>
                       <h5 className="text-white mb-1">{system.label}</h5>
                       <div className="small text-white-50">{system.id}</div>
@@ -243,39 +283,21 @@ export default function Systems() {
                       <span className="systemsState systemsState--health">
                         Health: {system.health || "NOT_CHECKED"}
                       </span>
+                      <span className="systemsState systemsState--health">
+                        {formatElapsed(system)}
+                      </span>
                     </div>
                   </div>
 
-                  <dl className="systemsMeta">
-                    <div>
-                      <dt>Ownership</dt>
-                      <dd>{system.owned ? "Owned by launch agent" : "Not owned by launch agent"}</dd>
-                    </div>
-                    <div>
-                      <dt>Profile</dt>
-                      <dd>{system.available ? "Launch executable available" : "Launch executable unavailable"}</dd>
-                    </div>
-                    <div>
-                      <dt>Started</dt>
-                      <dd>{formatTimestamp(system.started_at)}</dd>
-                    </div>
-                    <div>
-                      <dt>Last change</dt>
-                      <dd>{formatTimestamp(system.transitioned_at)}</dd>
-                    </div>
-                    {system.exit_code != null ? (
-                      <div>
-                        <dt>Exit code</dt>
-                        <dd>{system.exit_code}</dd>
-                      </div>
-                    ) : null}
-                  </dl>
+                  {system.exit_code != null ? (
+                    <p className="systemsError mb-2">Exit code {system.exit_code}</p>
+                  ) : null}
 
                   {transitional ? (
                     <p className="systemsProgress" role="status">
                       {system.state === "STARTING"
-                        ? "Startup in progress. Process state will become Running after the startup window, independent of sensor health."
-                        : "Shutdown in progress. The agent is signalling the owned process group."}
+                        ? "Startup in progress."
+                        : "Shutdown in progress."}
                     </p>
                   ) : null}
 

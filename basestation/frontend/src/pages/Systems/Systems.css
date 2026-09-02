@@ -51,30 +51,6 @@
   background: rgba(255, 255, 255, 0.08);
 }
 
-.systemsMeta {
-  margin: 0 0 1rem;
-}
-
-.systemsMeta div {
-  display: grid;
-  grid-template-columns: 7rem minmax(0, 1fr);
-  gap: 0.75rem;
-  padding: 0.3rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  font-size: 0.78rem;
-}
-
-.systemsMeta dt {
-  color: rgba(255, 255, 255, 0.55);
-  font-weight: 400;
-}
-
-.systemsMeta dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-  color: rgba(255, 255, 255, 0.9);
-}
-
 .systemsProgress,
 .systemsError {
   margin-bottom: 0.85rem;
@@ -155,4 +131,24 @@
 
 .systemsPage code {
   color: #cddcaf;
+}
+
+.systemsPage .alert code {
+  color: #1a1a1a;
+  background-color: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.systemsCommand {
+  display: inline-block;
+  width: auto;
+  max-width: 100%;
+  margin: 0.15rem 0.1rem;
+  padding: 0.12rem 0.4rem;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: var(--radius-sm);
+  color: #1a1a1a;
+  background: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.875em;
 }

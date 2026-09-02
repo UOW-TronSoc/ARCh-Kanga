@@ -26,10 +26,12 @@ Runtime usage:
 - Never run `kanga-dev` and `kanga-onboard` as simultaneous ROS runtimes.
 - `basestation_up.bash` starts only the separate web/API container.
 
-The current allowlist contains one physical profile, `core`, which starts the
-fixed `kanga_core_bringup/rover.launch.py` command. The agent detects the Core
-sentinel nodes before starting it and reports an externally started stack as
-`UNMANAGED`. It will never stop or restart an unmanaged stack.
+The current allowlist contains `core` (physical `kanga_core_bringup/rover.launch.py`)
+and `core_sim` (`kanga_sim/core_simulation.launch.py` with `world:=sand_dunes.sdf`).
+The agent detects each profile's sentinel nodes before starting it and reports
+an externally started stack as `UNMANAGED`. It will never stop or restart an
+unmanaged stack. Shared nodes such as `/whs_node` keep Core and Core
+Simulation from being started over each other.
 
 To add a subsystem later, add one reviewed `LaunchProfile` to
 `kanga_launch_agent/profiles.py` and append it to `PROFILES`. Its command,
@@ -45,6 +47,3 @@ The basestation maps these services to `GET /api/systems` and the three fixed
 `POST /api/systems/{system_id}/{start|stop|restart}` routes, and the operator
 UI consumes them from `/systems`. HTTP callers cannot provide a process command
 or launch argument.
-
-Simulation is intentionally not an owned profile yet. A locally started sim is
-visible through the same ROS graph and remains externally managed.

@@ -64,11 +64,9 @@ but does not build the ROS workspace. Later calls enter the same container. Use
 `docker_dev_down.bash` to stop it. GPU selection on graphical Linux hosts is
 made at creation using `KANGA_GPU=auto`, `nvidia`, or `none`.
 
-Simulation stays local and manually started for now. It should expose the same
-operational ROS interfaces as hardware so higher-level rover code need not know
-which boundary it is using. If its Core sentinel nodes exist, the agent reports
-the stack as `UNMANAGED` and never controls it. A reviewed simulation profile
-can be added later without redesigning the API.
+Simulation can also be started from System Startup as the reviewed `core_sim`
+profile. If those or Core sentinel nodes already exist from a manual launch,
+the agent reports the overlapping stack as `UNMANAGED` and never controls it.
 
 ### Rover production
 
@@ -90,8 +88,8 @@ bounded timeouts.
 
 ## Current Core profile
 
-The first and currently only managed profile is `core`. It runs this fixed,
-headless production launch:
+The managed physical profile is `core`. It runs this fixed, headless
+production launch:
 
 ```text
 ros2 launch kanga_core_bringup rover.launch.py
@@ -190,6 +188,28 @@ Core sentinels are:
 /suspension_joint_state_publisher
 /body_pose_tf_broadcaster
 ```
+
+## Current Core Simulation profile
+
+`core_sim` starts the reviewed Gazebo composition in the ROS container:
+
+```text
+ros2 launch kanga_sim core_simulation.launch.py
+world:=sand_dunes.sdf
+```
+
+Defaults from that launch file remain in force, including the Gazebo GUI. Core
+Simulation sentinels are:
+
+```text
+/simulation_clock_bridge
+/whs_node
+/suspension_joint_state_publisher
+/body_pose_tf_broadcaster
+```
+
+Shared sentinels with `core` prevent starting the physical stack over a running
+simulation, and the reverse.
 
 Process state and sensor health stay separate. Health remains `NOT_CHECKED`
 until monitoring is implemented, including while a process is `RUNNING`.
@@ -337,8 +357,8 @@ claim that the hardware acceptance checks later in this document have passed.
 - [ ] Add ROS health checks while retaining the separate process-state field.
 - [ ] Add explicit dependency validation and missing-prerequisite reporting.
 - [ ] Define partial-start and rollback semantics, then add operating presets.
-- [ ] Reconsider a manager-owned simulation profile only when it is more useful
-  than the current local `UNMANAGED` workflow.
+- [x] Added the reviewed Core Simulation profile `core_sim` for
+  `kanga_sim/core_simulation.launch.py` with `world:=sand_dunes.sdf`.
 
 ### Validation completed so far
 
@@ -369,7 +389,8 @@ claim that the hardware acceptance checks later in this document have passed.
 7. **ROS health monitoring — deferred.**
 8. **Dependency validation — deferred.**
 9. **Operating presets — deferred.**
-10. **Managed simulation profile — optional/deferred.**
+10. **Managed simulation profile — implemented.** `core_sim` runs
+    `kanga_sim/core_simulation.launch.py` with `world:=sand_dunes.sdf`.
 
 ## Acceptance contract
 

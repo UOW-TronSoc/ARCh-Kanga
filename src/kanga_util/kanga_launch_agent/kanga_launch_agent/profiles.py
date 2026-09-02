@@ -43,7 +43,27 @@ CORE_PROFILE = LaunchProfile(
     ),
 )
 
+CORE_SIM_PROFILE = LaunchProfile(
+    system_id="core_sim",
+    label="Core Simulation",
+    command=(
+        "ros2",
+        "launch",
+        "kanga_sim",
+        "core_simulation.launch.py",
+        "world:=sand_dunes.sdf",
+    ),
+    sentinel_nodes=frozenset(
+        {
+            "/simulation_clock_bridge",
+            "/whs_node",
+            "/suspension_joint_state_publisher",
+            "/body_pose_tf_broadcaster",
+        }
+    ),
+)
+
 
 # This tuple is the complete production allowlist. The manager and ROS service
 # boundary are generic and should not need changing when another profile lands.
-PROFILES = (CORE_PROFILE,)
+PROFILES = (CORE_PROFILE, CORE_SIM_PROFILE)

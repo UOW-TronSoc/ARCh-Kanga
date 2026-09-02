@@ -13,7 +13,7 @@ from kanga_launch_agent.manager import (
     LaunchManager,
     LaunchUnavailable,
 )
-from kanga_launch_agent.profiles import CORE_PROFILE
+from kanga_launch_agent.profiles import CORE_PROFILE, CORE_SIM_PROFILE
 
 
 class FakeProcess:
@@ -174,3 +174,31 @@ def test_start_refuses_when_ros_discovery_is_unavailable() -> None:
     assert manager.status("core")["state"] == "STOPPED"
     with pytest.raises(LaunchUnavailable, match="discovery"):
         manager.start("core")
+
+
+def test_core_sim_profile_is_fixed_and_listed() -> None:
+    harness = Harness()
+    manager = harness.manager()
+
+    assert [status["id"] for status in manager.statuses()] == ["core", "core_sim"]
+    status = manager.start("core_sim")
+
+    assert status["state"] == "STARTING"
+    assert harness.commands == [(list(CORE_SIM_PROFILE.command), True)]
+    assert CORE_SIM_PROFILE.command == (
+        "ros2",
+        "launch",
+        "kanga_sim",
+        "core_simulation.launch.py",
+        "world:=sand_dunes.sdf",
+    )
+    manager.shutdown()
+
+
+def test_shared_nodes_mark_core_and_core_sim_unmanaged() -> None:
+    harness = Harness()
+    harness.nodes.add("/whs_node")
+    manager = harness.manager()
+
+    assert manager.status("core")["state"] == "UNMANAGED"
+    assert manager.status("core_sim")["state"] == "UNMANAGED"

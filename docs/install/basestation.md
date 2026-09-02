@@ -107,6 +107,13 @@ documented in
 Until that integration is implemented, use the `kanga_core_drive`
 commissioning CLI and per-wheel ROS services documented in that package.
 
+## Logs
+
+`/logs` is a folder tree: live ROS `/rosout`, HTTP uvicorn buffer, and stubs
+for Docker and launch stdout. Recording stays on the server; the browser
+paints only while the page is open. Details in
+[the logs plan](../logging/README.md).
+
 ## Shared contract
 
 Do not copy generated message code into `basestation/`. Message definitions live

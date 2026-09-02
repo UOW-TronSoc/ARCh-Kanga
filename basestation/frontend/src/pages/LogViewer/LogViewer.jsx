@@ -79,6 +79,15 @@ function downloadText(filename, text) {
   URL.revokeObjectURL(url);
 }
 
+function matchesTextQuery(record, query) {
+  if (!query) return true;
+  const needle = query.toLowerCase();
+  return (
+    record.name.toLowerCase().includes(needle)
+    || record.msg.toLowerCase().includes(needle)
+  );
+}
+
 function RosNameBranch({
   nodes,
   source,
@@ -274,20 +283,16 @@ export default function LogViewer() {
 
   const visible = useMemo(() => {
     if (source === "http") {
-      return httpRecords.filter((record) => record.level >= levelFloor);
+      return httpRecords.filter((record) => {
+        if (record.level < levelFloor) return false;
+        return matchesTextQuery(record, nameQuery);
+      });
     }
     if (source !== "ros") return [];
     return rosRecords.filter((record) => {
       if (record.level < levelFloor) return false;
       if (!nameMatchesSelection(record.name, selection)) return false;
-      if (selection.type === "all" && nameQuery) {
-        const query = nameQuery.toLowerCase();
-        return (
-          record.name.toLowerCase().includes(query)
-          || record.msg.toLowerCase().includes(query)
-        );
-      }
-      return true;
+      return matchesTextQuery(record, nameQuery);
     });
   }, [source, httpRecords, rosRecords, levelFloor, selection, nameQuery]);
 
@@ -493,14 +498,13 @@ export default function LogViewer() {
                       ),
                     )}
                   </select>
-                  {source === "ros" && selection.type === "all" ? (
-                    <input
-                      type="search"
-                      placeholder="Filter name or message"
-                      value={nameQuery}
-                      onChange={(event) => setNameQuery(event.target.value)}
-                    />
-                  ) : null}
+                  <input
+                    type="search"
+                    id="logs-filter"
+                    placeholder="Filter name or message"
+                    value={nameQuery}
+                    onChange={(event) => setNameQuery(event.target.value)}
+                  />
                   <button
                     type="button"
                     className="logsButton"

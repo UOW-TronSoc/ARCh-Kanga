@@ -28,6 +28,7 @@ from .commissioning_api import (
 from .commissioning_catalog import build_commissioning_catalog
 from .commissioning_config import CommissioningConfigStore
 from .commissioning_jobs import CommissioningManager
+from .docker_logs import DockerLogStore, LEAVES as DOCKER_LOG_LEAVES
 from .log_buffer import attach_log_buffer
 from .launch_api import create_launch_router
 from .operator import router as operator_router
@@ -37,6 +38,7 @@ from .rosout_buffer import name_matches_selection
 from .spa_static import SPAStaticFiles
 
 runtime = RosRuntime()
+docker_logs = DockerLogStore()
 commissioning_catalog = build_commissioning_catalog()
 commissioning_store = CommissioningConfigStore(commissioning_catalog)
 commissioning_manager = CommissioningManager(
@@ -49,11 +51,13 @@ commissioning_manager = CommissioningManager(
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     attach_log_buffer()
+    docker_logs.start()
     runtime.start()
     try:
         yield
     finally:
         runtime.stop()
+        docker_logs.stop()
 
 
 app = FastAPI(title="basestation-server", version="0.1.0", lifespan=lifespan)
@@ -78,6 +82,10 @@ def _logs_pin_ok(session: dict) -> bool:
 class RosLogsClearBody(BaseModel):
     selection_type: str = Field(default="all")
     path: str = Field(default="")
+
+
+class DockerLogsClearBody(BaseModel):
+    leaf: str = Field(default="onboard")
 
 
 @app.get("/api/logs")
@@ -107,6 +115,31 @@ def api_ros_logs_clear(request: Request, body: RosLogsClearBody) -> dict:
                 body.path,
             )
         )
+    return {"ok": True}
+
+
+@app.get("/api/docker-logs")
+def api_docker_logs(request: Request, leaf: str = "onboard") -> dict:
+    if not _logs_pin_ok(request.session):
+        raise HTTPException(
+            status_code=401,
+            detail="PIN authentication is required for logs",
+        )
+    if leaf not in DOCKER_LOG_LEAVES:
+        raise HTTPException(status_code=400, detail="unknown docker log leaf")
+    return docker_logs.snapshot(leaf)
+
+
+@app.post("/api/docker-logs/clear")
+def api_docker_logs_clear(request: Request, body: DockerLogsClearBody) -> dict:
+    if not _logs_pin_ok(request.session):
+        raise HTTPException(
+            status_code=401,
+            detail="PIN authentication is required for logs",
+        )
+    if body.leaf not in DOCKER_LOG_LEAVES:
+        raise HTTPException(status_code=400, detail="unknown docker log leaf")
+    docker_logs.clear(body.leaf)
     return {"ok": True}
 
 
@@ -270,6 +303,61 @@ async def ws_logs(ws: WebSocket) -> None:
                 continue
             last_seq = newer[-1]["seq"]
             await ws.send_json({"t": "records", "records": newer})
+    except WebSocketDisconnect:
+        pass
+    except Exception:  # noqa: BLE001 — client gone mid-send
+        pass
+
+
+@app.websocket("/ws/docker-logs")
+async def ws_docker_logs(ws: WebSocket, leaf: str = "onboard") -> None:
+    """Snapshot plus live PID-1 docker log records for one container leaf."""
+    await ws.accept()
+    session = ws.scope.get("session") or {}
+    if not _logs_pin_ok(session):
+        await ws.send_json(
+            {"t": "error", "message": "PIN authentication is required for logs"}
+        )
+        await ws.close(code=4401)
+        return
+    if leaf not in DOCKER_LOG_LEAVES:
+        await ws.send_json({"t": "error", "message": "unknown docker log leaf"})
+        await ws.close(code=4400)
+        return
+    try:
+        snap = docker_logs.snapshot(leaf)
+        await ws.send_json(
+            {
+                "t": "snapshot",
+                "leaf": leaf,
+                "container": snap["container"],
+                "status": snap["status"],
+                "records": snap["records"],
+            }
+        )
+        last_seq = snap["records"][-1]["seq"] if snap["records"] else 0
+        last_status = (snap["container"], snap["status"])
+        while True:
+            await asyncio.sleep(0.15)
+            newer_snap = docker_logs.snapshot(leaf)
+            newer = [
+                record
+                for record in newer_snap["records"]
+                if record["seq"] > last_seq
+            ]
+            if newer:
+                last_seq = newer[-1]["seq"]
+                await ws.send_json({"t": "records", "records": newer})
+            status_key = (newer_snap["container"], newer_snap["status"])
+            if status_key != last_status:
+                last_status = status_key
+                await ws.send_json(
+                    {
+                        "t": "status",
+                        "container": newer_snap["container"],
+                        "status": newer_snap["status"],
+                    }
+                )
     except WebSocketDisconnect:
         pass
     except Exception:  # noqa: BLE001 — client gone mid-send

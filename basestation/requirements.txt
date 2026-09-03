@@ -6,3 +6,5 @@ websockets==14.1
 itsdangerous==2.2.0
 # Safe parsing for browser-editable motor-limit YAML.
 PyYAML==6.0.2
+# Follow container PID-1 logs from the host Docker socket (Logs page).
+docker==7.1.0

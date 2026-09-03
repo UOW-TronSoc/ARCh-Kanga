@@ -9,7 +9,11 @@ and ROS node — runs from a single service on port 8000. Design and progress:
 Rover launch processes do not run in this container. The active ROS runtime
 (`kanga-dev` during development or `kanga-onboard` in production) runs
 `kanga_launch_agent`, and FastAPI talks to it over ROS services. The basestation
-has neither a local launch subprocess nor access to the Docker socket.
+has neither a local launch subprocess nor launch ownership via the Docker
+socket. It does mount the host Docker socket **read-only** so the Logs page
+can follow PID-1 `docker logs` of `basestation-server` and the onboard
+runtime. That is log follow only; FastAPI does not compose, run, or exec
+containers. See [the logs plan](../logging/README.md).
 
 ## Responsibility split
 
@@ -181,10 +185,10 @@ commissioning CLI and per-wheel ROS services documented in that package.
 
 ## Logs
 
-`/logs` is a folder tree: live ROS `/rosout`, HTTP uvicorn buffer, and stubs
-for Docker and launch stdout. Recording stays on the server; the browser
-paints only while the page is open. Details in
-[the logs plan](../logging/README.md).
+`/logs` is a folder tree: live ROS `/rosout`, HTTP uvicorn buffer, Docker
+PID-1 `docker logs` (Basestation and Onboard), and a launch-stdout stub.
+Recording stays on the server; the browser paints only while the page is
+open. Details in [the logs plan](../logging/README.md).
 
 ## Shared contract
 

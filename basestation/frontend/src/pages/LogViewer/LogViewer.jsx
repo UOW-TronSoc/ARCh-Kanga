@@ -4,6 +4,7 @@ import {
   HTTP_LEVEL_OPTIONS,
   HTTP_LOG_INFO,
   ROS_LEVEL_OPTIONS,
+  ROS_LOG_DEBUG,
   ROS_LOG_WARN,
   http_level_name,
   http_level_value,
@@ -183,6 +184,7 @@ function stampForFilename() {
 export default function LogViewer() {
   const [rosOpen, setRosOpen] = useState(true);
   const [httpOpen, setHttpOpen] = useState(true);
+  const [dockerOpen, setDockerOpen] = useState(true);
   const [source, setSource] = useState("ros");
   const [selection, setSelection] = useState({ type: "all" });
   const [expanded, setExpanded] = useState(() => new Set());
@@ -192,9 +194,13 @@ export default function LogViewer() {
   const [treeOpen, setTreeOpen] = useState(true);
   const [rosRecords, setRosRecords] = useState([]);
   const [httpLines, setHttpLines] = useState([]);
+  const [dockerRecords, setDockerRecords] = useState([]);
+  const [dockerStatus, setDockerStatus] = useState("");
+  const [dockerContainer, setDockerContainer] = useState("");
   const [connected, setConnected] = useState(false);
   const pausedRef = useRef(false);
   const pendingRef = useRef([]);
+  const dockerPendingRef = useRef([]);
   const streamRef = useRef(null);
   const stickToBottomRef = useRef(true);
   pausedRef.current = paused;
@@ -231,6 +237,62 @@ export default function LogViewer() {
       alive = false;
       ws.close();
     };
+  }, [source]);
+
+  useEffect(() => {
+    if (source !== "docker") {
+      return undefined;
+    }
+    const leaf = selection.path === "basestation" ? "basestation" : "onboard";
+    let alive = true;
+    dockerPendingRef.current = [];
+    const ws = new WebSocket(`${getWsBase()}/ws/docker-logs?leaf=${encodeURIComponent(leaf)}`);
+    ws.onopen = () => {
+      if (alive) setConnected(true);
+    };
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.t === "snapshot" && Array.isArray(data.records)) {
+          if (data.container) setDockerContainer(data.container);
+          if (data.status) setDockerStatus(data.status);
+          if (!pausedRef.current) setDockerRecords(data.records);
+          return;
+        }
+        if (data.t === "status") {
+          if (data.container) setDockerContainer(data.container);
+          if (data.status) setDockerStatus(data.status);
+          return;
+        }
+        if (data.t === "records" && Array.isArray(data.records)) {
+          if (pausedRef.current) return;
+          dockerPendingRef.current.push(...data.records);
+        }
+      } catch {
+        /* ignore malformed frames */
+      }
+    };
+    ws.onclose = () => {
+      if (alive) setConnected(false);
+    };
+    return () => {
+      alive = false;
+      ws.close();
+    };
+  }, [source, selection.path]);
+
+  useEffect(() => {
+    if (source !== "docker") return undefined;
+    const timer = setInterval(() => {
+      if (pausedRef.current || dockerPendingRef.current.length === 0) return;
+      const batch = dockerPendingRef.current;
+      dockerPendingRef.current = [];
+      setDockerRecords((current) => {
+        const merged = [...current, ...batch];
+        return merged.length > 4000 ? merged.slice(merged.length - 4000) : merged;
+      });
+    }, 150);
+    return () => clearInterval(timer);
   }, [source]);
 
   useEffect(() => {
@@ -288,13 +350,19 @@ export default function LogViewer() {
         return matchesTextQuery(record, nameQuery);
       });
     }
+    if (source === "docker") {
+      return dockerRecords.filter((record) => {
+        if (record.level < levelFloor) return false;
+        return matchesTextQuery(record, nameQuery);
+      });
+    }
     if (source !== "ros") return [];
     return rosRecords.filter((record) => {
       if (record.level < levelFloor) return false;
       if (!nameMatchesSelection(record.name, selection)) return false;
       return matchesTextQuery(record, nameQuery);
     });
-  }, [source, httpRecords, rosRecords, levelFloor, selection, nameQuery]);
+  }, [source, httpRecords, rosRecords, dockerRecords, levelFloor, selection, nameQuery]);
 
   useEffect(() => {
     const node = streamRef.current;
@@ -338,7 +406,11 @@ export default function LogViewer() {
       (record) =>
         `${record.stamp || "-"} ${record.level_name} ${record.name} ${record.msg}`,
     );
-    const kind = source === "http" ? "http" : "ros";
+    const kind = source === "http"
+      ? "http"
+      : source === "docker"
+        ? `docker-${selection.path === "basestation" ? "basestation" : "onboard"}`
+        : "ros";
     downloadText(`kanga-logs-${kind}-${stampForFilename()}.txt`, `${lines.join("\n")}\n`);
   };
 
@@ -351,6 +423,19 @@ export default function LogViewer() {
         });
         if (!response.ok) return;
         setHttpLines([]);
+        return;
+      }
+      if (source === "docker") {
+        const leaf = selection.path === "basestation" ? "basestation" : "onboard";
+        const response = await fetch(`${getApiBase()}/docker-logs/clear`, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ leaf }),
+        });
+        if (!response.ok) return;
+        dockerPendingRef.current = [];
+        setDockerRecords([]);
         return;
       }
       if (source !== "ros") return;
@@ -379,7 +464,7 @@ export default function LogViewer() {
     }
   };
 
-  const stubSelected = source === "docker" || source === "stdout";
+  const stubSelected = source === "stdout";
 
   return (
     <div className="logsPage">
@@ -389,7 +474,7 @@ export default function LogViewer() {
             <h3 className="text-white mb-1">Logs</h3>
             <p className="small text-white-50 mb-0">
               Choose a source in the tree. ROS is live `/rosout`; HTTP is the
-              basestation uvicorn buffer.
+              basestation uvicorn buffer; Docker is PID-1 `docker logs`.
             </p>
           </div>
           <button
@@ -468,10 +553,44 @@ export default function LogViewer() {
               </ul>
             ) : null}
 
-            <button type="button" className="logsFolder" disabled>
+            <button
+              type="button"
+              className="logsFolder"
+              onClick={() => setDockerOpen((value) => !value)}
+            >
               <span>Docker</span>
-              <span>later</span>
+              <span>{dockerOpen ? "▾" : "▸"}</span>
             </button>
+            {dockerOpen ? (
+              <ul className="logsLeaves">
+                <li>
+                  <button
+                    type="button"
+                    className={`logsLeaf${source === "docker" && selection.path === "basestation" ? " is-active" : ""}`}
+                    onClick={() => {
+                      setSource("docker");
+                      setSelection({ type: "leaf", path: "basestation" });
+                      setLevelFloor(ROS_LOG_DEBUG);
+                    }}
+                  >
+                    Basestation
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    className={`logsLeaf${source === "docker" && selection.path === "onboard" ? " is-active" : ""}`}
+                    onClick={() => {
+                      setSource("docker");
+                      setSelection({ type: "leaf", path: "onboard" });
+                      setLevelFloor(ROS_LOG_DEBUG);
+                    }}
+                  >
+                    Onboard
+                  </button>
+                </li>
+              </ul>
+            ) : null}
             <button type="button" className="logsFolder" disabled>
               <span>Launch stdout</span>
               <span>later</span>
@@ -521,7 +640,13 @@ export default function LogViewer() {
                   <span className="small text-white-50">
                     {source === "ros"
                       ? (connected ? "Live" : "Connecting…")
-                      : "HTTP poll"}
+                      : source === "docker"
+                        ? (
+                          connected
+                            ? `Docker · ${dockerContainer || (selection.path === "basestation" ? "basestation-server" : "onboard")} · ${dockerStatus || "live"}`
+                            : "Connecting…"
+                        )
+                        : "HTTP poll"}
                     {` · ${visible.length} lines`}
                   </span>
                 </div>
@@ -531,7 +656,11 @@ export default function LogViewer() {
                   onScroll={onStreamScroll}
                 >
                   {visible.length === 0 ? (
-                    <div className="logsEmpty">No log lines in this view.</div>
+                    <div className="logsEmpty">
+                      {source === "docker" && dockerStatus
+                        ? `No log lines in this view. ${dockerStatus}`
+                        : "No log lines in this view."}
+                    </div>
                   ) : (
                     visible.map((record, index) => (
                       <div className="logsRow" key={`${record.seq}-${index}`}>

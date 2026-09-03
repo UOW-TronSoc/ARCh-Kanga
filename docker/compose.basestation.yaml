@@ -25,6 +25,10 @@ services:
     working_dir: /workspace/basestation
     volumes:
       - ..:/workspace
+      # Logs page follows PID-1 stdout of this container and the onboard
+      # runtime. Read-only mount does not block Docker API writes; the
+      # server only calls the logs API (no compose/run/exec).
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
       - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}

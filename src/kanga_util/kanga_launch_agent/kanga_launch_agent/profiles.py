@@ -23,7 +23,7 @@ CORE_PROFILE = LaunchProfile(
         "launch",
         "kanga_core_bringup",
         "rover.launch.py",
-        "can_interface:=can_core",
+        "can_interface:=can0",
         "drivetrain_profile:=drivetrain_2025",
         "motor_limits:=core",
         "initial_drivestop:=true",

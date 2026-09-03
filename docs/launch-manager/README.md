@@ -42,8 +42,10 @@ Kanga uses one ROS runtime plus one basestation container:
 | Rover production | headless `kanga-onboard` | `basestation-server` | 2 |
 
 `kanga-dev` and `kanga-onboard` are alternatives and must not run as
-simultaneous ROS runtimes. The web container never owns ROS processes or
-receives `/var/run/docker.sock`; the onboard agent is the sole process owner.
+simultaneous ROS runtimes. The web container never owns ROS processes.
+It may mount `/var/run/docker.sock` **only** to follow PID-1 container
+logs for `/logs`; it must not compose, run, or exec. The onboard agent
+is the sole process owner.
 
 ### Development and simulation
 
@@ -321,8 +323,9 @@ claim that the hardware acceptance checks later in this document have passed.
   package build/install metadata under
   [`kanga_launch_agent`](../../src/kanga_util/kanga_launch_agent/README.md).
 - [x] Added the production systemd unit and onboard Docker/host helpers so the
-  launch agent runs inside `kanga-onboard` without exposing the Docker socket to
-  the basestation.
+  launch agent runs inside `kanga-onboard` without giving the basestation
+  launch ownership of Docker. The basestation may mount the Docker socket
+  read-only to follow `docker logs` on the Logs page.
 - [x] Changed development helpers so repeated `docker_shell.bash` invocations
   enter one persistent `kanga-dev` container rather than creating separate ROS
   runtimes. Added documented `KANGA_GPU` selection.

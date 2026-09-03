@@ -17,7 +17,7 @@ from .operator import django_logs
 from .rosout_buffer import ROS_LOG_ERROR
 
 
-async def asgi_request(app, method: str, path: str, cookie: str | None = None):
+async def asgi_request(app, method: str, path: str, cookie: str | None = None, query: str = ""):
     headers = [(b"host", b"testserver"), (b"accept", b"application/json")]
     if cookie is not None:
         headers.append((b"cookie", cookie.encode("ascii")))
@@ -29,7 +29,7 @@ async def asgi_request(app, method: str, path: str, cookie: str | None = None):
         "scheme": "http",
         "path": path,
         "raw_path": path.encode("ascii"),
-        "query_string": b"",
+        "query_string": query.encode("ascii"),
         "headers": headers,
         "client": ("127.0.0.1", 1234),
         "server": ("testserver", 80),
@@ -163,6 +163,51 @@ class LogsApiTests(unittest.TestCase):
         self.assertTrue(body["ok"])
         records = main_module.runtime.rosout.snapshot()
         self.assertEqual([item["msg"] for item in records], ["right"])
+
+    def test_docker_snapshot_and_clear_are_per_leaf(self) -> None:
+        main_module.docker_logs.clear("basestation")
+        main_module.docker_logs.clear("onboard")
+        main_module.docker_logs.append_line(
+            "basestation",
+            "2026-09-03T01:02:03Z uvicorn started",
+            "basestation-server",
+        )
+        main_module.docker_logs.append_line(
+            "onboard",
+            "2026-09-03T01:02:03Z [ERROR] [1.0] [n]: fault",
+            "kanga-onboard",
+        )
+        app = FastAPI()
+        app.add_api_route("/api/docker-logs", main_module.api_docker_logs)
+        app.add_api_route(
+            "/api/docker-logs/clear",
+            main_module.api_docker_logs_clear,
+            methods=["POST"],
+        )
+        app.add_middleware(SessionMiddleware, secret_key="test-secret")
+        with patch("server.pin_auth.is_pin_configured", return_value=False):
+            status_code, body = asyncio.run(
+                asgi_request(app, "GET", "/api/docker-logs", query="leaf=onboard")
+            )
+            self.assertEqual(status_code, 200)
+            self.assertEqual(body["leaf"], "onboard")
+            self.assertEqual(len(body["records"]), 1)
+            self.assertEqual(body["records"][0]["level_name"], "ERROR")
+            status_code, body = asyncio.run(
+                asgi_post(app, "/api/docker-logs/clear", {"leaf": "onboard"})
+            )
+        self.assertEqual(status_code, 200)
+        self.assertEqual(main_module.docker_logs.snapshot("onboard")["records"], [])
+        self.assertEqual(len(main_module.docker_logs.snapshot("basestation")["records"]), 1)
+
+    def test_configured_pin_protects_docker_snapshot(self) -> None:
+        app = FastAPI()
+        app.add_api_route("/api/docker-logs", main_module.api_docker_logs)
+        app.add_middleware(SessionMiddleware, secret_key="test-secret")
+        with patch("server.pin_auth.is_pin_configured", return_value=True):
+            status_code, body = asyncio.run(asgi_request(app, "GET", "/api/docker-logs"))
+        self.assertEqual(status_code, 401)
+        self.assertIn("PIN", body["detail"])
 
 
 async def asgi_post(app, path: str, payload: dict, cookie: str | None = None):

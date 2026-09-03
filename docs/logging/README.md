@@ -6,20 +6,22 @@ selected from a folder-style tree. Independent of System Startup and
 
 ## Status
 
-**Stages 1–5 implemented.** `/logs` is a folder tree (ROS `/rosout` live,
-HTTP uvicorn poll, Docker and launch stdout stubs). Namespace folders
+**Stages 1–5 implemented. Docker Slice A implemented.** `/logs` is a folder
+tree: live ROS `/rosout`, HTTP uvicorn poll, Docker PID-1 `docker logs`
+(Basestation + Onboard), and a launch-stdout stub. Namespace folders
 split logger names on `.` and `/` and start collapsed. Track remaining
 work in [Implementation record](#implementation-record). **Current
 limits** of the ROS page are in [Limitations (today)](#limitations-today).
-**Docker follow** is specified but not built:
-[Future work: Docker / supervisor](#future-work-docker--supervisor).
+**What `docker logs` is (and is not)** is in
+[Docker PID-1 follow](#docker-pid-1-follow). Helper-shell capture is
+[Slice B, not built](#slice-b--helper-shells-later).
 
 ## Goal
 
 A **single** `/logs` page. The main pane shows one selected stream. A
-folder-style tree (expandable dropdowns) picks what to view. First slice
-wires **ROS** and **HTTP**. **Docker** and **launch stdout** sit in the tree
-as later leaves so they can be added without a new page.
+folder-style tree (expandable dropdowns) picks what to view. ROS, HTTP,
+and Docker (PID-1 container logs) are live. **Launch stdout** stays a
+stub.
 
 Record continuously on the server. Paint in the browser only while Logs is
 open. Save downloads the current view.
@@ -39,15 +41,18 @@ Logs
     …
   HTTP
     uvicorn
-  Docker          (later)
+  Docker
+    Basestation     PID-1 `docker logs` of `basestation-server`
+    Onboard         PID-1 `docker logs` of `kanga-dev` or `kanga-onboard`
   Launch stdout   (later)
 ```
 
-| Leaf | This slice | Stream |
+| Leaf | Wired | Stream |
 | --- | --- | --- |
 | `ROS / All` and `ROS / <graph name>` | Yes | `/rosout` |
 | `HTTP / uvicorn` | Yes | Existing `log_buffer.py` / `/api/django-logs/` |
-| `Docker / …` | Tree stub only | `docker logs` later |
+| `Docker / Basestation` | Yes | `docker logs` of `basestation-server` |
+| `Docker / Onboard` | Yes | `docker logs` of `kanga-dev` or `kanga-onboard` |
 | `Launch stdout / …` | Tree stub only | owned `ros2 launch` stdout later |
 
 ROS children under `ROS` come from `/rosout` logger names, not launch
@@ -66,7 +71,8 @@ pane.
 ```text
 ROS nodes --> /rosout --> always-on ring --> /ws/logs (while Logs is open)
 HTTP/uvicorn --> log_buffer.py --> snapshot or poll while HTTP leaf is selected
-Docker / stdout --> not wired; tree rows disabled or “coming later”
+Docker PID-1 --> docker.sock logs API --> always-on rings --> /ws/docker-logs
+Launch stdout --> not wired; tree row disabled
 ```
 
 ## When the page updates
@@ -79,7 +85,9 @@ Log volume is high. Drive and other routes must not re-render log lines.
   closes sockets, so React holds no log state. Opening Logs again snapshots
   the selected leaf, then live-updates that leaf only.
 - Do not open `/ws/logs` unless the selected leaf is ROS. HTTP can use the
-  existing REST buffer until a second socket is justified.
+  existing REST buffer until a second socket is justified. Docker uses
+  `/ws/docker-logs?leaf=basestation|onboard` only while that Docker leaf
+  is selected.
 - On the page, batch DOM updates (animation frame or about 100–200 ms),
   pause, and cap to the ring size. Auto-scroll only if already at the bottom.
 
@@ -122,10 +130,9 @@ leaf is a separate view of that ring.
 
 ## Later leaves
 
-**Docker** and **Launch stdout** are still stubs. Decisions for the next
-slice (rover topology, what to keep vs drop, when *not* to add launch
-pipes) are in
-[Future work: Docker / supervisor](#future-work-docker--supervisor).
+**Launch stdout** stays a stub. Docker PID-1 follow is
+[Slice A](#docker-pid-1-follow). Helper-shell capture is
+[Slice B](#slice-b--helper-shells-later).
 
 ## Implementation sketch
 
@@ -147,8 +154,8 @@ Drop the fake Django / Arm / Drive service pills and the CSV rover-file UI.
 Replace
 [`basestation/frontend/src/pages/LogViewer/LogViewer.jsx`](../../basestation/frontend/src/pages/LogViewer/LogViewer.jsx):
 
-- Left (or top) folder tree: ROS (expandable names), HTTP, Docker stub,
-  Launch stdout stub
+- Left (or top) folder tree: ROS (expandable names), HTTP, Docker
+  (Basestation / Onboard), Launch stdout stub
 - Main pane for the selected leaf: lines, level floor, pause, Save
 - `/ws/logs` only while mounted and ROS is selected
 - Style like other operator pages (dark panel, existing tokens)
@@ -226,14 +233,26 @@ stages must not be started until the previous stage is checked.
 - [ ] Confirm Drive stays smooth with Core (or sim) logging while Logs is
       closed, then that Logs shows the buffered snapshot on open.
 
+### Stage 7 — Docker PID-1 follow (Slice A)
+
+- [x] Follow `docker logs --timestamps` of `basestation-server` and onboard
+      (`kanga-dev` / `kanga-onboard`) from `basestation-server`.
+- [x] Mount host `/var/run/docker.sock` on the basestation compose service
+      (log API only).
+- [x] Always-on rings; `/ws/docker-logs?leaf=` while that leaf is selected.
+- [x] Keep rcl INFO and `process has died`; no rosout-duplicate filter.
+- [x] Missing container: empty pane + status, not a crash.
+
 ### Later (not built)
 
 - [x] Nested ROS folders by namespace from logger names (`wheel_bl.can_node`).
-- [ ] Docker leaf: `docker logs` of the **onboard** container from
-      `basestation-server` on the same host. Spec:
-      [Future work](#future-work-docker--supervisor).
+- [x] Docker Slice A: PID-1 `docker logs` of **Basestation** and **Onboard**
+      from `basestation-server` on the same host. Spec:
+      [Docker PID-1 follow](#docker-pid-1-follow).
 - [ ] Launch stdout leaf — **only if** Docker follow misses docker_shell or
       Startup. Do not build pipes just in case.
+- [ ] Slice B: helper-shell tees. Spec:
+      [Slice B](#slice-b--helper-shells-later).
 - [ ] ROS **topic** view on the webpage (`ros2 topic echo` / hz for a
       selected name). Not `/rosout`. High-rate topics would need their own
       ring, leaf, and rate cap so Drive stays smooth. Spec later if pulled
@@ -273,69 +292,61 @@ INFO. That is uvicorn, not a mapping bug.
 **Stage 6 hardware confirm** (Drive smooth with Logs closed) is still
 unticked.
 
-Do not merge ROS, HTTP, and Docker into one table. Do not scrape
-`basestation-server` docker logs for the HTTP leaf (uvicorn already has
-`log_buffer.py`).
+**Docker default DEBUG+** so launch stdout is visible. ROS stays WARN+.
 
-## Future work: Docker / supervisor
+**`docker logs` is PID 1 only.** `kanga-onboard` (launch agent as main
+process) fills the Onboard leaf. Typical `kanga-dev` + `docker_shell`
+sessions do not; those TTYs are not `docker logs`. See
+[Docker PID-1 follow](#docker-pid-1-follow).
 
-Everything that prints Core (docker_shell or Startup) runs **on the rover**
-in the onboard/`kanga-dev` container. `basestation-server` is another
-container on the **same host**. The webpage is only a client.
+Do not merge ROS, HTTP, and Docker into one table. The HTTP leaf still
+reads `log_buffer.py`; Docker / Basestation is a separate PID-1 view of
+the same container and may overlap uvicorn lines.
 
-On that host, `docker logs` of the onboard container is the supervisor
-stream for **both** start paths, if stdout is the container’s main log:
+## Docker PID-1 follow
 
-| How Core started | Docker leaf |
+Slice A is built. `basestation-server` follows host `docker logs` of two
+containers on the **same host**. The webpage is only a client.
+
+| Leaf | Default container | Override |
+| --- | --- | --- |
+| Basestation | `basestation-server` | `KANGA_DOCKER_BASESTATION_NAME` |
+| Onboard | first **running** of `kanga-onboard`, then `kanga-dev` | `KANGA_DOCKER_ONBOARD_NAME` |
+
+`docker logs` records stdout/stderr of the container **main process (PID 1)**
+and children that still inherit those file descriptors. It is not every
+process in the container.
+
+| How Core started | Onboard Docker leaf |
 | --- | --- |
-| docker_shell / `compose run` (shell is PID 1) then `ros2 launch` | Usually yes |
-| Startup; launch agent in that container; children inherit stdout (current `Popen`, no pipes) | Same log |
-| `docker exec` into a long-lived onboard container | Often **empty** — exec TTY is not `docker logs` |
+| `kanga-onboard` entrypoint is the launch agent; children inherit stdout (current `Popen`, no pipes) | Yes |
+| docker_shell / `compose run` with the shell as PID 1, then `ros2 launch` | Usually yes |
+| `docker exec` / `docker_shell.bash` into long-lived `kanga-dev` (`sleep infinity`) | **Empty** — exec TTY is not `docker logs` |
 
-Do not assume a second Docker daemon on the operator’s viewer machine.
+Duplicates with `/rosout` are accepted. There is **no** rcl DEBUG/INFO drop
+filter. Missing socket or missing container: empty pane plus a status
+string, not a crash.
 
-### What to show (decided)
+Server: [`basestation/server/docker_logs.py`](../../basestation/server/docker_logs.py).
+Socket mount on [`docker/compose.basestation.yaml`](../../docker/compose.basestation.yaml)
+(log follow only; the code does not compose/run/exec). Rings always record;
+the browser paints only while a Docker leaf is selected via `/ws/docker-logs`.
+Save: `kanga-logs-docker-{basestation|onboard}-YYYYMMDD-HHMMSS.txt`.
 
-`process has died` is not enough to diagnose. Keep the rcl ERROR/WARN
-lines even if they also appear under ROS. Duplicates are accepted.
+Launch stdout (tee `Popen` pipes) stays a stub.
 
-- **Keep** rcl-shaped `[WARN|WARNING|ERROR|FATAL] [stamp] [logger]: …`
-  (optional `[custom_odrive_node-6]` prefix).
-- **Drop** rcl-shaped `DEBUG` and `INFO` so the pane is not every chatter
-  line twice.
-- **Keep** `process has died`, `process started`, lifecycle `TRANSITION_*`.
-- **Keep** non-rcl prints (`Failed to get interface index`).
+## Slice B — helper shells (later)
 
-No `/rosout` ring lookup and no delay. Living-node WARNs may show on both
-leaves.
-
-### How to build it
-
-- Record always on basestation; paint only while the Docker leaf is
-  selected. Do not send these frames on `/ws/logs`.
-- Mount the host Docker socket read-only on `basestation-server`
-  ([`docker/compose.basestation.yaml`](../../docker/compose.basestation.yaml)).
-  Follow `docker logs -f --timestamps <name>`. Configurable name, default
-  `kanga-dev`. Missing container: empty pane + status, not a crash. May
-  need the Docker CLI (or SDK) in the basestation image.
-- Ring ~4000: `seq`, stamp, launch label if present, `msg`. Pause + Save
-  `kanga-logs-docker-….txt`.
-- Tests: keep an FL CAN ERROR rcl line; keep `process has died`; drop a
-  sample rcl INFO.
-- Rough size: 500–900 new lines plus 150–250 edits. Same order of work as
-  the `/rosout` leaf. No launch-agent change in this slice.
-
-**Launch stdout** (tee `Popen` pipes, publish over ROS) stays a stub
-unless Docker follow fails in the field (no socket, or exec sessions
-invisible). Do not build it just in case.
-
-Out of scope for that slice: combining ROS+Docker into one table, docker
-logs of `basestation-server`, health probes, replacing `Popen` with
-in-process launch events.
+Not built. Each `docker_shell` has its own TTY. `docker logs` never starts
+following a new exec. Capturing helper sessions means wrapping
+`docker_shell.bash` at start (`script` / `tee`). That would add dynamic
+leaves **beside** Slice A, not instead of it. Prod rover flow does not
+open helper shells; local dev already has the real terminal.
 
 ## Out of scope for Stages 1–6
 
-- Implementing Docker or launch-stdout capture (tree stubs only)
+- Slice B helper-shell tees
+- Launch-stdout capture (tree stub only)
 - Mixing all sources into one combined table
 - Launch-profile prefixes or Core vs Manipulator chips
 - Persistent server-side log files or the old CSV rover directory

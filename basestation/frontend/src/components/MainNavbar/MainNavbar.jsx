@@ -111,6 +111,11 @@ export default function MainNavbar() {
                 Logs
               </NavLink>
             </li>
+            <li className="nav-item">
+              <NavLink className={navLinkClass} to="/terminal">
+                Terminal
+              </NavLink>
+            </li>
           </ul>
         </div>
       </div>

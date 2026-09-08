@@ -284,11 +284,15 @@ calibration behavior is documented in the
 [commissioning page plan](../../basestation/COMMISSIONING_PAGE_PLAN.md).
 The Logs page (folder tree of ROS, HTTP, and Docker PID-1 logs)
 is documented in [the logs plan](../logging/README.md).
+The Terminal page (`/terminal`) provides a PIN-gated host-shell PTY via
+`nsenter` on native Linux (`pid: host` + privileged basestation overlay);
+it is an SSH substitute for operator commands, not a substitute for the
+launch agent.
 
 The basestation and onboard runtime remain separate deployment units. The
 FastAPI process never launches rover nodes locally. It mounts the host
 Docker socket only to follow PID-1 `docker logs` for the operator Logs
-page (no compose/run/exec). Launch ownership stays on the onboard
+page (no compose/run/exec for launch). Launch ownership stays on the onboard
 `kanga_launch_agent` over the typed `kanga_interfaces` services. The agent
 owns the fixed command, checks ROS sentinel nodes, and refuses to control
 an externally started stack. This keeps process ownership on the

@@ -44,8 +44,13 @@ Kanga uses one ROS runtime plus one basestation container:
 `kanga-dev` and `kanga-onboard` are alternatives and must not run as
 simultaneous ROS runtimes. The web container never owns ROS processes.
 It may mount `/var/run/docker.sock` **only** to follow PID-1 container
-logs for `/logs`; it must not compose, run, or exec. The onboard agent
-is the sole process owner.
+logs for `/logs`; it must not compose, run, or exec for launch ownership.
+The onboard agent is the sole process owner.
+
+Separately, on native Linux the operator **Terminal** page may `nsenter`
+into the host OS for an SSH-equivalent shell. That is a host PTY for
+operator diagnostics, not launch ownership: subsystem start/stop still
+goes only through typed ROS services to `kanga_launch_agent`.
 
 ### Development and simulation
 

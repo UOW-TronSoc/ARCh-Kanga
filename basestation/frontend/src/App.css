@@ -61,7 +61,8 @@ html, body {
 .logViewerPage,
 .logsPage,
 .scriptManagerPage,
-.sciencePage {
+.sciencePage,
+.terminalPage {
   width: 100%;
   max-width: 100%;
 }

@@ -36,6 +36,7 @@ from .ros import MAX_LINEAR_MPS, MAX_YAW_RAD_S, TELEMETRY_HZ, RosRuntime
 from .pin_auth import logs_session_ok
 from .rosout_buffer import name_matches_selection
 from .spa_static import SPAStaticFiles
+from .terminal_pty import run_terminal_websocket
 
 runtime = RosRuntime()
 docker_logs = DockerLogStore()
@@ -362,6 +363,12 @@ async def ws_docker_logs(ws: WebSocket, leaf: str = "onboard") -> None:
         pass
     except Exception:  # noqa: BLE001 — client gone mid-send
         pass
+
+
+@app.websocket("/ws/terminal")
+async def ws_terminal(ws: WebSocket) -> None:
+    """Interactive host-shell PTY. PIN-gated; native Linux pid:host only."""
+    await run_terminal_websocket(ws)
 
 
 # Static frontend last so API routes above take precedence.

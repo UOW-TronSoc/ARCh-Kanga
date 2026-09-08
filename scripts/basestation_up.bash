@@ -22,13 +22,30 @@ EOF
   exit 1
 fi
 
-# Match docker_shell.bash identity exports for consistency on this machine.
-export KANGA_UID="${KANGA_UID:-$(id -u)}"
-export KANGA_GID="${KANGA_GID:-$(id -g)}"
+# Host workspace path for the Terminal page (cwd/HOME of the host PTY).
+export KANGA_HOST_WORKSPACE="${KANGA_HOST_WORKSPACE:-${ROOT_DIR}}"
+
+# Prefer the workspace directory owner so systemd (User=root) does not spawn
+# a root host shell. Fall back to the invoking uid/gid.
+if [[ -z "${KANGA_UID:-}" || -z "${KANGA_GID:-}" ]]; then
+  if [[ -d "${KANGA_HOST_WORKSPACE}" ]]; then
+    export KANGA_UID="${KANGA_UID:-$(stat -c '%u' "${KANGA_HOST_WORKSPACE}")}"
+    export KANGA_GID="${KANGA_GID:-$(stat -c '%g' "${KANGA_HOST_WORKSPACE}")}"
+  else
+    export KANGA_UID="${KANGA_UID:-$(id -u)}"
+    export KANGA_GID="${KANGA_GID:-$(id -g)}"
+  fi
+fi
 
 if [[ "${SKIP_FRONTEND_BUILD:-0}" != "1" ]]; then
   ./scripts/build_frontend.bash
 fi
+
+# Boot-time starts skip image rebuilds (network metadata fetch can hang).
+# Default SKIP_BASESTATION_BUILD to SKIP_FRONTEND_BUILD so existing systemd
+# units that only set the latter still skip compose build. Override with
+# SKIP_BASESTATION_BUILD=0 to rebuild the image without rebuilding the UI.
+SKIP_BASESTATION_BUILD="${SKIP_BASESTATION_BUILD:-${SKIP_FRONTEND_BUILD:-0}}"
 
 # shellcheck source=kanga_host_network.bash
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/kanga_host_network.bash"
@@ -40,8 +57,10 @@ if kanga_use_compose_host_network; then
   COMPOSE_FILES+=(-f docker/compose.basestation.host.yaml)
 fi
 
-docker compose "${COMPOSE_FILES[@]}" build
-docker compose "${COMPOSE_FILES[@]}" up -d
+if [[ "${SKIP_BASESTATION_BUILD}" != "1" ]]; then
+  docker compose "${COMPOSE_FILES[@]}" build
+fi
+docker compose "${COMPOSE_FILES[@]}" up -d --no-build
 
 cat <<'EOF'
 

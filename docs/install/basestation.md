@@ -13,16 +13,21 @@ has neither a local launch subprocess nor launch ownership via the Docker
 socket. It does mount the host Docker socket **read-only** so the Logs page
 can follow PID-1 `docker logs` of `basestation-server` and the onboard
 runtime. That is log follow only; FastAPI does not compose, run, or exec
-containers. See [the logs plan](../logging/README.md).
+containers for launch ownership. See [the logs plan](../logging/README.md).
+On native Linux the Terminal page may `nsenter` into the host OS (see
+[Host terminal page](#host-terminal-page)).
 
 ## Responsibility split
 
 ### Docker handles
 
-- Basestation Python image (`ros:humble-ros-base-jammy` + pip deps)
+- Basestation Python image (`ros:humble-ros-base-jammy` + pip deps +
+  `util-linux` for the host Terminal page)
 - Frontend UI build (`node:20` via `./scripts/build_frontend.bash`, and the
   Node stage in `Dockerfile.basestation-python`)
 - Sourcing `/opt/ros/humble` and `/workspace/install` in the entrypoint
+- On native Linux: `pid: host` + `privileged` so `/terminal` can nsenter
+  the host shell
 
 ### The host still handles
 
@@ -67,8 +72,26 @@ browser's localhost; the default compose file publishes `8000:8000` instead.
 
 | URL | What you get |
 | --- | --- |
-| http://localhost:8000/ | React operator UI (PIN, Drive, and Logs) |
+| http://localhost:8000/ | React operator UI (PIN, Drive, Logs, Terminal, …) |
+| http://localhost:8000/terminal | Host shell in the browser (native Linux only) |
 | http://localhost:8000/health | Server + ROS node status as JSON |
+
+### Host terminal page
+
+`/terminal` opens an interactive PTY that `nsenter`s into the rover/host OS
+(same namespaces as PID 1). Home directory and starting cwd are the repository
+root (`KANGA_HOST_WORKSPACE`). It is PIN-gated when a PIN is configured.
+
+This requires the native-Linux compose overlay
+(`compose.basestation.host.yaml`: `network_mode: host`, `pid: host`,
+`privileged: true`). On Docker Desktop / WSL2 the page reports that the host
+terminal is unavailable instead of offering a container shell. Leaving the
+page closes the WebSocket and kills that shell (like closing an SSH window);
+use `tmux` or `screen` on the host for persistence.
+
+`basestation_up.bash` exports `KANGA_HOST_WORKSPACE` and the workspace
+directory owner as `KANGA_UID` / `KANGA_GID` so systemd (often `User=root`)
+does not spawn a root host shell.
 
 Drive arming on the dashboard: release drivestop (confirmed), then **B0**,
 **Space**, or the Drive Input button — closed loop first, then drive input.

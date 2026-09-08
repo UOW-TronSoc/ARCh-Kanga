@@ -1,7 +1,18 @@
 # Native-Linux overlay: join the host ROS graph. Incompatible with published
 # ports; localhost:8000 still works because the process binds on the host.
 # Skipped on Docker Desktop / WSL2 (see scripts/kanga_host_network.bash).
+#
+# pid: host + privileged let the Terminal page nsenter into host PID 1 so the
+# web shell matches an SSH login (docker, systemctl, scripts). Do not copy
+# these into the Desktop published-ports compose file.
 services:
   basestation-server:
     network_mode: host
+    pid: host
+    privileged: true
     ports: []
+    environment:
+      - KANGA_HOST_WORKSPACE=${KANGA_HOST_WORKSPACE}
+      - KANGA_USER_HOME=${KANGA_USER_HOME}
+      - KANGA_UID=${KANGA_UID:-1000}
+      - KANGA_GID=${KANGA_GID:-1000}

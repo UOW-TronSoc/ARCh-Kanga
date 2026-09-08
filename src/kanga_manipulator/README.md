@@ -5,21 +5,24 @@ a ROS package.
 
 ## Packages
 
-- `kanga_manipulator_description`: manipulator URDF, xacro, meshes, joints, and
-  frames.
-- `kanga_manipulator_controller`: manipulator control, kinematics, limits, and
-  operator command handling.
-- `kanga_manipulator_bringup`: manipulator-specific launch composition and
-  configuration selection.
-- `kanga_manipulator_simulation`: manipulator simulation bridges and launch
-  files.
-- `kanga_manipulator_microcontroller`: `.ino` firmware and protocol for the
-  manipulator microcontroller.
+| Package | Responsibility |
+| --- | --- |
+| `kanga_manipulator_description` | URDF, meshes, joint conventions, initial pose, hardware profiles |
+| `kanga_manipulator_controller` | V1 joint-velocity relay and input timeout; later Servo and end-effector modes |
+| `kanga_manipulator_drive` (planned) | ODrive lifecycle, core-style commissioning, conversion, joint protections, explicit timeout zero, watchdog path, joint feedback |
+| `kanga_manipulator_bringup` | Configuration selection and subsystem composition |
+| `kanga_manipulator_simulation` | Simulated hardware, timeout, and watchdog behaviour |
+| `kanga_manipulator_microcontroller` | ESP32 firmware and wrist/tool protocol |
 
-`kanga_manipulator_utils` is reserved as an empty structure folder for future
-manipulator utility packages. Do not put miscellaneous code there without a
-clear package boundary.
+`kanga_manipulator_utils` is reserved for future utility packages. Do not place
+miscellaneous code there without a clear package boundary.
 
-The primary historical reference is `ARCH2026-Kanga` branch
-`feat/arm-simulation` at commit
+Shared joystick acquisition remains in `kanga_joy`; arm-specific input meaning
+stays in the controller. Operator display and reference requests remain in
+`basestation/`.
+
+Historical reference: `ARCH2026-Kanga` branch `feat/arm-simulation` at commit
 `8b0c0537823fac7aaac26c1bea8bd4f3763bdc06`.
+
+The authoritative architecture, interfaces, staged plan, and migration evidence
+are in [`docs/migration/manipulator.md`](../../docs/migration/manipulator.md).

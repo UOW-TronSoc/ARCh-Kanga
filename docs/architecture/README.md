@@ -257,11 +257,23 @@ Domain-specific behaviour stays in its domain.
 
 Manipulator, excavator, and science are independent structure folders. Each
 owns separate description, controller, bringup, simulation, and microcontroller
-packages so it can run without the core or either other payload.
+packages so it can run without the core or either other payload. A payload may
+also own a drive package when it needs a distinct joint-to-actuator hardware
+boundary. The manipulator uses `kanga_manipulator_drive` for ODrive lifecycle,
+transmission conversion, core-style commissioning, joint protections, an
+arm-specific timeout-zero/watchdog path, and joint feedback. Its controller
+first provides a literal joint-velocity relay; MoveIt Servo and end-effector
+control follow as a later capability. Optional startup jogging and reference
+capture are a later QOL stage.
 
 The manipulator and excavator shared control and launch code previously, but the
 current systems do not. Extract a common library only when current, tested
 requirements prove that an abstraction is genuinely shared.
+
+The manipulator rebuild is documented in
+[manipulator.md](../migration/manipulator.md). Architecture, interfaces, staged
+delivery, and migration evidence live there; package READMEs summarise ownership
+only.
 
 Each payload also has an empty `kanga_<payload>_utils` structure folder reserved
 for future packages. It must not receive miscellaneous implementation directly.

@@ -42,6 +42,13 @@ kanga_<payload>_microcontroller/
 kanga_<payload>_utils/            Reserved structure folder, not a package
 ```
 
+A payload may also have a drive package when it needs an explicit
+joint-to-actuator boundary. The planned `kanga_manipulator_drive` mirrors
+`kanga_core_drive` (commissioning, actuator adapter, feedback, watchdog) while
+accounting for bounded joints, initial-angle mapping, explicit timeout-zero
+behaviour, and per-joint motor types. See
+[docs/migration/manipulator.md](../docs/migration/manipulator.md).
+
 Package and structure-folder READMEs define their exact responsibilities.
 
 ## Composition model

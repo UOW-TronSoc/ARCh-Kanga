@@ -13,7 +13,8 @@ competition-tested branches may be consulted component by component, but
 `feat/arm-simulation` is the starting point for inventory and provenance.
 
 Basestation operator UI/API migration is tracked separately in
-[basestation.md](basestation.md).
+[basestation.md](basestation.md). The staged manipulator rebuild is tracked in
+[manipulator.md](manipulator.md).
 
 ## Migration progress
 
@@ -40,6 +41,8 @@ what changed and why.
 - Complete physical GPIO integration behind the existing `kanga_whs` contract.
 - Continue payload description/control/simulation and whole-rover composition
   as independently reviewed slices.
+- Begin the manipulator rebuild with the architecture and staged migration in
+  [manipulator.md](manipulator.md); do not add a temporary legacy arm tree.
 - Battery / `ros2_socketcan` validation stays a separate track and does not
   block the core simulation.
 

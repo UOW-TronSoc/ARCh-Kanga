@@ -13,5 +13,6 @@ services:
     ports: []
     environment:
       - KANGA_HOST_WORKSPACE=${KANGA_HOST_WORKSPACE}
+      - KANGA_USER_HOME=${KANGA_USER_HOME}
       - KANGA_UID=${KANGA_UID:-1000}
       - KANGA_GID=${KANGA_GID:-1000}

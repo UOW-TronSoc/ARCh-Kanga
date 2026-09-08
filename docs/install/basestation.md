@@ -79,8 +79,10 @@ browser's localhost; the default compose file publishes `8000:8000` instead.
 ### Host terminal page
 
 `/terminal` opens an interactive PTY that `nsenter`s into the rover/host OS
-(same namespaces as PID 1). Home directory and starting cwd are the repository
-root (`KANGA_HOST_WORKSPACE`). It is PIN-gated when a PIN is configured.
+(same namespaces as PID 1). The shell starts in the repository root
+(`KANGA_HOST_WORKSPACE`) but uses the workspace owner's real home directory for
+`HOME`, so normal `~/.bashrc` aliases and colors load. It is PIN-gated when a
+PIN is configured.
 
 This requires the native-Linux compose overlay
 (`compose.basestation.host.yaml`: `network_mode: host`, `pid: host`,

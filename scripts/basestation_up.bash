@@ -22,7 +22,7 @@ EOF
   exit 1
 fi
 
-# Host workspace path for the Terminal page (cwd/HOME of the host PTY).
+# Host workspace path for the Terminal page (starting cwd of the host PTY).
 export KANGA_HOST_WORKSPACE="${KANGA_HOST_WORKSPACE:-${ROOT_DIR}}"
 
 # Prefer the workspace directory owner so systemd (User=root) does not spawn
@@ -34,6 +34,14 @@ if [[ -z "${KANGA_UID:-}" || -z "${KANGA_GID:-}" ]]; then
   else
     export KANGA_UID="${KANGA_UID:-$(id -u)}"
     export KANGA_GID="${KANGA_GID:-$(id -g)}"
+  fi
+fi
+
+# Real home dir for ~/.bashrc (aliases, ls colors). Container passwd may differ.
+if [[ -z "${KANGA_USER_HOME:-}" ]]; then
+  KANGA_USER_HOME="$(getent passwd "${KANGA_UID}" 2>/dev/null | cut -d: -f6 || true)"
+  if [[ -n "${KANGA_USER_HOME}" ]]; then
+    export KANGA_USER_HOME
   fi
 fi
 

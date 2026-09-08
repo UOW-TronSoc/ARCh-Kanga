@@ -20,6 +20,7 @@ from .terminal_pty import (
     build_host_shell_argv,
     host_terminal_available,
     host_uid_gid,
+    host_user_home,
     host_workspace,
     reset_session_counter_for_tests,
     run_terminal_websocket,
@@ -84,11 +85,16 @@ async def asgi_websocket(
 
 class HostShellArgvTests(unittest.TestCase):
     def test_build_host_shell_argv_uses_nsenter_setpriv_and_workspace(self) -> None:
-        argv = build_host_shell_argv(
-            workspace=Path("/home/kanga/kanga_wip"),
-            uid=1000,
-            gid=1000,
-        )
+        with patch.dict(
+            os.environ,
+            {"KANGA_USER_HOME": "/home/kanga"},
+            clear=False,
+        ):
+            argv = build_host_shell_argv(
+                workspace=Path("/home/kanga/kanga_wip"),
+                uid=1000,
+                gid=1000,
+            )
         self.assertEqual(argv[0], "nsenter")
         self.assertIn("--target", argv)
         self.assertIn("1", argv)
@@ -98,13 +104,21 @@ class HostShellArgvTests(unittest.TestCase):
         self.assertIn("--reuid=1000", argv)
         self.assertIn("--regid=1000", argv)
         self.assertIn("--init-groups", argv)
-        self.assertIn("HOME=/home/kanga/kanga_wip", argv)
+        self.assertIn("HOME=/home/kanga", argv)
+        self.assertIn("KANGA_HOST_WORKSPACE=/home/kanga/kanga_wip", argv)
         self.assertIn(
             "HISTFILE=/home/kanga/kanga_wip/basestation/data/.web_terminal_history",
             argv,
         )
         self.assertIn("/bin/bash", argv)
-        self.assertIn('cd "$HOME" && exec /bin/bash -i', argv)
+        self.assertIn(
+            'cd "${KANGA_HOST_WORKSPACE:-$HOME}" && exec /bin/bash -i',
+            argv,
+        )
+
+    def test_host_user_home_prefers_env(self) -> None:
+        with patch.dict(os.environ, {"KANGA_USER_HOME": "/home/testuser"}):
+            self.assertEqual(host_user_home(1000), Path("/home/testuser"))
 
     def test_host_workspace_prefers_env(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

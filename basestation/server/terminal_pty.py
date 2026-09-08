@@ -11,6 +11,7 @@ import asyncio
 import fcntl
 import json
 import os
+import pwd
 import pty
 import shutil
 import signal
@@ -59,6 +60,23 @@ def host_uid_gid() -> tuple[int, int]:
     return uid, gid
 
 
+def host_user_home(uid: Optional[int] = None) -> Path:
+    """Return the host user's home directory for bash profile/aliases.
+
+    The container passwd database may not match the host uid, so prefer
+    KANGA_USER_HOME set by basestation_up.bash on the host.
+    """
+    raw = os.environ.get("KANGA_USER_HOME", "").strip()
+    if raw:
+        return Path(raw)
+    if uid is None:
+        uid, _ = host_uid_gid()
+    try:
+        return Path(pwd.getpwuid(uid).pw_dir)
+    except (KeyError, OSError):
+        return host_workspace()
+
+
 def same_pid_namespace_as_init() -> bool:
     """True when this process shares PID 1's namespace (pid: host)."""
     try:
@@ -94,13 +112,15 @@ def build_host_shell_argv(
     """Build nsenter + setpriv + bash argv for a host interactive shell.
 
     Popen cwd must stay a path that exists in the container (/). After nsenter
-    switches to the host mount namespace, bash cds into HOME (host workspace).
+    switches to the host mount namespace, bash cds into KANGA_HOST_WORKSPACE.
+    HOME stays the user's real home so ~/.bashrc aliases and colors load.
     """
     ws = workspace or host_workspace()
     if uid is None or gid is None:
         resolved_uid, resolved_gid = host_uid_gid()
         uid = resolved_uid if uid is None else uid
         gid = resolved_gid if gid is None else gid
+    home = host_user_home(uid)
     # HISTFILE lives on the bind-mounted workspace so it persists on the host.
     hist = Path(ws) / "basestation" / "data" / ".web_terminal_history"
     # Already share the host PID namespace (compose pid: host). Do not pass
@@ -120,14 +140,15 @@ def build_host_shell_argv(
         "--init-groups",
         "--",
         "env",
-        f"HOME={ws}",
+        f"HOME={home}",
+        f"KANGA_HOST_WORKSPACE={ws}",
         f"HISTFILE={hist}",
         "TERM=xterm-256color",
         "COLORTERM=truecolor",
         f"PWD={ws}",
         "/bin/bash",
         "-c",
-        'cd "$HOME" && exec /bin/bash -i',
+        'cd "${KANGA_HOST_WORKSPACE:-$HOME}" && exec /bin/bash -i',
     ]
 
 

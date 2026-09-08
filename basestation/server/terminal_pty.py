@@ -294,6 +294,7 @@ class ManagedTerminalSession:
         self._ws: Optional[WebSocket] = None
         self._pump_task: Optional[asyncio.Task] = None
         self.detached_at: Optional[float] = None
+        self.explicit_close = False
 
     def alive(self) -> bool:
         return self.term.alive()
@@ -351,8 +352,28 @@ class ManagedTerminalSession:
         self.detached_at = None
 
     async def detach(self) -> None:
+        if self.explicit_close:
+            return
         self._ws = None
         self.detached_at = time.monotonic()
+
+    async def request_close(self) -> None:
+        """Kill this shell and drop it so a later disconnect cannot reattach."""
+        if self.explicit_close:
+            return
+        self.explicit_close = True
+        self._ws = None
+        self.detached_at = None
+        async with _sessions_lock:
+            _managed_sessions.pop(self.session_id, None)
+        if self._pump_task is not None and not self._pump_task.done():
+            self._pump_task.cancel()
+            try:
+                await self._pump_task
+            except asyncio.CancelledError:
+                pass
+            self._pump_task = None
+        await asyncio.to_thread(self.term.close)
 
     async def send_ready(self, ws: WebSocket, *, reattached: bool) -> None:
         await ws.send_text(
@@ -362,6 +383,7 @@ class ManagedTerminalSession:
                     "session_id": self.session_id,
                     "cwd": str(host_workspace()),
                     "reattached": reattached,
+                    "max_sessions": MAX_SESSIONS,
                 }
             )
         )
@@ -498,6 +520,9 @@ async def run_terminal_websocket(
                 continue
             if not isinstance(payload, dict):
                 continue
+            if payload.get("t") == "close":
+                await managed.request_close()
+                break
             if payload.get("t") == "resize":
                 try:
                     managed.term.resize(

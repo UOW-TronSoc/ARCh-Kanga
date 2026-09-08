@@ -262,6 +262,8 @@ class TerminalWebsocketTests(unittest.TestCase):
                         task.cancel()
                         raise AssertionError(payload.get("message"))
             self.assertTrue(ready)
+            self.assertIn("max_sessions", payload)
+            self.assertIn("session_id", payload)
             await in_q.put(
                 {
                     "type": "websocket.receive",
@@ -376,6 +378,94 @@ class TerminalWebsocketTests(unittest.TestCase):
             session_id, replay = asyncio.run(exercise())
         self.assertTrue(session_id)
         self.assertIn(b"persist-me", replay)
+
+    def test_two_sessions_are_independent_and_close_kills_only_one(self) -> None:
+        app = self._app()
+
+        async def open_shell(marker: bytes) -> tuple[asyncio.Task, asyncio.Queue, str]:
+            headers = [
+                (b"host", b"testserver"),
+                (b"sec-websocket-key", b"dGVzdA=="),
+            ]
+            out_q: asyncio.Queue = asyncio.Queue()
+            in_q: asyncio.Queue = asyncio.Queue()
+            await in_q.put({"type": "websocket.connect"})
+            scope = {
+                "type": "websocket",
+                "asgi": {"version": "3.0"},
+                "http_version": "1.1",
+                "scheme": "ws",
+                "path": "/ws/terminal",
+                "raw_path": b"/ws/terminal",
+                "query_string": b"",
+                "headers": headers,
+                "client": ("127.0.0.1", 1234),
+                "server": ("testserver", 80),
+                "subprotocols": [],
+                "state": {},
+                "session": {},
+            }
+
+            async def receive() -> dict:
+                return await in_q.get()
+
+            async def send(message: dict) -> None:
+                await out_q.put(message)
+
+            task = asyncio.create_task(app(scope, receive, send))
+            session_id = ""
+            deadline = time.time() + 4.0
+            while time.time() < deadline and not session_id:
+                msg = await asyncio.wait_for(out_q.get(), timeout=0.5)
+                if msg["type"] == "websocket.send" and "text" in msg:
+                    payload = json.loads(msg["text"])
+                    if payload.get("t") == "ready":
+                        session_id = payload["session_id"]
+                        self.assertEqual(payload.get("max_sessions"), terminal_module.MAX_SESSIONS)
+            self.assertTrue(session_id)
+            await in_q.put(
+                {"type": "websocket.receive", "bytes": b"printf '%s\\n'\n" % marker}
+            )
+            got = b""
+            deadline = time.time() + 4.0
+            while time.time() < deadline and marker not in got:
+                msg = await asyncio.wait_for(out_q.get(), timeout=0.5)
+                if msg["type"] == "websocket.send" and "bytes" in msg:
+                    got += msg["bytes"]
+            self.assertIn(marker, got)
+            return task, in_q, session_id
+
+        async def exercise() -> None:
+            first_task, first_in, first_id = await open_shell(b"tab-one")
+            second_task, _second_in, second_id = await open_shell(b"tab-two")
+            self.assertNotEqual(first_id, second_id)
+            self.assertEqual(set(terminal_module._managed_sessions), {first_id, second_id})
+
+            await first_in.put(
+                {
+                    "type": "websocket.receive",
+                    "text": json.dumps({"t": "close"}),
+                }
+            )
+            await first_in.put({"type": "websocket.disconnect", "code": 1000})
+            try:
+                await asyncio.wait_for(first_task, timeout=3.0)
+            except asyncio.TimeoutError:
+                first_task.cancel()
+
+            self.assertNotIn(first_id, terminal_module._managed_sessions)
+            self.assertIn(second_id, terminal_module._managed_sessions)
+            self.assertTrue(terminal_module._managed_sessions[second_id].alive())
+
+            await _second_in.put({"type": "websocket.disconnect", "code": 1000})
+            try:
+                await asyncio.wait_for(second_task, timeout=3.0)
+            except asyncio.TimeoutError:
+                second_task.cancel()
+            self.assertIn(second_id, terminal_module._managed_sessions)
+
+        with patch("server.pin_auth.is_pin_configured", return_value=False):
+            asyncio.run(exercise())
 
 
 class SessionCapTests(unittest.TestCase):

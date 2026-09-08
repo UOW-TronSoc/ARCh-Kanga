@@ -398,20 +398,36 @@ class ManagedTerminalSession:
         self.term.close()
 
 
+def _is_detached(managed: ManagedTerminalSession) -> bool:
+    return managed._ws is None and managed.detached_at is not None
+
+
+def _close_managed(session_id: str, managed: ManagedTerminalSession) -> None:
+    managed.close()
+    _managed_sessions.pop(session_id, None)
+
+
 def _prune_managed_sessions() -> None:
     now = time.monotonic()
     for session_id, managed in list(_managed_sessions.items()):
         if not managed.alive():
-            managed.close()
-            _managed_sessions.pop(session_id, None)
+            _close_managed(session_id, managed)
             continue
-        if (
-            managed._ws is None
-            and managed.detached_at is not None
-            and now - managed.detached_at > DETACHED_TTL_SEC
-        ):
-            managed.close()
-            _managed_sessions.pop(session_id, None)
+        if _is_detached(managed) and now - managed.detached_at > DETACHED_TTL_SEC:
+            _close_managed(session_id, managed)
+
+
+def _evict_detached_sessions() -> None:
+    """Drop unattached shells so a new browser tab can replace a closed one."""
+    detached = [
+        (managed.detached_at or 0, session_id, managed)
+        for session_id, managed in _managed_sessions.items()
+        if _is_detached(managed)
+    ]
+    for _, session_id, managed in sorted(detached):
+        if len(_managed_sessions) < MAX_SESSIONS:
+            break
+        _close_managed(session_id, managed)
 
 
 async def _get_or_create_managed_session(
@@ -431,6 +447,8 @@ async def _get_or_create_managed_session(
         elif managed is not None:
             reattached = True
     if managed is None:
+        if len(_managed_sessions) >= MAX_SESSIONS:
+            _evict_detached_sessions()
         if len(_managed_sessions) >= MAX_SESSIONS:
             raise RuntimeError(f"Too many terminal sessions (max {MAX_SESSIONS})")
         term = spawn(cols=DEFAULT_COLS, rows=DEFAULT_ROWS)

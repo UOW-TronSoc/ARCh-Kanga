@@ -90,10 +90,11 @@ another group to join that group, or drop it on a pane edge to create a split.
 The split buttons on a group do the same without dragging. Divider bars resize
 the panes. Reloading the page restores the groups, tab order, sizes, focus,
 and recent output. Closing a tab asks for confirmation and then stops that
-shell. Leaving the page or closing the browser only detaches the shells; they
-remain available for about an hour. A page reload is not the same as a process
-or container reboot: those drop the live PTYs, so the next visit starts fresh
-shells. For work that must survive a reboot, use `tmux` or `screen`.
+shell. Reloading the page reconnects to the same shells. Closing the browser
+tab drops those sockets; the next visit can start new shells in their place.
+Leaving the Terminal page and coming back still reconnects. A process or
+container reboot drops the live PTYs, so the next visit starts fresh shells.
+For work that must survive a reboot, use `tmux` or `screen`.
 
 This requires the native-Linux compose overlay
 (`compose.basestation.host.yaml`: `network_mode: host`, `pid: host`,

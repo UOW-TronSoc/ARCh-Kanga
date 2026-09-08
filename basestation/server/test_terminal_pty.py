@@ -586,6 +586,91 @@ class SessionCapTests(unittest.TestCase):
         with patch("server.pin_auth.is_pin_configured", return_value=False):
             asyncio.run(exercise())
 
+    def test_new_session_replaces_detached_sessions_after_browser_close(self) -> None:
+        app = FastAPI()
+
+        @app.websocket("/ws/terminal")
+        async def ws_terminal(ws: WebSocket):
+            await run_terminal_websocket(ws, spawn=_local_bash_spawn)
+
+        async def exercise() -> str:
+            headers = [(b"host", b"testserver"), (b"sec-websocket-key", b"dGVzdA==")]
+            out_q: asyncio.Queue = asyncio.Queue()
+            in_q: asyncio.Queue = asyncio.Queue()
+            await in_q.put({"type": "websocket.connect"})
+            scope = {
+                "type": "websocket",
+                "asgi": {"version": "3.0"},
+                "http_version": "1.1",
+                "scheme": "ws",
+                "path": "/ws/terminal",
+                "raw_path": b"/ws/terminal",
+                "query_string": b"",
+                "headers": headers,
+                "client": ("127.0.0.1", 1234),
+                "server": ("testserver", 80),
+                "subprotocols": [],
+                "state": {},
+                "session": {},
+            }
+
+            async def receive() -> dict:
+                return await in_q.get()
+
+            async def send(message: dict) -> None:
+                await out_q.put(message)
+
+            task = asyncio.create_task(app(scope, receive, send))
+            session_id = ""
+            deadline = time.time() + 4.0
+            while time.time() < deadline and not session_id:
+                msg = await asyncio.wait_for(out_q.get(), timeout=0.5)
+                if msg["type"] == "websocket.send" and "text" in msg:
+                    payload = json.loads(msg["text"])
+                    if payload.get("t") == "ready":
+                        session_id = payload["session_id"]
+            self.assertTrue(session_id)
+            await in_q.put({"type": "websocket.disconnect", "code": 1000})
+            try:
+                await asyncio.wait_for(task, timeout=3.0)
+            except asyncio.TimeoutError:
+                task.cancel()
+            self.assertIn(session_id, terminal_module._managed_sessions)
+
+            for index in range(terminal_module.MAX_SESSIONS - 1):
+                term = MagicMock()
+                term.alive.return_value = True
+                managed = ManagedTerminalSession(term, session_id=f"detached-{index}")
+                managed.detached_at = time.monotonic() - index
+                terminal_module._managed_sessions[managed.session_id] = managed
+
+            replacement = await asgi_websocket(
+                app,
+                "/ws/terminal",
+                client_messages=[{"type": "websocket.connect"}],
+            )
+            texts = [
+                json.loads(m["text"])
+                for m in replacement
+                if m["type"] == "websocket.send" and "text" in m
+            ]
+            self.assertTrue(texts)
+            self.assertEqual(texts[0]["t"], "ready")
+            self.assertNotEqual(texts[0]["session_id"], session_id)
+            self.assertIn(texts[0]["session_id"], terminal_module._managed_sessions)
+            self.assertLessEqual(
+                len(terminal_module._managed_sessions),
+                terminal_module.MAX_SESSIONS,
+            )
+            self.assertNotIn(
+                f"detached-{terminal_module.MAX_SESSIONS - 2}",
+                terminal_module._managed_sessions,
+            )
+            return texts[0]["session_id"]
+
+        with patch("server.pin_auth.is_pin_configured", return_value=False):
+            asyncio.run(exercise())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -84,14 +84,16 @@ browser's localhost; the default compose file publishes `8000:8000` instead.
 `HOME`, so normal `~/.bashrc` aliases and colors load. It is PIN-gated when a
 PIN is configured.
 
-The page can open up to four host shells as in-page tabs. Each tab is its own
-PTY. Switching tabs does not stop a command; reloading the page restores every
-tab, the previously active tab, and recent output. Closing a tab asks for
-confirmation and then stops that shell. Leaving the page or closing the
-browser only detaches the shells; they remain available for about an hour.
-A page reload is not the same as a process or container reboot: those drop the
-live PTYs, so the next visit starts fresh shells. For work that must survive a
-reboot, use `tmux` or `screen`.
+The page can open up to six host shells. Tabs can stay grouped in one pane or
+be split left/right and top/bottom. Drag a tab to reorder it, drop it on
+another group to join that group, or drop it on a pane edge to create a split.
+The split buttons on a group do the same without dragging. Divider bars resize
+the panes. Reloading the page restores the groups, tab order, sizes, focus,
+and recent output. Closing a tab asks for confirmation and then stops that
+shell. Leaving the page or closing the browser only detaches the shells; they
+remain available for about an hour. A page reload is not the same as a process
+or container reboot: those drop the live PTYs, so the next visit starts fresh
+shells. For work that must survive a reboot, use `tmux` or `screen`.
 
 This requires the native-Linux compose overlay
 (`compose.basestation.host.yaml`: `network_mode: host`, `pid: host`,

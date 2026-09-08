@@ -284,10 +284,12 @@ calibration behavior is documented in the
 [commissioning page plan](../../basestation/COMMISSIONING_PAGE_PLAN.md).
 The Logs page (folder tree of ROS, HTTP, and Docker PID-1 logs)
 is documented in [the logs plan](../logging/README.md).
-The Terminal page (`/terminal`) provides a PIN-gated host-shell PTY via
-`nsenter` on native Linux (`pid: host` + privileged basestation overlay);
-it is an SSH substitute for operator commands, not a substitute for the
-launch agent.
+The Terminal page (`/terminal`) provides PIN-gated host-shell PTYs via
+`nsenter` on native Linux (`pid: host` + privileged basestation overlay).
+It can show up to six shells as draggable tabs in resizable left/right or
+top/bottom groups. Grouping is a browser layout only: each tab still maps to
+one backend PTY, and moving a tab does not recreate that shell. It is an SSH
+substitute for operator commands, not a substitute for the launch agent.
 
 The basestation and onboard runtime remain separate deployment units. The
 FastAPI process never launches rover nodes locally. It mounts the host

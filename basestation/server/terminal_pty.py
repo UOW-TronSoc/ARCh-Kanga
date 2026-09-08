@@ -28,7 +28,7 @@ from starlette.websockets import WebSocketState
 
 from .pin_auth import logs_session_ok
 
-MAX_SESSIONS = 4
+MAX_SESSIONS = 6
 DEFAULT_COLS = 80
 DEFAULT_ROWS = 24
 READ_CHUNK = 4096

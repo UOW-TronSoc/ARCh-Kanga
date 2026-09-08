@@ -504,6 +504,87 @@ class SessionCapTests(unittest.TestCase):
         self.assertTrue(texts)
         self.assertEqual(texts[0]["t"], "error")
         self.assertIn("Too many", texts[0]["message"])
+        closes = [m for m in messages if m["type"] == "websocket.close"]
+        self.assertTrue(closes)
+        self.assertEqual(closes[0].get("code"), 4403)
+
+    def test_six_sessions_are_accepted_and_seventh_is_rejected(self) -> None:
+        self.assertEqual(terminal_module.MAX_SESSIONS, 6)
+        app = FastAPI()
+
+        @app.websocket("/ws/terminal")
+        async def ws_terminal(ws: WebSocket):
+            await run_terminal_websocket(ws, spawn=_local_bash_spawn)
+
+        async def open_until_ready() -> tuple[asyncio.Task, asyncio.Queue, str]:
+            out_q: asyncio.Queue = asyncio.Queue()
+            in_q: asyncio.Queue = asyncio.Queue()
+            await in_q.put({"type": "websocket.connect"})
+            scope = {
+                "type": "websocket",
+                "asgi": {"version": "3.0"},
+                "http_version": "1.1",
+                "scheme": "ws",
+                "path": "/ws/terminal",
+                "raw_path": b"/ws/terminal",
+                "query_string": b"",
+                "headers": [(b"host", b"testserver"), (b"sec-websocket-key", b"dGVzdA==")],
+                "client": ("127.0.0.1", 1234),
+                "server": ("testserver", 80),
+                "subprotocols": [],
+                "state": {},
+                "session": {},
+            }
+
+            async def receive() -> dict:
+                return await in_q.get()
+
+            async def send(message: dict) -> None:
+                await out_q.put(message)
+
+            task = asyncio.create_task(app(scope, receive, send))
+            session_id = ""
+            deadline = time.time() + 4.0
+            while time.time() < deadline and not session_id:
+                msg = await asyncio.wait_for(out_q.get(), timeout=0.5)
+                if msg["type"] == "websocket.send" and "text" in msg:
+                    payload = json.loads(msg["text"])
+                    if payload.get("t") == "ready":
+                        session_id = payload["session_id"]
+                    elif payload.get("t") == "error":
+                        raise AssertionError(payload.get("message"))
+            self.assertTrue(session_id)
+            return task, in_q, session_id
+
+        async def exercise() -> None:
+            opened = []
+            ids = set()
+            for _ in range(6):
+                task, in_q, session_id = await open_until_ready()
+                opened.append((task, in_q))
+                ids.add(session_id)
+            self.assertEqual(len(ids), 6)
+            messages = await asgi_websocket(
+                app,
+                "/ws/terminal",
+                client_messages=[{"type": "websocket.connect"}],
+            )
+            texts = [
+                json.loads(m["text"])
+                for m in messages
+                if m["type"] == "websocket.send" and "text" in m
+            ]
+            self.assertTrue(texts)
+            self.assertIn("Too many", texts[0]["message"])
+            for task, in_q in opened:
+                await in_q.put({"type": "websocket.disconnect", "code": 1000})
+                try:
+                    await asyncio.wait_for(task, timeout=3.0)
+                except asyncio.TimeoutError:
+                    task.cancel()
+
+        with patch("server.pin_auth.is_pin_configured", return_value=False):
+            asyncio.run(exercise())
 
 
 if __name__ == "__main__":

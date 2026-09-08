@@ -87,9 +87,10 @@ PIN is configured.
 This requires the native-Linux compose overlay
 (`compose.basestation.host.yaml`: `network_mode: host`, `pid: host`,
 `privileged: true`). On Docker Desktop / WSL2 the page reports that the host
-terminal is unavailable instead of offering a container shell. Leaving the
-page closes the WebSocket and kills that shell (like closing an SSH window);
-use `tmux` or `screen` on the host for persistence.
+terminal is unavailable instead of offering a container shell. Reloading the
+page reconnects to the same host shell and replays recent output; closing the
+browser tab ends the session after about an hour. For long-running work across
+tabs or reboots, use `tmux` or `screen` on the host.
 
 `basestation_up.bash` exports `KANGA_HOST_WORKSPACE` and the workspace
 directory owner as `KANGA_UID` / `KANGA_GID` so systemd (often `User=root`)

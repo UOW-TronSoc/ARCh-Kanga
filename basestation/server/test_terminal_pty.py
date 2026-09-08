@@ -10,12 +10,13 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from fastapi import FastAPI, WebSocket
 
 from . import terminal_pty as terminal_module
 from .terminal_pty import (
+    ManagedTerminalSession,
     TerminalSession,
     build_host_shell_argv,
     host_terminal_available,
@@ -292,6 +293,90 @@ class TerminalWebsocketTests(unittest.TestCase):
             got = asyncio.run(exercise())
         self.assertIn(b"ws-pty-ok", got)
 
+    def test_disconnect_keeps_session_for_reattach(self) -> None:
+        app = self._app()
+
+        async def exercise() -> tuple[str, bytes]:
+            headers = [
+                (b"host", b"testserver"),
+                (b"sec-websocket-key", b"dGVzdA=="),
+            ]
+
+            async def connect(query: bytes) -> tuple[str, list[dict]]:
+                out_q: asyncio.Queue = asyncio.Queue()
+                in_q: asyncio.Queue = asyncio.Queue()
+                await in_q.put({"type": "websocket.connect"})
+                scope = {
+                    "type": "websocket",
+                    "asgi": {"version": "3.0"},
+                    "http_version": "1.1",
+                    "scheme": "ws",
+                    "path": "/ws/terminal",
+                    "raw_path": b"/ws/terminal",
+                    "query_string": query,
+                    "headers": headers,
+                    "client": ("127.0.0.1", 1234),
+                    "server": ("testserver", 80),
+                    "subprotocols": [],
+                    "state": {},
+                    "session": {},
+                }
+
+                async def receive() -> dict:
+                    return await in_q.get()
+
+                async def send(message: dict) -> None:
+                    await out_q.put(message)
+
+                task = asyncio.create_task(app(scope, receive, send))
+                session_id = ""
+                ready = False
+                deadline = time.time() + 4.0
+                while time.time() < deadline and not ready:
+                    msg = await asyncio.wait_for(out_q.get(), timeout=0.5)
+                    if msg["type"] == "websocket.accept":
+                        continue
+                    if msg["type"] == "websocket.send" and "text" in msg:
+                        payload = json.loads(msg["text"])
+                        if payload.get("t") == "ready":
+                            session_id = payload["session_id"]
+                            ready = True
+                self.assertTrue(ready)
+                await in_q.put(
+                    {
+                        "type": "websocket.receive",
+                        "bytes": b"printf 'persist-me\\n'\n",
+                    }
+                )
+                got = b""
+                deadline = time.time() + 4.0
+                while time.time() < deadline and b"persist-me" not in got:
+                    msg = await asyncio.wait_for(out_q.get(), timeout=0.5)
+                    if msg["type"] == "websocket.send" and "bytes" in msg:
+                        got += msg["bytes"]
+                await in_q.put({"type": "websocket.disconnect", "code": 1000})
+                try:
+                    await asyncio.wait_for(task, timeout=3.0)
+                except asyncio.TimeoutError:
+                    task.cancel()
+                return session_id, got
+
+            first_id, first_out = await connect(b"")
+            self.assertIn(b"persist-me", first_out)
+            second_id, second_out = await connect(
+                f"session={first_id}".encode("ascii")
+            )
+            self.assertEqual(first_id, second_id)
+            self.assertIn(b"persist-me", second_out)
+            self.assertIn(first_id, terminal_module._managed_sessions)
+            self.assertTrue(terminal_module._managed_sessions[first_id].alive())
+            return first_id, second_out
+
+        with patch("server.pin_auth.is_pin_configured", return_value=False):
+            session_id, replay = asyncio.run(exercise())
+        self.assertTrue(session_id)
+        self.assertIn(b"persist-me", replay)
+
 
 class SessionCapTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -307,7 +392,11 @@ class SessionCapTests(unittest.TestCase):
         async def ws_terminal(ws: WebSocket):
             await run_terminal_websocket(ws, spawn=_local_bash_spawn)
 
-        terminal_module._active_sessions = terminal_module.MAX_SESSIONS
+        for index in range(terminal_module.MAX_SESSIONS):
+            term = MagicMock()
+            term.alive.return_value = True
+            managed = ManagedTerminalSession(term, session_id=f"dummy-{index}")
+            terminal_module._managed_sessions[managed.session_id] = managed
         with patch("server.pin_auth.is_pin_configured", return_value=False):
             messages = asyncio.run(
                 asgi_websocket(

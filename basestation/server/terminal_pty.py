@@ -18,6 +18,8 @@ import signal
 import struct
 import subprocess
 import termios
+import time
+import uuid
 from pathlib import Path
 from typing import Callable, Optional, Sequence
 
@@ -30,10 +32,12 @@ MAX_SESSIONS = 4
 DEFAULT_COLS = 80
 DEFAULT_ROWS = 24
 READ_CHUNK = 4096
+MAX_SCROLLBACK_BYTES = 512 * 1024
+DETACHED_TTL_SEC = 3600
 
 _DEFAULT_WORKSPACE = Path("/workspace")
 
-_active_sessions = 0
+_managed_sessions: dict[str, "ManagedTerminalSession"] = {}
 _sessions_lock = asyncio.Lock()
 
 
@@ -280,6 +284,140 @@ class TerminalSession:
             self.master_fd = None
 
 
+class ManagedTerminalSession:
+    """PTY kept alive across browser disconnects; one WebSocket attaches at a time."""
+
+    def __init__(self, term: TerminalSession, session_id: Optional[str] = None) -> None:
+        self.session_id = session_id or str(uuid.uuid4())
+        self.term = term
+        self.scrollback = bytearray()
+        self._ws: Optional[WebSocket] = None
+        self._pump_task: Optional[asyncio.Task] = None
+        self.detached_at: Optional[float] = None
+
+    def alive(self) -> bool:
+        return self.term.alive()
+
+    def _append_scrollback(self, data: bytes) -> None:
+        if not data:
+            return
+        self.scrollback.extend(data)
+        overflow = len(self.scrollback) - MAX_SCROLLBACK_BYTES
+        if overflow > 0:
+            del self.scrollback[:overflow]
+
+    async def start_pump(self) -> None:
+        if self._pump_task is not None:
+            return
+        self._pump_task = asyncio.create_task(self._pump_loop())
+
+    async def _pump_loop(self) -> None:
+        try:
+            while self.term.alive():
+                data = await asyncio.to_thread(self.term.read)
+                if data:
+                    self._append_scrollback(data)
+                    ws = self._ws
+                    if ws is not None and ws.client_state == WebSocketState.CONNECTED:
+                        try:
+                            await ws.send_bytes(data)
+                        except Exception:
+                            pass
+                else:
+                    await asyncio.sleep(0.02)
+            data = await asyncio.to_thread(self.term.read)
+            if data:
+                self._append_scrollback(data)
+                ws = self._ws
+                if ws is not None and ws.client_state == WebSocketState.CONNECTED:
+                    try:
+                        await ws.send_bytes(data)
+                    except Exception:
+                        pass
+            ws = self._ws
+            if ws is not None and ws.client_state == WebSocketState.CONNECTED:
+                code = self.term.proc.returncode if self.term.proc is not None else None
+                try:
+                    await ws.send_text(json.dumps({"t": "exit", "code": code}))
+                except Exception:
+                    pass
+        finally:
+            async with _sessions_lock:
+                _managed_sessions.pop(self.session_id, None)
+            await asyncio.to_thread(self.term.close)
+
+    async def attach(self, ws: WebSocket) -> None:
+        self._ws = ws
+        self.detached_at = None
+
+    async def detach(self) -> None:
+        self._ws = None
+        self.detached_at = time.monotonic()
+
+    async def send_ready(self, ws: WebSocket, *, reattached: bool) -> None:
+        await ws.send_text(
+            json.dumps(
+                {
+                    "t": "ready",
+                    "session_id": self.session_id,
+                    "cwd": str(host_workspace()),
+                    "reattached": reattached,
+                }
+            )
+        )
+        if self.scrollback:
+            await ws.send_bytes(bytes(self.scrollback))
+
+    def close(self) -> None:
+        _managed_sessions.pop(self.session_id, None)
+        if self._pump_task is not None and not self._pump_task.done():
+            self._pump_task.cancel()
+        self._pump_task = None
+        self.term.close()
+
+
+def _prune_managed_sessions() -> None:
+    now = time.monotonic()
+    for session_id, managed in list(_managed_sessions.items()):
+        if not managed.alive():
+            managed.close()
+            _managed_sessions.pop(session_id, None)
+            continue
+        if (
+            managed._ws is None
+            and managed.detached_at is not None
+            and now - managed.detached_at > DETACHED_TTL_SEC
+        ):
+            managed.close()
+            _managed_sessions.pop(session_id, None)
+
+
+async def _get_or_create_managed_session(
+    session_id: Optional[str],
+    spawn: SpawnFactory,
+) -> tuple[ManagedTerminalSession, bool]:
+    """Return (session, reattached). Raises RuntimeError when at capacity."""
+    _prune_managed_sessions()
+    reattached = False
+    managed: Optional[ManagedTerminalSession] = None
+    if session_id:
+        managed = _managed_sessions.get(session_id)
+        if managed is not None and not managed.alive():
+            managed.close()
+            _managed_sessions.pop(session_id, None)
+            managed = None
+        elif managed is not None:
+            reattached = True
+    if managed is None:
+        if len(_managed_sessions) >= MAX_SESSIONS:
+            raise RuntimeError(f"Too many terminal sessions (max {MAX_SESSIONS})")
+        term = spawn(cols=DEFAULT_COLS, rows=DEFAULT_ROWS)
+        managed = ManagedTerminalSession(term)
+        _managed_sessions[managed.session_id] = managed
+        await managed.start_pump()
+    return managed, reattached
+
+
 SpawnFactory = Callable[..., TerminalSession]
 
 
@@ -306,8 +444,7 @@ async def run_terminal_websocket(
     spawn: SpawnFactory = default_spawn,
     session_ok: Callable[[dict], bool] = logs_session_ok,
 ) -> None:
-    """Accept, authenticate, spawn a PTY, and bridge bytes until disconnect."""
-    global _active_sessions
+    """Accept, authenticate, attach to a persistent PTY, and bridge bytes."""
     await ws.accept()
     session = ws.scope.get("session") or {}
     if not session_ok(session):
@@ -322,92 +459,61 @@ async def run_terminal_websocket(
         await ws.close(code=4401)
         return
 
-    async with _sessions_lock:
-        if _active_sessions >= MAX_SESSIONS:
-            await ws.send_text(
-                json.dumps(
-                    {
-                        "t": "error",
-                        "message": f"Too many terminal sessions (max {MAX_SESSIONS})",
-                    }
-                )
-            )
-            await ws.close(code=4403)
-            return
-        _active_sessions += 1
-
-    term: Optional[TerminalSession] = None
+    requested_id = ws.query_params.get("session")
+    managed: Optional[ManagedTerminalSession] = None
     try:
-        try:
-            term = spawn(cols=DEFAULT_COLS, rows=DEFAULT_ROWS)
-        except Exception as exc:  # noqa: BLE001 — surface spawn failures to UI
-            await ws.send_text(
-                json.dumps({"t": "error", "message": str(exc) or "failed to start shell"})
-            )
-            await ws.close(code=4400)
-            return
-
-        await ws.send_text(json.dumps({"t": "ready", "cwd": str(host_workspace())}))
-
-        async def pump_output() -> None:
-            assert term is not None
-            while term.alive() and ws.client_state == WebSocketState.CONNECTED:
-                data = await asyncio.to_thread(term.read)
-                if data:
-                    await ws.send_bytes(data)
-                else:
-                    await asyncio.sleep(0.02)
-            # Drain any final output after the process exits.
-            data = await asyncio.to_thread(term.read)
-            if data and ws.client_state == WebSocketState.CONNECTED:
-                await ws.send_bytes(data)
-            if ws.client_state == WebSocketState.CONNECTED:
-                code = term.proc.returncode if term.proc is not None else None
-                await ws.send_text(json.dumps({"t": "exit", "code": code}))
-
-        out_task = asyncio.create_task(pump_output())
-        try:
-            while True:
-                message = await ws.receive()
-                if message["type"] == "websocket.disconnect":
-                    break
-                if message.get("bytes") is not None:
-                    term.write(message["bytes"])
-                    continue
-                text = message.get("text")
-                if text is None:
-                    continue
-                try:
-                    payload = json.loads(text)
-                except json.JSONDecodeError:
-                    # Treat bare text as stdin (some clients send UTF-8 text).
-                    term.write(text.encode("utf-8", errors="replace"))
-                    continue
-                if not isinstance(payload, dict):
-                    continue
-                if payload.get("t") == "resize":
-                    try:
-                        term.resize(
-                            int(payload.get("cols", DEFAULT_COLS)),
-                            int(payload.get("rows", DEFAULT_ROWS)),
-                        )
-                    except (TypeError, ValueError):
-                        pass
-        except WebSocketDisconnect:
-            pass
-        finally:
-            out_task.cancel()
-            try:
-                await out_task
-            except asyncio.CancelledError:
-                pass
-    finally:
-        if term is not None:
-            await asyncio.to_thread(term.close)
         async with _sessions_lock:
-            _active_sessions = max(0, _active_sessions - 1)
+            try:
+                managed, reattached = await _get_or_create_managed_session(
+                    requested_id,
+                    spawn,
+                )
+            except RuntimeError as exc:
+                await ws.send_text(json.dumps({"t": "error", "message": str(exc)}))
+                await ws.close(code=4403)
+                return
+            except Exception as exc:  # noqa: BLE001 — surface spawn failures to UI
+                await ws.send_text(
+                    json.dumps({"t": "error", "message": str(exc) or "failed to start shell"})
+                )
+                await ws.close(code=4400)
+                return
+        await managed.attach(ws)
+        await managed.send_ready(ws, reattached=reattached)
+
+        while True:
+            message = await ws.receive()
+            if message["type"] == "websocket.disconnect":
+                break
+            if message.get("bytes") is not None:
+                managed.term.write(message["bytes"])
+                continue
+            text = message.get("text")
+            if text is None:
+                continue
+            try:
+                payload = json.loads(text)
+            except json.JSONDecodeError:
+                managed.term.write(text.encode("utf-8", errors="replace"))
+                continue
+            if not isinstance(payload, dict):
+                continue
+            if payload.get("t") == "resize":
+                try:
+                    managed.term.resize(
+                        int(payload.get("cols", DEFAULT_COLS)),
+                        int(payload.get("rows", DEFAULT_ROWS)),
+                    )
+                except (TypeError, ValueError):
+                    pass
+    except WebSocketDisconnect:
+        pass
+    finally:
+        if managed is not None:
+            await managed.detach()
 
 
 def reset_session_counter_for_tests() -> None:
-    global _active_sessions
-    _active_sessions = 0
+    for managed in list(_managed_sessions.values()):
+        managed.close()
+    _managed_sessions.clear()

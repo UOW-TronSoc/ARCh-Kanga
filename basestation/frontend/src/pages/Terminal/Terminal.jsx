@@ -6,6 +6,7 @@ import { getWsBase } from "../../config";
 import "./Terminal.css";
 
 const PIN_CLOSE = 4401;
+const SESSION_STORAGE_KEY = "kanga-terminal-session";
 
 export default function TerminalPage() {
   const containerRef = useRef(null);
@@ -51,7 +52,11 @@ export default function TerminalPage() {
     termRef.current = term;
     fitRef.current = fit;
 
-    const ws = new WebSocket(`${getWsBase()}/ws/terminal`);
+    const storedSession = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    const sessionQuery = storedSession
+      ? `?session=${encodeURIComponent(storedSession)}`
+      : "";
+    const ws = new WebSocket(`${getWsBase()}/ws/terminal${sessionQuery}`);
     ws.binaryType = "arraybuffer";
     wsRef.current = ws;
 
@@ -65,8 +70,11 @@ export default function TerminalPage() {
         try {
           const msg = JSON.parse(event.data);
           if (msg.t === "ready") {
+            if (msg.session_id) {
+              sessionStorage.setItem(SESSION_STORAGE_KEY, msg.session_id);
+            }
             setCwd(msg.cwd || "");
-            setStatus("Ready");
+            setStatus(msg.reattached ? "Reconnected" : "Ready");
             sendResize();
             return;
           }
@@ -77,6 +85,7 @@ export default function TerminalPage() {
           }
           if (msg.t === "exit") {
             const code = msg.code == null ? "?" : String(msg.code);
+            sessionStorage.removeItem(SESSION_STORAGE_KEY);
             setStatus(`Shell exited (${code})`);
             term.writeln(`\r\n\x1b[33m[shell exited: ${code}]\x1b[0m`);
           }
@@ -158,7 +167,7 @@ export default function TerminalPage() {
         <span
           className={
             "terminalToolbar-status" +
-            (status === "Ready" || status === "Connected"
+            (status === "Ready" || status === "Connected" || status === "Reconnected"
               ? " terminalToolbar-status--ok"
               : status.includes("error") || status.includes("PIN")
                 ? " terminalToolbar-status--err"

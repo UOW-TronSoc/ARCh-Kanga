@@ -21,16 +21,22 @@ from launch_ros.actions import Node
 
 from kanga_core_description.drivetrain_profile import (
     DEFAULT_DRIVETRAIN_PROFILE,
-    load_drivetrain_profile,
+)
+from kanga_core_description.motor_limits import (
+    DEFAULT_MOTOR_LIMITS,
+    load_effective_drivetrain_configuration,
 )
 
 
-# Load the selected profile and create the wheel-command mapper node.
+# Load the selected physical profile and operating limits, then create the node.
 def _launch_setup(context):
     profile_ref = LaunchConfiguration("drivetrain_profile").perform(context)
+    motor_limits_ref = LaunchConfiguration("motor_limits").perform(context)
     use_sim_time = LaunchConfiguration("use_sim_time")
-    profile = load_drivetrain_profile(profile_ref)
-
+    drivetrain = load_effective_drivetrain_configuration(
+        profile_ref,
+        motor_limits_ref,
+    )
 
     # Installed copy of config/controller.yaml (share/kanga_core_controller/…).
     params = os.path.join(
@@ -43,21 +49,26 @@ def _launch_setup(context):
         package="kanga_core_controller",
         executable="wheel_command_mapper",
         name="wheel_command_mapper",
-        # Every consumer receives the same shared profile dictionary. The node
-        # declares and reads only the parameters it actually uses.
-        parameters=[params, profile.parameters, {"use_sim_time": use_sim_time}],
+        # Every physical consumer receives the same effective parameter
+        # dictionary. The node declares and reads only the values it uses.
+        parameters=[params, drivetrain.parameters, {"use_sim_time": use_sim_time}],
         output="screen",
     )
 
     return [
         LogInfo(
-            msg=f"Controller using {profile.profile_id} ({profile.display_name})"
+            msg=(
+                f"Controller using {drivetrain.profile.profile_id} "
+                f"({drivetrain.profile.display_name}); motor limits "
+                f"{drivetrain.motor_limits.motor_velocity_limit_tps:g} TPS / "
+                f"{drivetrain.motor_limits.motor_acceleration_limit_tps_s:g} TPS/s"
+            )
         ),
         wheel_command_mapper,
     ]
 
 
-# Declare the profile argument and defer node creation until launch evaluation.
+# Declare physical/operating config arguments and defer loading until launch.
 def generate_launch_description():
 
     return LaunchDescription(
@@ -66,6 +77,11 @@ def generate_launch_description():
                 "drivetrain_profile",
                 default_value=DEFAULT_DRIVETRAIN_PROFILE,
                 description="Drivetrain profile id from kanga_core_description",
+            ),
+            DeclareLaunchArgument(
+                "motor_limits",
+                default_value=DEFAULT_MOTOR_LIMITS,
+                description="Validated operating-limit config id or YAML path",
             ),
             DeclareLaunchArgument(
                 "use_sim_time",

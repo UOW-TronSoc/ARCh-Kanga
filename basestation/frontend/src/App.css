@@ -52,13 +52,17 @@ html, body {
 
 /* Page-level: full width, fit height. Allow internal overflow if needed */
 .dashboardPage,
+.systemsPage,
+.commissioningPage,
 .armPage,
 .autoMapPage,
 .cameraPage,
 .checklistPage,
 .logViewerPage,
+.logsPage,
 .scriptManagerPage,
-.sciencePage {
+.sciencePage,
+.terminalPage {
   width: 100%;
   max-width: 100%;
 }

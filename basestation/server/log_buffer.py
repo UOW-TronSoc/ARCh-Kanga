@@ -21,6 +21,10 @@ def get_log_lines() -> list[str]:
     return list(_lines)
 
 
+def clear_log_lines() -> None:
+    _lines.clear()
+
+
 def attach_log_buffer() -> LogBufferHandler:
     handler = LogBufferHandler()
     handler.setFormatter(

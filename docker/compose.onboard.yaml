@@ -1,0 +1,25 @@
+# Persistent onboard ROS runtime. It owns launch processes but does not start
+# the physical Core stack until the launch agent receives an allowlisted request.
+services:
+  kanga-onboard:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+      args:
+        USER_UID: ${KANGA_UID:-1000}
+        USER_GID: ${KANGA_GID:-1000}
+        APT_PACKAGES: docker/apt-packages.nosim.txt
+        KANGA_ENABLE_SIM: "0"
+    image: kanga-onboard:humble
+    container_name: kanga-onboard
+    restart: unless-stopped
+    ipc: host
+    privileged: true
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    environment:
+      - KANGA_ENABLE_SIM=0
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
+    command: ["/workspace/scripts/onboard_entrypoint.bash"]

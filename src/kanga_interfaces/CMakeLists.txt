@@ -8,7 +8,10 @@ find_package(std_msgs REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/BatteryInfo.msg"
   "msg/BmsStatus.msg"
+  "msg/ManagedLaunchStatus.msg"
   "msg/WheelVelocityCommand.msg"
+  "srv/ChangeManagedLaunch.srv"
+  "srv/ListManagedLaunches.srv"
   DEPENDENCIES
     std_msgs
 )

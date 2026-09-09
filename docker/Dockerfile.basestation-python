@@ -13,8 +13,9 @@ ENV ROS_DISTRO=humble
 ENV DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
 
+# util-linux provides nsenter/setpriv for the host Terminal page (native Linux).
 RUN apt-get update \
- && apt-get install -y --no-install-recommends python3-pip \
+ && apt-get install -y --no-install-recommends python3-pip util-linux \
  && rm -rf /var/lib/apt/lists/*
 
 COPY basestation/requirements.txt /tmp/basestation-requirements.txt

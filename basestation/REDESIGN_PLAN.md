@@ -5,7 +5,9 @@ Status: **Phase 1 complete for dev** — plan agreed 2026-07-18; Phase 1 landed
 (cameras) not started. Updated against `develop`: WHS/`/drivestop` authority,
 core drive + controller (with its own `/cmd_vel` timeout — the carried requirement
 is satisfied), the ESP32 CAN bridge, Gazebo core simulation, and the unified
-`basestation-server`. Camera details in [CAMERAS.md](CAMERAS.md).
+`basestation-server`. Camera details are in [CAMERAS.md](CAMERAS.md); the
+follow-on motor page is specified in
+[COMMISSIONING_PAGE_PLAN.md](COMMISSIONING_PAGE_PLAN.md).
 
 Phase 1: replace the four-service basestation stack (Django + two FastAPI apps
 + Vite dev server) with a single FastAPI backend embedding one rclpy node,
@@ -444,10 +446,9 @@ rest.
    serves it); retire the nginx frontend scaffold and the three uvicorn stubs;
    keep `basestation_up.bash` / `basestation_down.bash` working unchanged
    (Path B), including the `install/` guard. **Done 2026-08-23** — one
-   service on :8000, stubs and nginx scaffold removed, Path B verified
-   end-to-end. The node/vite build stage joins the Dockerfile when the React
-   frontend is migrated (task 7); until then the server serves the
-   placeholder page.
+   service on :8000, stubs and nginx scaffold removed, and Path B verified
+   end-to-end. The Dockerfile now builds the React frontend and copies it into
+   the FastAPI static directory.
 3. Implement `/ws/control`: gamepad input sent at fixed 20-30 Hz with
    change-detection and keepalive; the 0-100% speed scale mapped onto
    configured chassis limits to produce a physical-unit `/cmd_vel`;
@@ -467,16 +468,17 @@ rest.
    wheel rad/s, body yaw and speed from the stream instead of polling
    `/health`. Motor status subscribes when `custom_odrive` is present
    (physical rover); sim skips it gracefully.
-5. Drive management REST + UI: drivestop set/clear with latched state
-   display, `set_closed_loop`, `clear_errors`, per-wheel calibrate (the
-   "motor page" from the core drive migration doc), with the arming sequence
-   (clear stop -> closed loop -> drive) made explicit in the UI. **Done
-   2026-08-24** — REST under `/api/drive/*`; Drive card on the dashboard
+5. Drive management REST + dashboard UI: drivestop set/clear with latched state
+   display, `set_closed_loop`, and `clear_errors`, with the arming sequence
+   (clear stop -> closed loop -> drive) made explicit. **Done 2026-08-24** —
+   REST under `/api/drive/*`; Drive card on the dashboard
    (drivestop with release confirmation, closed loop/idle, clear errors).
    Gamepad **B0** / keyboard **Space** arm drive (closed loop then drive
    input; cannot release drivestop). D-pad B12–B15 full motion. Drivestop
    assertion disables drive input. Per-wheel calibrate endpoint exists
-   (`POST /api/drive/calibrate/{wheel}`) but no UI button yet.
+   (`POST /api/drive/calibrate/{wheel}`) but no UI button yet. The complete
+   editor/save/sequential-calibration workflow is tracked in
+   [COMMISSIONING_PAGE_PLAN.md](COMMISSIONING_PAGE_PLAN.md).
 6. Port the remaining operator REST actions from the legacy Django app:
    logs, PIN; science controls *(payload-gated)*; NIR servo / Roo release wait
    for `kanga_core_microcontroller` firmware instead of porting the GPIO

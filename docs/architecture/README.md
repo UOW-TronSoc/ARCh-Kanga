@@ -245,9 +245,11 @@ flow that requires it unless it becomes a general whole-rover layout.
 ## Utility domain
 
 `kanga_util` contains named cross-cutting packages for onboard control, shared
-joystick integration, and only optional Kanga-facing CAN helpers. It must not
-become a miscellaneous dumping ground, and it must not own SocketCAN for ODrive
-or other device drivers that should use
+joystick integration, allowlisted launch-process supervision, and only optional
+Kanga-facing CAN helpers. `kanga_launch_agent` runs beside the rover nodes and
+is the only component allowed to create and signal the process groups for its
+fixed profiles. It must not become a miscellaneous dumping ground, and it must
+not own SocketCAN for ODrive or other device drivers that should use
 [ros2_socketcan](https://github.com/autowarefoundation/ros2_socketcan).
 Domain-specific behaviour stays in its domain.
 
@@ -266,16 +268,49 @@ for future packages. It must not receive miscellaneous implementation directly.
 
 ## Operator UI (basestation)
 
-`basestation/` is the ground-station HTTP stack (Django/FastAPI/frontend). It is
-**not** a ROS package domain and must not live under `src/`. Those services are
-still ROS 2 participants: they use `rclpy`, publish and subscribe on rover
-topics, and import message types from `kanga_interfaces` after a workspace
-`install/` overlay is sourced.
+`basestation/` is the ground-station HTTP stack: one FastAPI server embeds an
+`rclpy` node and serves the built React frontend on the same port. It is **not**
+a ROS package domain and must not live under `src/`. The server is still a ROS 2
+participant: it publishes and subscribes on rover topics and imports message
+types from `kanga_interfaces` after a workspace `install/` overlay is sourced.
 
 Docker for basestation is separate from `compose.dev.yaml` so members can work
 on ROS packages without starting the operator stack. See
 [Basestation install](../install/basestation.md) and
-[Basestation migration](../migration/basestation.md).
+[Basestation migration](../migration/basestation.md). System startup and launch
+ownership are documented in the
+[launch-manager plan](../launch-manager/README.md). Planned motor config and
+calibration behavior is documented in the
+[commissioning page plan](../../basestation/COMMISSIONING_PAGE_PLAN.md).
+The Logs page (folder tree of ROS, HTTP, and Docker PID-1 logs)
+is documented in [the logs plan](../logging/README.md).
+The Terminal page (`/terminal`) provides PIN-gated host-shell PTYs via
+`nsenter` on native Linux (`pid: host` + privileged basestation overlay).
+It can show up to six shells as draggable tabs in resizable left/right or
+top/bottom groups. Grouping is a browser layout only: each tab still maps to
+one backend PTY, and moving a tab does not recreate that shell. It is an SSH
+substitute for operator commands, not a substitute for the launch agent.
+
+The basestation and onboard runtime remain separate deployment units. The
+FastAPI process never launches rover nodes locally. It mounts the host
+Docker socket only to follow PID-1 `docker logs` for the operator Logs
+page (no compose/run/exec for launch). Launch ownership stays on the onboard
+`kanga_launch_agent` over the typed `kanga_interfaces` services. The agent
+owns the fixed command, checks ROS sentinel nodes, and refuses to control
+an externally started stack. This keeps process ownership on the
+machine/container where the rover or local simulation actually runs.
+
+Simulation is not an agent-owned profile in the initial release. It may be
+started locally in the ROS development environment and uses the same controller
+and operator interfaces as hardware. A later simulator deployment can add its
+own explicit profile without teaching rover consumers whether their hardware
+boundary is physical or simulated.
+
+There is exactly one active ROS runtime container per operating environment.
+Development and simulation use persistent `kanga-dev`; rover production uses
+headless `kanga-onboard`. Both may run the same launch-agent node, but the two
+containers are alternatives and must not be run together. The separate
+`basestation-server` is the only other normal runtime container.
 
 ## Cross-cutting decisions
 

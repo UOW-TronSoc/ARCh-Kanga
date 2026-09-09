@@ -17,8 +17,12 @@ Examples:
   # Apply+save all wheels (no motion calibration):
   ros2 run kanga_core_drive commission_wheels -- --wheels all --save
 
-  # Calibrate front-left only (drive_manager calibrate_fl shells this):
+  # Calibrate front-left from an interactive terminal:
   ros2 run kanga_core_drive commission_wheels -- --wheels fl --calibrate
+
+  # Trusted orchestrators may supply their already-collected confirmation:
+  ros2 run kanga_core_drive commission_wheels -- \\
+    --wheels fl --calibrate --save --off-ground-confirmed
 
   # Bench mode (stop drive.launch first — no ROS nodes on the bus):
   ros2 run kanga_core_drive commission_wheels -- --wheels fl --save --bench
@@ -35,7 +39,10 @@ from pathlib import Path
 from ament_index_python.packages import get_package_share_directory
 from kanga_core_description.drivetrain_profile import (
     DEFAULT_DRIVETRAIN_PROFILE,
-    load_drivetrain_profile,
+)
+from kanga_core_description.motor_limits import (
+    DEFAULT_MOTOR_LIMITS,
+    load_effective_drivetrain_configuration,
 )
 
 # Same directory as this script when installed to lib/kanga_core_drive/
@@ -76,12 +83,19 @@ def run_commission(
     wheel_namespace: str | None,
     calibrate: bool,
     save: bool,
+    off_ground_confirmed: bool,
 ) -> int:
     """Invoke custom_odrive commission; return process exit code.
 
     When wheel_namespace is set, parks that custom_odrive_node before Fibre
     work. Omit it (--bench) when drive.launch is not running to avoid CAN bus
     fights between Fibre commissioning and the C++ ODrive nodes.
+
+    The vendored command deliberately owns the final interactive safety prompt.
+    A trusted orchestrator can answer that one prompt through this wrapper only
+    after supplying ``--off-ground-confirmed``. That mode is prohibited with
+    ``--bench`` so the answer can never be consumed by the separate bench-mode
+    coexistence prompt.
     """
     command = [
         "ros2",
@@ -101,6 +115,22 @@ def run_commission(
     if save:
         command.append("--save")
     print("+", " ".join(command), flush=True)
+
+    if off_ground_confirmed:
+        print(
+            "Supplying the calling workflow's off-ground confirmation",
+            flush=True,
+        )
+        completed_process = subprocess.run(
+            command,
+            input="yes\n",
+            text=True,
+            check=False,
+        )
+        return completed_process.returncode
+
+    # In normal terminal use stdin remains attached, so custom_odrive presents
+    # its original wheel-off-ground prompt directly to the operator.
     return subprocess.call(command)
 
 
@@ -123,9 +153,25 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--motor-limits",
+        default=DEFAULT_MOTOR_LIMITS,
+        help=(
+            "Operating-limit config id or YAML path "
+            f"(default: {DEFAULT_MOTOR_LIMITS})"
+        ),
+    )
+    parser.add_argument(
         "--calibrate",
         action="store_true",
         help="Run FULL_CALIBRATION_SEQUENCE (one wheel only)",
+    )
+    parser.add_argument(
+        "--off-ground-confirmed",
+        action="store_true",
+        help=(
+            "A trusted calling workflow has confirmed this exact motor is off "
+            "the ground; valid only with --calibrate"
+        ),
     )
     parser.add_argument(
         "--save",
@@ -144,15 +190,30 @@ def main(argv: list[str] | None = None) -> int:
         help="Override motors config directory (default: package share)",
     )
     args = parser.parse_args(argv)
-    profile = load_drivetrain_profile(args.drivetrain_profile)
-    print(
-        f"Using drivetrain profile: {profile.profile_id} ({profile.display_name})",
-        flush=True,
-    )
 
     # HARD RULE: never run FULL_CALIBRATION on more than one axis in one CLI.
     if args.calibrate and len(args.wheels) != 1:
         parser.error("--calibrate requires exactly one wheel (e.g. --wheels fl)")
+    if args.off_ground_confirmed and not args.calibrate:
+        parser.error("--off-ground-confirmed requires --calibrate")
+    if args.off_ground_confirmed and args.bench:
+        parser.error("--off-ground-confirmed cannot be combined with --bench")
+
+    drivetrain = load_effective_drivetrain_configuration(
+        args.drivetrain_profile,
+        args.motor_limits,
+    )
+    print(
+        "Using drivetrain profile: "
+        f"{drivetrain.profile.profile_id} ({drivetrain.profile.display_name})",
+        flush=True,
+    )
+    print(
+        "Using validated motor limits: "
+        f"{drivetrain.motor_limits.motor_velocity_limit_tps:g} turns/s, "
+        f"{drivetrain.motor_limits.motor_acceleration_limit_tps_s:g} turns/s²",
+        flush=True,
+    )
 
     share = Path(get_package_share_directory("kanga_core_drive"))
     motors_dir = args.motors_dir or (share / "config" / "motors")
@@ -176,8 +237,8 @@ def main(argv: list[str] | None = None) -> int:
                 shared_path,
                 wheel_path,
                 merged_config,
-                profile.parameters["motor_velocity_limit_tps"],
-                profile.parameters["motor_acceleration_limit_tps_s"],
+                drivetrain.parameters["motor_velocity_limit_tps"],
+                drivetrain.parameters["motor_acceleration_limit_tps_s"],
             )
             commission_exit_code = run_commission(
                 can_interface=args.can,
@@ -185,6 +246,7 @@ def main(argv: list[str] | None = None) -> int:
                 wheel_namespace=wheel_namespace,
                 calibrate=args.calibrate,
                 save=args.save,
+                off_ground_confirmed=args.off_ground_confirmed,
             )
             if commission_exit_code != 0:
                 print(

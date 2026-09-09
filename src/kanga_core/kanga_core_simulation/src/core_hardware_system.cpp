@@ -328,6 +328,15 @@ private:
         response->message = "simulation has no persistent drive errors";
       });
     for (const char * wheel_id : {"fl", "bl", "br", "fr"}) {
+      save_services_.push_back(
+        node_->create_service<std_srvs::srv::Trigger>(
+          std::string("~/save_") + wheel_id,
+          [](const std_srvs::srv::Trigger::Request::SharedPtr,
+          std_srvs::srv::Trigger::Response::SharedPtr response) {
+            response->success = true;
+            response->message =
+              "configuration persistence not required in simulation";
+          }));
       calibration_services_.push_back(
         node_->create_service<std_srvs::srv::Trigger>(
           std::string("~/calibrate_") + wheel_id,
@@ -478,6 +487,8 @@ private:
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr drivestop_subscription_;
   rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr set_closed_loop_service_;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr clear_errors_service_;
+  std::vector<rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr>
+    save_services_;
   std::vector<rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr>
     calibration_services_;
   rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr wheel_state_publisher_;

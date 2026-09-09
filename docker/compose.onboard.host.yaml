@@ -1,0 +1,4 @@
+# Native-Linux overlay: share SocketCAN and the host ROS graph.
+services:
+  kanga-onboard:
+    network_mode: host

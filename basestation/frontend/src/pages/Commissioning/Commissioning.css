@@ -1,0 +1,287 @@
+.commissioningPage {
+  min-height: 100%;
+  color: #fff;
+  background: var(--bg-page);
+}
+
+.commissioningPanel {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  color: var(--card-alt-fg);
+  background: var(--card-alt-bg);
+}
+
+.commissioningPreview {
+  font-size: 0.875rem;
+}
+
+.commissioningPage .form-label {
+  margin-bottom: 0.3rem;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.8rem;
+}
+
+.commissioningPage .form-select,
+.commissioningPage .form-control,
+.commissioningPage .input-group-text {
+  border-color: #6c757d;
+  color: #fff;
+  background-color: #212529;
+}
+
+.commissioningPage .form-select:focus,
+.commissioningPage .form-control:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 0.2rem rgba(248, 206, 77, 0.15);
+}
+
+.commissioningPage .form-select:disabled {
+  opacity: 0.55;
+}
+
+.commissioningTabs {
+  border-color: #6c757d;
+}
+
+.commissioningTabs .nav-link {
+  border-color: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.82rem;
+}
+
+.commissioningTabs .nav-link:hover {
+  border-color: #6c757d;
+  color: #fff;
+}
+
+.commissioningTabs .nav-link.active {
+  border-color: #6c757d #6c757d #212529;
+  color: var(--accent);
+  background: #212529;
+}
+
+.commissioningFileMeta {
+  padding: 0.45rem 0.65rem;
+  border: 1px solid #495057;
+  border-bottom: 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: #212529;
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+}
+
+.commissioningFileMeta code,
+.commissioningModal code {
+  color: #cddcaf;
+}
+
+.commissioningTextEditor {
+  display: block;
+  width: 100%;
+  height: clamp(32rem, 58vh, 46rem);
+  resize: vertical;
+  padding: 0.75rem;
+  border: 1px solid #495057;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  outline: none;
+  color: #d9e2d2;
+  background: #17191b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  tab-size: 2;
+}
+
+.commissioningTextEditor:focus {
+  border-color: var(--accent);
+}
+
+.commissioningMotorDetails {
+  margin: 0 0 1rem;
+}
+
+.commissioningMotorDetails div {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.78rem;
+}
+
+.commissioningMotorDetails dt {
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: 400;
+}
+
+.commissioningMotorDetails dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: rgba(255, 255, 255, 0.9);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.commissioningActionGroup {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.commissioningButton {
+  padding: 0.45rem 0.65rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s, filter 0.15s;
+}
+
+.commissioningButtonMuted {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.commissioningButtonAccent {
+  color: var(--accent);
+  background: rgba(248, 206, 77, 0.2);
+}
+
+.commissioningButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.commissioningButton:not(:disabled):hover {
+  filter: brightness(1.15);
+}
+
+.commissioningJobState {
+  padding: 0.3rem 0.55rem;
+  border-radius: var(--radius-pill);
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.commissioningJobState.state-running,
+.commissioningJobState.state-awaiting_confirmation {
+  color: #212529;
+  background: var(--accent);
+}
+
+.commissioningJobState.state-succeeded,
+.commissioningJobState.state-completed_with_skips {
+  color: #fff;
+  background: #198754;
+}
+
+.commissioningJobState.state-failed,
+.commissioningJobState.state-cancelled {
+  color: #fff;
+  background: #dc3545;
+}
+
+.commissioningProgressList {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.commissioningProgressList li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.commissioningProgressList li:last-child {
+  border-bottom: 0;
+}
+
+.commissioningProgressIndex {
+  display: grid;
+  width: 1.5rem;
+  height: 1.5rem;
+  place-items: center;
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 0.68rem;
+}
+
+.commissioningProgressList li.state-succeeded .commissioningProgressIndex {
+  background: #198754;
+}
+
+.commissioningProgressList li.state-skipped .commissioningProgressIndex {
+  color: #212529;
+  background: #ffc107;
+}
+
+.commissioningProgressList li.state-running .commissioningProgressIndex {
+  color: #212529;
+  background: var(--accent);
+}
+
+.commissioningProgressList li.state-failed .commissioningProgressIndex,
+.commissioningProgressList li.state-cancelled .commissioningProgressIndex {
+  color: #fff;
+  background: #dc3545;
+}
+
+.commissioningProgressList li > span:nth-child(2) {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.78rem;
+}
+
+.commissioningProgressList small,
+.commissioningProgressStatus {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.68rem;
+}
+
+.commissioningModalBackdrop {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.commissioningModal {
+  border: 1px solid #6c757d;
+  color: #fff;
+  background: #212529;
+}
+
+.commissioningModal .modal-header,
+.commissioningModal .modal-footer {
+  border-color: #495057;
+}
+
+.commissioningModal .modal-title {
+  font-size: 1.1rem;
+}
+
+.commissioningSequenceHint {
+  display: block;
+  margin-top: 0.75rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+@media (max-width: 575.98px) {
+  .commissioningTextEditor {
+    height: 26rem;
+  }
+
+  .commissioningTabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .commissioningTabs .nav-link {
+    white-space: nowrap;
+  }
+}

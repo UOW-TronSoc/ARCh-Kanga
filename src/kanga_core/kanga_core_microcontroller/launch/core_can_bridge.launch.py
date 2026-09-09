@@ -28,6 +28,7 @@ def generate_launch_description():
     launch_socketcan = LaunchConfiguration("launch_socketcan")
     body_pose_parent_frame = LaunchConfiguration("body_pose_parent_frame")
     body_pose_child_frame = LaunchConfiguration("body_pose_child_frame")
+    imu_frame_id = LaunchConfiguration("imu_frame_id")
     receiver_interval_sec = LaunchConfiguration("receiver_interval_sec")
 
     socketcan_launch = PathJoinSubstitution(
@@ -64,7 +65,15 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "body_pose_child_frame",
                 default_value=DEFAULT_BODY_POSE_CHILD_FRAME,
-                description="Body frame stamped on body/twist and imu/data",
+                description="Body frame stamped on body/twist",
+            ),
+            DeclareLaunchArgument(
+                "imu_frame_id",
+                default_value=DEFAULT_BODY_POSE_CHILD_FRAME,
+                description=(
+                    "Frame stamped on imu/data. This is independent of the "
+                    "body-pose TF child so a measured imu_link can be added later"
+                ),
             ),
             DeclareLaunchArgument(
                 "receiver_interval_sec",
@@ -91,7 +100,7 @@ def generate_launch_description():
                     {
                         "body_pose_frame_id": body_pose_parent_frame,
                         "body_twist_frame_id": body_pose_child_frame,
-                        "imu_frame_id": body_pose_child_frame,
+                        "imu_frame_id": imu_frame_id,
                     },
                 ],
                 output="screen",

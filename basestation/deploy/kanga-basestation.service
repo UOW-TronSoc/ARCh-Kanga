@@ -10,10 +10,8 @@
 [Unit]
 Description=Kanga basestation operator server (Docker)
 Documentation=file:///workspace/basestation/REDESIGN_PLAN.md
-After=docker.service network-online.target
-Wants=network-online.target
-# Start after robot ROS bringup when that unit exists, e.g.:
-# After=kanga-core.service
+After=docker.service network-online.target kanga-onboard.service
+Wants=network-online.target kanga-onboard.service
 
 [Service]
 Type=oneshot
@@ -22,6 +20,7 @@ User=root
 WorkingDirectory=/home/kanga/kanga_wip
 Environment=KANGA_ROOT=/home/kanga/kanga_wip
 Environment=SKIP_FRONTEND_BUILD=1
+Environment=SKIP_BASESTATION_BUILD=1
 Environment=ROS_DOMAIN_ID=0
 ExecStart=/home/kanga/kanga_wip/scripts/basestation_up.bash
 ExecStop=/home/kanga/kanga_wip/scripts/basestation_down.bash

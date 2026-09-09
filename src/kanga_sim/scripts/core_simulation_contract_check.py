@@ -47,6 +47,10 @@ EXPECTED_SERVICES = {
     "/whs_node/set_drivestop": "std_srvs/srv/SetBool",
     "/drive_manager/set_closed_loop": "std_srvs/srv/SetBool",
     "/drive_manager/clear_errors": "std_srvs/srv/Trigger",
+    "/drive_manager/save_fl": "std_srvs/srv/Trigger",
+    "/drive_manager/save_bl": "std_srvs/srv/Trigger",
+    "/drive_manager/save_br": "std_srvs/srv/Trigger",
+    "/drive_manager/save_fr": "std_srvs/srv/Trigger",
     "/drive_manager/calibrate_fl": "std_srvs/srv/Trigger",
     "/drive_manager/calibrate_bl": "std_srvs/srv/Trigger",
     "/drive_manager/calibrate_br": "std_srvs/srv/Trigger",
@@ -311,6 +315,11 @@ def run_checks(node: ContractCheck) -> None:
 
     assert node.call_trigger("/drive_manager/clear_errors").success
     for wheel in ["fl", "bl", "br", "fr"]:
+        save_response = node.call_trigger(f"/drive_manager/save_{wheel}")
+        assert save_response.success
+        assert save_response.message == (
+            "configuration persistence not required in simulation"
+        )
         response = node.call_trigger(f"/drive_manager/calibrate_{wheel}")
         assert response.success
         assert response.message == "calibration not required in simulation"

@@ -95,7 +95,7 @@ def test_core_profile_is_fixed_and_starts_in_own_session() -> None:
 
 def test_external_sentinel_is_unmanaged_and_cannot_be_started() -> None:
     harness = Harness()
-    harness.nodes.add("/suspension_joint_state_publisher")
+    harness.nodes.add("/core/suspension_joint_state_publisher")
     manager = harness.manager()
 
     status = manager.status("core")

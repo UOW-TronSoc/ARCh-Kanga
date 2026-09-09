@@ -1,9 +1,9 @@
 """Start drivetrain-profiled differential-bar suspension state mapping."""
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, LogInfo, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, GroupAction, LogInfo, OpaqueFunction
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
-from launch_ros.actions import Node
+from launch_ros.actions import Node, PushRosNamespace
 from launch_ros.substitutions import FindPackageShare
 
 from kanga_core_description.drivetrain_profile import (
@@ -31,16 +31,21 @@ def _launch_setup(context):
                 f"({profile.display_name})"
             )
         ),
-        Node(
-            package="kanga_core_microcontroller",
-            executable="suspension_joint_state_publisher",
-            name="suspension_joint_state_publisher",
-            parameters=[
-                parameters,
-                profile.parameters,
-                {"use_sim_time": use_sim_time},
-            ],
-            output="screen",
+        GroupAction(
+            [
+                PushRosNamespace("core"),
+                Node(
+                    package="kanga_core_microcontroller",
+                    executable="suspension_joint_state_publisher",
+                    name="suspension_joint_state_publisher",
+                    parameters=[
+                        parameters,
+                        profile.parameters,
+                        {"use_sim_time": use_sim_time},
+                    ],
+                    output="screen",
+                ),
+            ]
         ),
     ]
 

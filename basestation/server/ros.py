@@ -5,7 +5,7 @@ All ROS publishers, subscribers, and service clients live on one node
 (`basestation_server`) spun by one background executor thread. FastAPI
 handlers never touch rclpy directly: they write the operator's current
 drive command into `CoreState`, and the node's own 20 Hz timer turns that
-into `/cmd_vel` messages. Keeping all publishing on the node's thread also
+into `/core/cmd_vel` messages. Keeping all publishing on the node's thread also
 gives us the dead-man for free — the same timer notices when the operator
 has gone quiet and sends a stop.
 """
@@ -35,7 +35,7 @@ DEADMAN_SECONDS = 0.4
 # How often telemetry is pushed to browser tabs (Hz).
 TELEMETRY_HZ = float(os.environ.get("BASESTATION_TELEMETRY_HZ", "5"))
 
-# How often the node publishes /cmd_vel while driving (and checks the dead-man).
+# How often the node publishes /core/cmd_vel while driving (and checks the dead-man).
 DRIVE_TICK_SECONDS = 0.05
 
 # Core commissioning identity. The HTTP catalog owns browser-visible ordering;
@@ -92,7 +92,7 @@ class CoreState:
     drive_active: bool = False  # True while we are publishing for the operator
     stop_requested: bool = False  # one-shot: publish a single zero and go idle
 
-    # For /health and debugging: what actually went out on /cmd_vel last.
+    # For /health and debugging: what actually went out on /core/cmd_vel last.
     last_sent_linear: float = 0.0
     last_sent_yaw: float = 0.0
 
@@ -238,7 +238,7 @@ class RosRuntime:
                 "ok": False,
                 "message": "cannot enable closed loop during commissioning",
             }
-        result = self._call_set_bool("/drive_manager/set_closed_loop", enable)
+        result = self._call_set_bool("/core/drive_manager/set_closed_loop", enable)
         if result.get("ok"):
             with self.state.lock:
                 self.state.closed_loop = enable
@@ -251,7 +251,7 @@ class RosRuntime:
                 "ok": False,
                 "message": "cannot clear drive errors during commissioning",
             }
-        return self._call_trigger("/drive_manager/clear_errors")
+        return self._call_trigger("/core/drive_manager/clear_errors")
 
     def save_wheel(self, wheel: str) -> dict:
         """Apply and save one wheel while briefly releasing drivestop."""
@@ -261,7 +261,7 @@ class RosRuntime:
         return self._run_with_temporary_drivestop_release(
             "save",
             lambda: self._call_trigger(
-                f"/drive_manager/save_{wheel}", timeout_sec=120.0
+                f"/core/drive_manager/save_{wheel}", timeout_sec=120.0
             ),
         )
 
@@ -280,7 +280,7 @@ class RosRuntime:
         return self._run_with_temporary_drivestop_release(
             "calibration",
             lambda: self._call_trigger(
-                f"/drive_manager/calibrate_{wheel}", timeout_sec=240.0
+                f"/core/drive_manager/calibrate_{wheel}", timeout_sec=240.0
             ),
         )
 
@@ -540,30 +540,30 @@ class RosRuntime:
                     )
                     self.create_subscription(
                         JointState,
-                        "/wheel_joint_states",
+                        "/core/wheel_joint_states",
                         self._on_wheel_joints,
                         10,
                     )
                     self.create_subscription(
                         JointState,
-                        "/suspension_joint_states",
+                        "/core/suspension_joint_states",
                         self._on_suspension_joints,
                         10,
                     )
                     self.create_subscription(
                         PoseWithCovarianceStamped,
-                        "/body/pose",
+                        "/core/body/pose",
                         self._on_body_pose,
                         sensor_qos,
                     )
                     self.create_subscription(
                         TwistWithCovarianceStamped,
-                        "/body/twist",
+                        "/core/body/twist",
                         self._on_body_twist,
                         sensor_qos,
                     )
                     self._subscribe_motor_status()
-                    self._cmd_vel_pub = self.create_publisher(Twist, "/cmd_vel", 10)
+                    self._cmd_vel_pub = self.create_publisher(Twist, "/core/cmd_vel", 10)
                     rosout_qos = QoSProfile(
                         history=HistoryPolicy.KEEP_LAST,
                         depth=1000,
@@ -578,23 +578,23 @@ class RosRuntime:
                         "/whs_node/set_drivestop": self.create_client(
                             SetBool, "/whs_node/set_drivestop"
                         ),
-                        "/drive_manager/set_closed_loop": self.create_client(
-                            SetBool, "/drive_manager/set_closed_loop"
+                        "/core/drive_manager/set_closed_loop": self.create_client(
+                            SetBool, "/core/drive_manager/set_closed_loop"
                         ),
                     }
                     self._clients_trigger = {
-                        "/drive_manager/clear_errors": self.create_client(
-                            Trigger, "/drive_manager/clear_errors"
+                        "/core/drive_manager/clear_errors": self.create_client(
+                            Trigger, "/core/drive_manager/clear_errors"
                         ),
                         **{
-                            f"/drive_manager/save_{w}": self.create_client(
-                                Trigger, f"/drive_manager/save_{w}"
+                            f"/core/drive_manager/save_{w}": self.create_client(
+                                Trigger, f"/core/drive_manager/save_{w}"
                             )
                             for w in CORE_WHEEL_IDS
                         },
                         **{
-                            f"/drive_manager/calibrate_{w}": self.create_client(
-                                Trigger, f"/drive_manager/calibrate_{w}"
+                            f"/core/drive_manager/calibrate_{w}": self.create_client(
+                                Trigger, f"/core/drive_manager/calibrate_{w}"
                             )
                             for w in CORE_WHEEL_IDS
                         },
@@ -672,7 +672,7 @@ class RosRuntime:
                     for wheel in wheels:
                         self.create_subscription(
                             ControllerStatus,
-                            f"/wheel_{wheel}/controller_status",
+                            f"/core/wheel_{wheel}/controller_status",
                             lambda msg, w=wheel: self._on_motor_status(w, msg),
                             status_qos,
                         )
@@ -837,7 +837,7 @@ class RosRuntime:
                         with state.lock:
                             state.drive_active = False
                         self.get_logger().info(
-                            "operator motion stopped — published zero /cmd_vel"
+                            "operator motion stopped — published zero /core/cmd_vel"
                         )
                         return
                     if stamp is None:
@@ -869,7 +869,7 @@ class RosRuntime:
                             state.drive_active = False
                         self.get_logger().warning(
                             "dead-man: no operator command for "
-                            f"{DEADMAN_SECONDS}s — published zero /cmd_vel"
+                            f"{DEADMAN_SECONDS}s — published zero /core/cmd_vel"
                         )
 
             if not rclpy.ok():

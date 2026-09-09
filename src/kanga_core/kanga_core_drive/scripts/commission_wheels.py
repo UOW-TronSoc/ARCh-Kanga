@@ -228,7 +228,7 @@ def main(argv: list[str] | None = None) -> int:
         if not wheel_path.is_file():
             print(f"Missing wheel config: {wheel_path}", file=sys.stderr)
             return 1
-        wheel_namespace = None if args.bench else f"/wheel_{wheel_id}"
+        wheel_namespace = None if args.bench else f"/core/wheel_{wheel_id}"
         # Temp dir keeps merged Fibre scripts off the package tree and cleans up
         # even if commission fails mid-run.
         with tempfile.TemporaryDirectory(prefix="kanga_motor_cfg_") as temp_directory:

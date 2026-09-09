@@ -200,7 +200,7 @@ DriveManager::DriveManager(const rclcpp::NodeOptions & options)
   // services). set_enabled is not a second operator stop here: commissioning
   // uses it to park a node, and CLOSED_LOOP restores that local latch.
   for (const auto & wheel_id : wheel_ids_) {
-    const std::string wheel_namespace = "/wheel_" + wheel_id;
+    const std::string wheel_namespace = "wheel_" + wheel_id;
     WheelClients wheel_clients;
     // /wheel_<id>/set_enabled — re-arm the node after commissioning parked it.
     wheel_clients.enabled_client =

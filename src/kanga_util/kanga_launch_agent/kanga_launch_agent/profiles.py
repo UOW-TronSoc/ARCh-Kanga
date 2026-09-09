@@ -34,11 +34,11 @@ CORE_PROFILE = LaunchProfile(
     sentinel_nodes=frozenset(
         {
             "/whs_node",
-            "/drive_manager",
-            "/wheel_command_mapper",
-            "/core_can_bridge",
-            "/suspension_joint_state_publisher",
-            "/body_pose_tf_broadcaster",
+            "/core/drive_manager",
+            "/core/wheel_command_mapper",
+            "/core/core_can_bridge",
+            "/core/suspension_joint_state_publisher",
+            "/core/body_pose_tf_broadcaster",
         }
     ),
 )
@@ -57,8 +57,8 @@ CORE_SIM_PROFILE = LaunchProfile(
         {
             "/simulation_clock_bridge",
             "/whs_node",
-            "/suspension_joint_state_publisher",
-            "/body_pose_tf_broadcaster",
+            "/core/suspension_joint_state_publisher",
+            "/core/body_pose_tf_broadcaster",
         }
     ),
 )

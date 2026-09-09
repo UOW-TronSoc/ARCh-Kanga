@@ -5,7 +5,7 @@ Beginner flow:
        ros2 launch kanga_core_drive drive.launch.py
   2. Launch this file:
        ros2 launch kanga_core_controller controller.launch.py
-  3. Enter CLOSED_LOOP (drive_manager set_closed_loop), then publish /cmd_vel.
+  3. Enter CLOSED_LOOP (drive_manager set_closed_loop), then publish /core/cmd_vel.
 
 This launch file only starts the mapper. It does not bring up CAN, ODrives,
 or closed-loop mode.
@@ -15,9 +15,9 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, LogInfo, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, GroupAction, LogInfo, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
+from launch_ros.actions import Node, PushRosNamespace
 
 from kanga_core_description.drivetrain_profile import (
     DEFAULT_DRIVETRAIN_PROFILE,
@@ -64,7 +64,12 @@ def _launch_setup(context):
                 f"{drivetrain.motor_limits.motor_acceleration_limit_tps_s:g} TPS/s"
             )
         ),
-        wheel_command_mapper,
+        GroupAction(
+            [
+                PushRosNamespace("core"),
+                wheel_command_mapper,
+            ]
+        ),
     ]
 
 

@@ -100,12 +100,12 @@ WheelCommandMapper::WheelCommandMapper(const rclcpp::NodeOptions & options)
   // Publish all four joint velocities together so drive receives one vector.
   wheel_velocity_command_publisher_ =
     this->create_publisher<kanga_interfaces::msg::WheelVelocityCommand>(
-    "/wheel_joint_velocity_command", 10);
+    "wheel_joint_velocity_command", 10);
 
   // Chassis command from teleop / Nav2 / basestation.
   cmd_vel_subscription_ =
     this->create_subscription<geometry_msgs::msg::Twist>(
-    "/cmd_vel", 10,
+    "cmd_vel", 10,
     std::bind(
       &WheelCommandMapper::on_cmd_vel, this,
       std::placeholders::_1));

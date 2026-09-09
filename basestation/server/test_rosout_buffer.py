@@ -34,14 +34,14 @@ class RosoutBufferTests(unittest.TestCase):
         msg = SimpleNamespace(
             stamp=SimpleNamespace(sec=1_700_000_000, nanosec=500_000_000),
             level=ROS_LOG_ERROR,
-            name="/wheel_bl/can_node",
+            name="/core/wheel_bl/can_node",
             msg="Failed to initialize socket can interface: can_core",
         )
         record = record_from_ros_log(1, msg)
         self.assertEqual(record["seq"], 1)
         self.assertEqual(record["level"], ROS_LOG_ERROR)
         self.assertEqual(record["level_name"], "ERROR")
-        self.assertEqual(record["name"], "/wheel_bl/can_node")
+        self.assertEqual(record["name"], "/core/wheel_bl/can_node")
         self.assertIn("can_core", record["msg"])
         self.assertTrue(record["stamp"].startswith("2023-"))
 

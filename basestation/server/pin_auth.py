@@ -69,3 +69,7 @@ def verify_pin(pin: str) -> bool:
     if len(pin) != 6 or not pin.isdigit():
         return False
     return _check_password(pin, stored)
+
+
+def logs_session_ok(session: dict) -> bool:
+    return (not is_pin_configured()) or session.get("pin_verified") is True

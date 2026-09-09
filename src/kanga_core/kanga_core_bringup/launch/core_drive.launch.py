@@ -14,14 +14,16 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
 from kanga_core_description.drivetrain_profile import DEFAULT_DRIVETRAIN_PROFILE  # pyright: ignore[reportMissingImports]
+from kanga_core_description.motor_limits import DEFAULT_MOTOR_LIMITS  # pyright: ignore[reportMissingImports]
 
 
-# Forward one CAN interface and drivetrain profile to controller and drive.
+# Forward the shared physical profile and operating limits to both consumers.
 def generate_launch_description():
     drive_share = get_package_share_directory("kanga_core_drive")
     controller_share = get_package_share_directory("kanga_core_controller")
     can_interface = LaunchConfiguration("can_interface")
     drivetrain_profile = LaunchConfiguration("drivetrain_profile")
+    motor_limits = LaunchConfiguration("motor_limits")
 
     drive = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -30,6 +32,7 @@ def generate_launch_description():
         launch_arguments={
             "can_interface": can_interface,
             "drivetrain_profile": drivetrain_profile,
+            "motor_limits": motor_limits,
         }.items(),
     )
 
@@ -37,7 +40,10 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(controller_share, "launch", "controller.launch.py")
         ),
-        launch_arguments={"drivetrain_profile": drivetrain_profile}.items(),
+        launch_arguments={
+            "drivetrain_profile": drivetrain_profile,
+            "motor_limits": motor_limits,
+        }.items(),
     )
 
     return LaunchDescription(
@@ -51,6 +57,11 @@ def generate_launch_description():
                 "drivetrain_profile",
                 default_value=DEFAULT_DRIVETRAIN_PROFILE,
                 description="Core drivetrain profile from kanga_core_description",
+            ),
+            DeclareLaunchArgument(
+                "motor_limits",
+                default_value=DEFAULT_MOTOR_LIMITS,
+                description="Core operating-limit config id or YAML path",
             ),
             drive,
             controller,

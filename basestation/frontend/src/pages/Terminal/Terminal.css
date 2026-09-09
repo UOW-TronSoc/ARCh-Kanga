@@ -1,0 +1,345 @@
+.terminalPage {
+  min-height: 100%;
+  height: 100%;
+  color: #fff;
+  background: var(--bg-page);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem;
+  gap: 0.5rem;
+}
+
+.terminalToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  background: var(--card-alt-bg);
+}
+
+.terminalTabs {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.terminalTab {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.terminalTab--active {
+  border-color: rgba(248, 206, 77, 0.55);
+  background: rgba(248, 206, 77, 0.12);
+}
+
+.terminalTab-select,
+.terminalTab-close,
+.terminalTab-add,
+.terminalEmpty-action,
+.terminalConfirm-actions button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.terminalTab-select {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.28rem 0.15rem 0.28rem 0.55rem;
+  color: rgba(255, 255, 255, 0.82);
+  cursor: pointer;
+}
+
+.terminalTab-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.terminalTab-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.terminalTab-dot--ok {
+  background: #33bd00;
+}
+
+.terminalTab-dot--err {
+  background: #ff6b6b;
+}
+
+.terminalTab-dot--busy {
+  background: #F8CE4D;
+}
+
+.terminalTab-close,
+.terminalTab-add {
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 999px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.terminalTab-close:hover,
+.terminalTab-add:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.terminalTab-add {
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.terminalTab-add:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.terminalToolbar-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.terminalToolbar-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.terminalToolbar-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.terminalToolbar-cwd {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.7);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminalToolbar-status {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.terminalToolbar-status--ok {
+  color: #33bd00;
+}
+
+.terminalToolbar-status--err {
+  color: #ff6b6b;
+}
+
+.terminalWorkspace,
+.terminalWorkspace > *,
+.terminalWorkspace [class*="splitView"] {
+  height: 100%;
+  min-height: 0;
+}
+
+.terminalWorkspace {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.terminalGroup {
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.terminalGroup--focused {
+  border-color: rgba(248, 206, 77, 0.45);
+}
+
+.terminalGroup-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.terminalSplitButton {
+  flex: 0 0 auto;
+  width: 1.7rem;
+  height: 1.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+}
+
+.terminalSplitButton:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.terminalTab--dragging {
+  opacity: 0.45;
+}
+
+.terminalTab--overlay {
+  padding: 0.28rem 0.7rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.terminalDrop {
+  position: absolute;
+  z-index: 3;
+  border: 1px dashed rgba(248, 206, 77, 0.35);
+  background: rgba(248, 206, 77, 0.08);
+  pointer-events: auto;
+}
+
+.terminalDrop.is-hot,
+.terminalGroup-body.is-drop-target {
+  background: rgba(248, 206, 77, 0.16);
+}
+
+.terminalDrop--left,
+.terminalDrop--right {
+  top: 0;
+  bottom: 0;
+  width: 28%;
+}
+
+.terminalDrop--left {
+  left: 0;
+}
+
+.terminalDrop--right {
+  right: 0;
+}
+
+.terminalDrop--top,
+.terminalDrop--bottom {
+  left: 22%;
+  right: 22%;
+  height: 24%;
+}
+
+.terminalDrop--top {
+  top: 0;
+}
+
+.terminalDrop--bottom {
+  bottom: 0;
+}
+
+.terminalPane {
+  flex: 1;
+  min-height: 0;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  background: #1e1e1e;
+  padding: 0.35rem;
+  overflow: hidden;
+}
+
+.terminalPane--hidden {
+  display: none;
+}
+
+.terminalEmpty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.terminalEmpty-action,
+.terminalConfirm-danger {
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  background: var(--accent, #F8CE4D);
+  color: #1e1e1e;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.terminalConfirm {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.terminalConfirm-card {
+  width: min(28rem, calc(100% - 2rem));
+  padding: 1rem 1.1rem;
+  border-radius: var(--radius-md);
+  background: #2a2a2a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.terminalConfirm-card h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+.terminalConfirm-card p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.terminalConfirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.terminalConfirm-actions button {
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  cursor: pointer;
+}
+
+.terminalPane .xterm {
+  height: 100%;
+}
+
+.terminalPane .xterm-viewport {
+  overflow-y: auto !important;
+}

@@ -36,11 +36,17 @@ This node does **not** invert wheel signs, change axis state, or handle e-stop �
 those are single-owner elsewhere (`invert_direction` only in `drive.launch.py`,
 `set_closed_loop` on `drive_manager`, `/drivestop`).
 
-Physical inputs come from the selected `kanga_core_description` drivetrain
-profile. The current profile uses a nominal **0.230 m** wheel diameter to the
-bottom of the grousers. The loader derives wheel radius and wheel-centre
-geometry from the measured outside wheel envelope. Field testing may later
-refine the loaded rolling radius through an explicit profile override.
+Fixed physical inputs and hard capability ceilings come from the selected
+`kanga_core_description` drivetrain profile. The current profile uses a
+nominal **0.230 m** wheel diameter to the bottom of the grousers. The loader
+derives wheel radius and wheel-centre geometry from the measured outside wheel
+envelope. Field testing may later refine the loaded rolling radius through an
+explicit profile override.
+
+The editable operating velocity and acceleration come from
+`kanga_core_description/config/motor_limits/core.yaml`. The shared loader
+checks them against the selected profile's hard ceilings, then gives the same
+effective values to this controller, the drive clamp, and commissioning.
 
 The wheels are not mecanum wheels. The current transform preserves the legacy
 51° angled-grouser model, which provides only limited holonomic behaviour. A
@@ -51,9 +57,9 @@ Body velocity changes use one shared transition fraction before conversion to
 wheel speeds, so forward and yaw mixing cannot outrun each other. The initial
 limits are `0.5 m/s²` for translation and `0.75 rad/s²` for yaw. The resulting
 wheel vector is also limited uniformly by the joint acceleration derived from
-the selected drivetrain's motor ramp and reduction. A complete stop bypasses
-both software ramps, and an overall reversal commands zero before accelerating
-in the opposite direction.
+the validated operating motor ramp and selected reduction. A complete stop
+bypasses both software ramps, and an overall reversal commands zero before
+accelerating in the opposite direction.
 
 ## Try it (on the rover)
 
@@ -82,9 +88,11 @@ Controller behaviour is in [`config/controller.yaml`](config/controller.yaml):
 - `max_angular_acceleration_rad_s2`: traction limit for increasing yaw speed
 - `publish_rate_hz`: how often wheel-joint commands are published
 
-Do not add physical geometry or drivetrain limits there. Those live once in a
-versioned profile under `kanga_core_description/config/drivetrains/` and are
-injected by `controller.launch.py`.
+Do not add physical geometry or motor limits there. Geometry and immutable hard
+ceilings live in a versioned profile under
+`kanga_core_description/config/drivetrains/`. Editable operating limits live
+under `kanga_core_description/config/motor_limits/`. `controller.launch.py`
+loads and validates both before starting the node.
 
 ## Code map (for reading the source)
 
@@ -92,7 +100,7 @@ injected by `controller.launch.py`.
 |------|------------|
 | `include/.../kinematics.hpp` + `src/kinematics.cpp` | Testable math using standard ROS messages |
 | `include/.../wheel_command_mapper.hpp` + `src/wheel_command_mapper.cpp` | The ROS node |
-| `launch/controller.launch.py` | Loads the selected drivetrain profile and starts the node |
+| `launch/controller.launch.py` | Loads the physical profile and operating limits, then starts the node |
 | `test/test_kinematics.cpp` | Offline checks of the math (no hardware) |
 
 ## Offline tests (no rover needed)

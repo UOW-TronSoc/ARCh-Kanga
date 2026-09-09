@@ -1,4 +1,5 @@
-"""Basestation server entry point.
+"""
+Basestation server entry point.
 
 Phase 1 scaffold (see ../REDESIGN_PLAN.md, task 1): one FastAPI app, one
 rclpy node on a background executor thread, static file serving, and a
@@ -16,24 +17,48 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
+from .commissioning_api import (
+    create_commissioning_router,
+    create_legacy_commissioning_router,
+)
+from .commissioning_catalog import build_commissioning_catalog
+from .commissioning_config import CommissioningConfigStore
+from .commissioning_jobs import CommissioningManager
+from .docker_logs import DockerLogStore, LEAVES as DOCKER_LOG_LEAVES
 from .log_buffer import attach_log_buffer
+from .launch_api import create_launch_router
 from .operator import router as operator_router
 from .ros import MAX_LINEAR_MPS, MAX_YAW_RAD_S, TELEMETRY_HZ, RosRuntime
+from .pin_auth import logs_session_ok
+from .rosout_buffer import name_matches_selection
+from .spa_static import SPAStaticFiles
+from .terminal_pty import run_terminal_websocket
 
 runtime = RosRuntime()
+docker_logs = DockerLogStore()
+commissioning_catalog = build_commissioning_catalog()
+commissioning_store = CommissioningConfigStore(commissioning_catalog)
+commissioning_manager = CommissioningManager(
+    commissioning_catalog,
+    commissioning_store,
+    runtime,
+)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     attach_log_buffer()
+    docker_logs.start()
     runtime.start()
-    yield
-    runtime.stop()
+    try:
+        yield
+    finally:
+        runtime.stop()
+        docker_logs.stop()
 
 
 app = FastAPI(title="basestation-server", version="0.1.0", lifespan=lifespan)
@@ -46,6 +71,77 @@ app.add_middleware(
     https_only=False,
 )
 app.include_router(operator_router)
+app.include_router(create_launch_router(runtime))
+app.include_router(create_commissioning_router(commissioning_manager))
+app.include_router(create_legacy_commissioning_router(commissioning_manager))
+
+
+def _logs_pin_ok(session: dict) -> bool:
+    return logs_session_ok(session)
+
+
+class RosLogsClearBody(BaseModel):
+    selection_type: str = Field(default="all")
+    path: str = Field(default="")
+
+
+class DockerLogsClearBody(BaseModel):
+    leaf: str = Field(default="onboard")
+
+
+@app.get("/api/logs")
+def api_ros_logs(request: Request) -> dict:
+    if not _logs_pin_ok(request.session):
+        raise HTTPException(
+            status_code=401,
+            detail="PIN authentication is required for logs",
+        )
+    return {"records": runtime.rosout.snapshot()}
+
+
+@app.post("/api/logs/clear")
+def api_ros_logs_clear(request: Request, body: RosLogsClearBody) -> dict:
+    if not _logs_pin_ok(request.session):
+        raise HTTPException(
+            status_code=401,
+            detail="PIN authentication is required for logs",
+        )
+    if body.selection_type == "all":
+        runtime.rosout.clear()
+    else:
+        runtime.rosout.remove_matching(
+            lambda record: name_matches_selection(
+                record["name"],
+                body.selection_type,
+                body.path,
+            )
+        )
+    return {"ok": True}
+
+
+@app.get("/api/docker-logs")
+def api_docker_logs(request: Request, leaf: str = "onboard") -> dict:
+    if not _logs_pin_ok(request.session):
+        raise HTTPException(
+            status_code=401,
+            detail="PIN authentication is required for logs",
+        )
+    if leaf not in DOCKER_LOG_LEAVES:
+        raise HTTPException(status_code=400, detail="unknown docker log leaf")
+    return docker_logs.snapshot(leaf)
+
+
+@app.post("/api/docker-logs/clear")
+def api_docker_logs_clear(request: Request, body: DockerLogsClearBody) -> dict:
+    if not _logs_pin_ok(request.session):
+        raise HTTPException(
+            status_code=401,
+            detail="PIN authentication is required for logs",
+        )
+    if body.leaf not in DOCKER_LOG_LEAVES:
+        raise HTTPException(status_code=400, detail="unknown docker log leaf")
+    docker_logs.clear(body.leaf)
+    return {"ok": True}
 
 
 @app.get("/health")
@@ -76,24 +172,32 @@ class EnableRequest(BaseModel):
 
 @app.post("/api/drive/drivestop")
 async def api_drivestop(body: StopRequest) -> dict:
+    if commissioning_manager.job_active() and not body.stop:
+        raise HTTPException(
+            status_code=409,
+            detail="cannot release drivestop during commissioning",
+        )
     return await asyncio.to_thread(runtime.set_drivestop, body.stop)
 
 
 @app.post("/api/drive/closed-loop")
 async def api_closed_loop(body: EnableRequest) -> dict:
+    if commissioning_manager.job_active() and body.enable:
+        raise HTTPException(
+            status_code=409,
+            detail="cannot enable closed loop during commissioning",
+        )
     return await asyncio.to_thread(runtime.set_closed_loop, body.enable)
 
 
 @app.post("/api/drive/clear-errors")
 async def api_clear_errors() -> dict:
+    if commissioning_manager.job_active():
+        raise HTTPException(
+            status_code=409,
+            detail="cannot clear drive errors during commissioning",
+        )
     return await asyncio.to_thread(runtime.clear_drive_errors)
-
-
-@app.post("/api/drive/calibrate/{wheel}")
-async def api_calibrate(wheel: str) -> dict:
-    if wheel.lower() not in ("fl", "bl", "br", "fr"):
-        raise HTTPException(status_code=400, detail="wheel must be fl, bl, br, or fr")
-    return await asyncio.to_thread(runtime.calibrate_wheel, wheel.lower())
 
 
 # Close code sent to a tab that lost control to a newer one. The page must
@@ -106,7 +210,8 @@ _holder: Optional[WebSocket] = None
 
 @app.websocket("/ws/control")
 async def ws_control(ws: WebSocket) -> None:
-    """Drive commands from the operator's browser.
+    """
+    Drive commands from the operator's browser.
 
     The browser sends small JSON frames at ~20 Hz while driving:
         {"t": "drive", "x": -1..1, "yaw": -1..1, "scale": 0..100}
@@ -152,7 +257,8 @@ async def ws_control(ws: WebSocket) -> None:
 
 @app.websocket("/ws/telemetry")
 async def ws_telemetry(ws: WebSocket) -> None:
-    """Push robot state to the operator page at a fixed rate.
+    """
+    Push robot state to the operator page at a fixed rate.
 
     Unlike /ws/control, any number of tabs may listen — this is read-only.
     """
@@ -168,6 +274,103 @@ async def ws_telemetry(ws: WebSocket) -> None:
         pass
 
 
+@app.websocket("/ws/logs")
+async def ws_logs(ws: WebSocket) -> None:
+    """Snapshot plus live /rosout records. Connect only from the Logs page."""
+    await ws.accept()
+    session = ws.scope.get("session") or {}
+    if not _logs_pin_ok(session):
+        await ws.send_json(
+            {"t": "error", "message": "PIN authentication is required for logs"}
+        )
+        await ws.close(code=4401)
+        return
+    try:
+        await ws.send_json(
+            {"t": "snapshot", "records": runtime.rosout.snapshot()}
+        )
+        last_seq = 0
+        records = runtime.rosout.snapshot()
+        if records:
+            last_seq = records[-1]["seq"]
+        while True:
+            await asyncio.sleep(0.15)
+            newer = [
+                record
+                for record in runtime.rosout.snapshot()
+                if record["seq"] > last_seq
+            ]
+            if not newer:
+                continue
+            last_seq = newer[-1]["seq"]
+            await ws.send_json({"t": "records", "records": newer})
+    except WebSocketDisconnect:
+        pass
+    except Exception:  # noqa: BLE001 — client gone mid-send
+        pass
+
+
+@app.websocket("/ws/docker-logs")
+async def ws_docker_logs(ws: WebSocket, leaf: str = "onboard") -> None:
+    """Snapshot plus live PID-1 docker log records for one container leaf."""
+    await ws.accept()
+    session = ws.scope.get("session") or {}
+    if not _logs_pin_ok(session):
+        await ws.send_json(
+            {"t": "error", "message": "PIN authentication is required for logs"}
+        )
+        await ws.close(code=4401)
+        return
+    if leaf not in DOCKER_LOG_LEAVES:
+        await ws.send_json({"t": "error", "message": "unknown docker log leaf"})
+        await ws.close(code=4400)
+        return
+    try:
+        snap = docker_logs.snapshot(leaf)
+        await ws.send_json(
+            {
+                "t": "snapshot",
+                "leaf": leaf,
+                "container": snap["container"],
+                "status": snap["status"],
+                "records": snap["records"],
+            }
+        )
+        last_seq = snap["records"][-1]["seq"] if snap["records"] else 0
+        last_status = (snap["container"], snap["status"])
+        while True:
+            await asyncio.sleep(0.15)
+            newer_snap = docker_logs.snapshot(leaf)
+            newer = [
+                record
+                for record in newer_snap["records"]
+                if record["seq"] > last_seq
+            ]
+            if newer:
+                last_seq = newer[-1]["seq"]
+                await ws.send_json({"t": "records", "records": newer})
+            status_key = (newer_snap["container"], newer_snap["status"])
+            if status_key != last_status:
+                last_status = status_key
+                await ws.send_json(
+                    {
+                        "t": "status",
+                        "container": newer_snap["container"],
+                        "status": newer_snap["status"],
+                    }
+                )
+    except WebSocketDisconnect:
+        pass
+    except Exception:  # noqa: BLE001 — client gone mid-send
+        pass
+
+
+@app.websocket("/ws/terminal")
+async def ws_terminal(ws: WebSocket) -> None:
+    """Interactive host-shell PTY. PIN-gated; native Linux pid:host only."""
+    await run_terminal_websocket(ws)
+
+
 # Static frontend last so API routes above take precedence.
 _static_dir = Path(__file__).resolve().parent / "static"
-app.mount("/", StaticFiles(directory=_static_dir, html=True), name="static")
+app.mount("/", SPAStaticFiles(directory=_static_dir, html=True), name="static")

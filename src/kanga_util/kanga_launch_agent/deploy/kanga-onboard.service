@@ -1,0 +1,26 @@
+# Systemd unit for the persistent onboard ROS launch agent.
+# Installed path placeholders are replaced by onboard_install_service.bash.
+
+[Unit]
+Description=Kanga onboard ROS launch agent (Docker)
+After=docker.service network-online.target systemd-udev-trigger.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=root
+WorkingDirectory=/home/kanga/kanga_wip
+Environment=SKIP_ONBOARD_BUILD=1
+Environment=ROS_DOMAIN_ID=0
+# Hardware setup belongs to the host. Do not suppress agent/UI startup when an
+# adapter is absent; the Core launch remains stopped and the failure is visible
+# in this unit's journal.
+ExecStartPre=-/home/kanga/kanga_wip/scripts/setup_can.bash can_core 250000 256
+ExecStart=/home/kanga/kanga_wip/scripts/onboard_up.bash
+ExecStop=/home/kanga/kanga_wip/scripts/onboard_down.bash
+TimeoutStartSec=120
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

@@ -17,6 +17,7 @@ from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
 
 from kanga_core_description.drivetrain_profile import DEFAULT_DRIVETRAIN_PROFILE  # pyright: ignore[reportMissingImports]
+from kanga_core_description.motor_limits import DEFAULT_MOTOR_LIMITS  # pyright: ignore[reportMissingImports]
 from kanga_core_microcontroller.core_frames import (  # pyright: ignore[reportMissingImports]
     DEFAULT_BODY_POSE_CHILD_FRAME,
     DEFAULT_BODY_POSE_PARENT_FRAME,
@@ -38,6 +39,7 @@ def _include(package_name, launch_file, *, arguments=None, condition=None):
 def generate_launch_description():
     can_interface = LaunchConfiguration("can_interface")
     drivetrain_profile = LaunchConfiguration("drivetrain_profile")
+    motor_limits = LaunchConfiguration("motor_limits")
     use_drive = LaunchConfiguration("use_drive")
     use_whs = LaunchConfiguration("use_whs")
     initial_drivestop = LaunchConfiguration("initial_drivestop")
@@ -78,6 +80,7 @@ def generate_launch_description():
         arguments={
             "can_interface": can_interface,
             "drivetrain_profile": drivetrain_profile,
+            "motor_limits": motor_limits,
         },
         condition=IfCondition(use_drive),
     )
@@ -92,7 +95,10 @@ def generate_launch_description():
     controller = _include(
         "kanga_core_controller",
         "controller.launch.py",
-        arguments={"drivetrain_profile": drivetrain_profile},
+        arguments={
+            "drivetrain_profile": drivetrain_profile,
+            "motor_limits": motor_limits,
+        },
         condition=IfCondition(use_controller),
     )
 
@@ -155,6 +161,11 @@ def generate_launch_description():
                 description="Core drivetrain profile from kanga_core_description",
             ),
             DeclareLaunchArgument(
+                "motor_limits",
+                default_value=DEFAULT_MOTOR_LIMITS,
+                description="Core operating-limit config id or YAML path",
+            ),
+            DeclareLaunchArgument(
                 "use_drive",
                 default_value="true",
                 description="Start the physical ODrive stack and drive manager",
@@ -183,7 +194,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "use_body_pose_tf",
-                default_value="false",
+                default_value="true",
                 description="Broadcast body/pose as a visualization transform",
             ),
             DeclareLaunchArgument(
@@ -198,7 +209,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "use_joint_state_publisher",
-                default_value="false",
+                default_value="true",
                 description=(
                     "Merge wheel and suspension state topics into /joint_states"
                 ),

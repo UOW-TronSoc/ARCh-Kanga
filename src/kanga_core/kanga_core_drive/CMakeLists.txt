@@ -76,7 +76,15 @@ install(FILES README.md
 if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
   find_package(ament_cmake_gtest REQUIRED)
+  ament_add_pytest_test(
+    test_commission_wheels
+    test/test_commission_wheels.py
+  )
   ament_add_pytest_test(test_config_merge test/test_config_merge.py)
+  ament_add_pytest_test(
+    test_drive_motor_specs
+    test/test_drive_motor_specs.py
+  )
   ament_add_gtest(test_transmission test/test_transmission.cpp)
   target_include_directories(test_transmission PRIVATE include)
   target_compile_features(test_transmission PRIVATE cxx_std_17)

@@ -5,6 +5,10 @@ Shared ROS messages and services used across Kanga packages.
 - `WheelVelocityCommand` carries one timestamped, atomic four-wheel joint
   velocity command from `kanga_core_controller` to `kanga_core_drive`.
 - Wheel velocity fields are in rad/s before gearbox conversion.
+- `ManagedLaunchStatus`, `ListManagedLaunches`, and `ChangeManagedLaunch`
+  form the typed boundary between the basestation and the separate onboard
+  launch agent. Requests contain only an allowlisted system id and action,
+  never a command or launch argument.
 
 Shared ROS 2 messages, services, and actions for Kanga.
 

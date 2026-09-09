@@ -5,6 +5,32 @@ Standalone launch entry points for the physical Kanga rover base (no payload).
 This package only **composes** other core packages. It does not own drive math,
 Fibre configs, or battery logic.
 
+## Production rover bringup
+
+`rover.launch.py` is the stable, headless entry point for the physical rover.
+It starts WHS asserted, the physical drive/controller stack, the shared
+SocketCAN and ESP32 bridges, the AS5600 differential-bar encoder to suspension
+JointState pipeline, robot-state publishing, and the IMU orientation
+`body_origin -> base_link` visualization transform. It deliberately excludes
+RViz, GUI joint sliders, and onboard gamepad control:
+
+```bash
+ros2 launch kanga_core_bringup rover.launch.py
+```
+
+The ESP32 bridge publishes `imu/data` in `base_link` by default. The IMU frame
+is a separate launch argument so a measured fixed `base_link -> imu_link`
+transform can be added later without changing the CAN bridge:
+
+```bash
+ros2 launch kanga_core_bringup rover.launch.py imu_frame_id:=imu_link
+```
+
+Do not run the IMU-derived `body_origin -> base_link` broadcaster alongside a
+localisation system that also parents `base_link`. The future localisation
+bringup must pass `use_body_pose_tf:=false` and replace this non-authoritative
+visualization transform.
+
 ## Unified development bringup
 
 `core.launch.py` is the development and testing entry point for the available
@@ -21,8 +47,9 @@ core stack. It currently composes:
 - the existing bench gamepad launch as provisional onboard control.
 
 The shared SocketCAN bridge and ESP32 core CAN bridge are included. Battery
-remains deferred. A separate, lightweight production launch should be created
-later; keep this file useful as a diagnostic and integration surface.
+remains deferred. Use `rover.launch.py` for the separate, lightweight
+production profile; keep this file useful as a diagnostic and integration
+surface.
 
 The ordinary hardware-oriented defaults start WHS in its asserted state, the
 shared CAN and ESP32 bridges, drive, controller, description, and suspension
@@ -120,17 +147,22 @@ ros2 launch kanga_core_bringup core_drive.launch.py
 ros2 service call /drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: true}"
 ```
 
-The bringup selects one versioned drivetrain profile and passes it to
-controller, drive, feedback, and commissioning:
+The bringup selects one versioned physical profile and one editable operating
+limit config, then passes the same validated effective values to controller,
+drive, feedback, and commissioning:
 
 ```bash
 ros2 launch kanga_core_bringup core_drive.launch.py \
-  drivetrain_profile:=drivetrain_2025
+  drivetrain_profile:=drivetrain_2025 \
+  motor_limits:=core
 ```
 
 Add/select a new profile in `kanga_core_description` when the physical
 drivetrain changes; do not duplicate its dimensions, reduction, or motor TPS
-limit in consumer YAML files.
+hard limits in consumer YAML files. Lower normal operating limits in
+`kanga_core_description/config/motor_limits/core.yaml`, then rebuild/relaunch
+the core stack. Recommission affected motors when their saved ODrive limits
+must also change.
 
 ---
 
@@ -192,11 +224,14 @@ CLI:
 
 ```bash
 ros2 run kanga_core_drive commission_wheels -- \
-  --wheels fl --can can_core --calibrate
+  --wheels fl --can can_core --calibrate --save
 # repeat bl, br, fr as needed
 ```
 
-Or after bringup is running, via services:
+Or after bringup is running, via services. Calling a calibration service is the
+off-ground acknowledgement for that exact wheel; verify it before pressing
+Enter. The service applies config, calibrates, saves to NVRAM, and leaves that
+motor disabled:
 
 ```bash
 ros2 service call /drive_manager/calibrate_fl std_srvs/srv/Trigger "{}"

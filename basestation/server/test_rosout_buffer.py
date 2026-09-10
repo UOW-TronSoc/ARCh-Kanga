@@ -34,14 +34,14 @@ class RosoutBufferTests(unittest.TestCase):
         msg = SimpleNamespace(
             stamp=SimpleNamespace(sec=1_700_000_000, nanosec=500_000_000),
             level=ROS_LOG_ERROR,
-            name="/core/wheel_bl/can_node",
+            name="core.wheel_bl.can_node",
             msg="Failed to initialize socket can interface: can_core",
         )
         record = record_from_ros_log(1, msg)
         self.assertEqual(record["seq"], 1)
         self.assertEqual(record["level"], ROS_LOG_ERROR)
         self.assertEqual(record["level_name"], "ERROR")
-        self.assertEqual(record["name"], "/core/wheel_bl/can_node")
+        self.assertEqual(record["name"], "core.wheel_bl.can_node")
         self.assertIn("can_core", record["msg"])
         self.assertTrue(record["stamp"].startswith("2023-"))
 
@@ -56,11 +56,11 @@ class RosoutBufferTests(unittest.TestCase):
 
     def test_clear_and_remove_matching_by_namespace(self) -> None:
         buffer = RosoutBuffer(max_records=10)
-        buffer.append_fields(level=ROS_LOG_INFO, name="wheel_bl.can_node", msg="a")
-        buffer.append_fields(level=ROS_LOG_INFO, name="wheel_fr.can_node", msg="b")
-        buffer.append_fields(level=ROS_LOG_INFO, name="wheel_bl.other", msg="c")
+        buffer.append_fields(level=ROS_LOG_INFO, name="core.wheel_bl.can_node", msg="a")
+        buffer.append_fields(level=ROS_LOG_INFO, name="core.wheel_fr.can_node", msg="b")
+        buffer.append_fields(level=ROS_LOG_INFO, name="core.wheel_bl.other", msg="c")
         removed = buffer.remove_matching(
-            lambda record: record["name"].startswith("wheel_bl.")
+            lambda record: record["name"].startswith("core.wheel_bl.")
         )
         self.assertEqual(removed, 2)
         self.assertEqual([item["msg"] for item in buffer.snapshot()], ["b"])

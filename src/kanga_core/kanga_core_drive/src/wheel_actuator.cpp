@@ -143,7 +143,7 @@ void WheelActuator::publish_motor_commands()
 
   // A stale four-wheel vector means the controller path has failed.
   // Send nothing so an enabled firmware watchdog can disarm CLOSED_LOOP.
-  // Normal stale /cmd_vel is different: the live controller keeps publishing
+  // Normal stale /core/cmd_vel is different: the live controller keeps publishing
   // joint zeros.
   if (!command_is_fresh) {
     return;

@@ -143,7 +143,11 @@ prefix.
 Shared exceptions stay at the root namespace on purpose:
 
 - `kanga_whs` publishes `/drivestop` and serves `/whs_node/set_drivestop`.
-- `ros2_socketcan` and the launch agent remain un-namespaced.
+- `ros2_socketcan` (`socket_can_receiver`, `socket_can_sender`) and the launch
+  agent remain un-namespaced on `/from_can_bus` and `/to_can_bus`. Core CAN
+  consumers such as `core_can_bridge` live under `/core` but remap
+  `from_can_bus` → `/from_can_bus` at launch. Wheel ODrives use the host
+  SocketCAN interface directly and do not use those ROS topics.
 - `joint_state_publisher` and `robot_state_publisher` aggregate the rover model at `/joint_states` and `/robot_description`, subscribing to `/core/wheel_joint_states` and `/core/suspension_joint_states`.
 - Joint names (`wheel_fl_joint`, …) and TF frame IDs (`base_link`, `body_origin`, …) are unchanged; ROS namespaces do not namespace frame IDs.
 

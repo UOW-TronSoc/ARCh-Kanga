@@ -5,7 +5,7 @@ Merges package share config/motors/shared_motor_config.py with each
 wheel_<id>_motor_config.py, writes a temp file, then runs:
 
   ros2 run custom_odrive commission -- \\
-    --can <iface> --config <merged> --ns /wheel_<id> [--calibrate] [--save]
+    --can <iface> --config <merged> --ns /core/wheel_<id> [--calibrate] [--save]
 
 Rules (kanga policy):
   --calibrate  exactly one wheel (Fibre FULL_CALIBRATION_SEQUENCE)

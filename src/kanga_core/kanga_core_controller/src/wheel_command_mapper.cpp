@@ -176,7 +176,7 @@ void WheelCommandMapper::publish_wheel_velocity_command()
     return;
   }
 
-  // Get a stable local copy; new /cmd_vel messages cannot alter it afterwards.
+  // Get a stable local copy; new /core/cmd_vel messages cannot alter it afterwards.
   const auto active_twist = get_active_twist_locked();
 
   const auto limited_twist = limit_body_velocity_change(

@@ -36,8 +36,10 @@ apply only to the selected leaf.
 Logs
   ROS
     All
-    /drive_manager
-    /wheel_bl/can_node
+    core
+      drive_manager
+      wheel_bl
+        can_node
     …
   HTTP
     uvicorn
@@ -57,9 +59,8 @@ Logs
 
 ROS children under `ROS` come from `/rosout` logger names, not launch
 process labels (`custom_odrive_node-13`). ROS 2 writes those names with
-dots (`wheel_bl.can_node`), which is the same namespace as
-`/wheel_bl/can_node`. The tree splits on `.` and `/`, so those wheels
-group under `wheel_bl` automatically. Click a namespace to show every
+dots (`core.wheel_bl.can_node`). The tree splits on `.` and `/`, so those wheels
+group under `core` → `wheel_bl` automatically. Click a namespace to show every
 logger under that prefix; click a leaf for that one name.
 
 Selecting `ROS / All` shows every `/rosout` line (still subject to the

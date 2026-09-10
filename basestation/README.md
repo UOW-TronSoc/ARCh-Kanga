@@ -15,7 +15,7 @@ motors and sensors on CAN (developer laptop, shared `ROS_DOMAIN_ID`).
 | Piece | What it does |
 | ----- | ------------ |
 | `server/main.py` | Routes, health, WebSockets, static files |
-| `server/ros.py` | `/cmd_vel`, telemetry, drive REST service clients |
+| `server/ros.py` | `/core/cmd_vel`, telemetry, drive REST service clients |
 | `server/commissioning_catalog.py` | Allowed subsystems, motors, paths, namespaces, and order |
 | `server/commissioning_config.py` | Safe config/default reads, validation, revisions, atomic writes |
 | `server/commissioning_jobs.py` | Sequential save/calibration jobs and drive interlock |

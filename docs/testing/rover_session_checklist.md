@@ -22,7 +22,7 @@ flag, or launch with `can_interface:=can0`.
 | 3 | Commission + calibrate | | |
 | 4 | Drive stack (idle) | | |
 | 5 | CLOSED_LOOP + single wheel | | |
-| 6 | Full stack + `/cmd_vel` | | |
+| 6 | Full stack + `/core/cmd_vel` | | |
 | 7 | Stale cmd + idle | | |
 | 8 | Battery (optional) | | |
 
@@ -190,7 +190,7 @@ Second shell (`docker_shell` + `source install/setup.bash`):
 
 ```bash
 ros2 node list
-ros2 topic echo /wheel_fl/controller_status --once
+ros2 topic echo /core/wheel_fl/controller_status --once
 ```
 
 **Pass:** `drive_manager`, `wheel_actuator`, `wheel_{fl,bl,br,fr}/can_node`,
@@ -206,18 +206,18 @@ ros2 service call /whs_node/set_drivestop std_srvs/srv/SetBool "{data: false}"
 
 ---
 
-## Phase 5 — CLOSED_LOOP (no `/cmd_vel` yet)
+## Phase 5 — CLOSED_LOOP (no `/core/cmd_vel` yet)
 
 ### 5.1 Enter CLOSED_LOOP on all wheels
 
 ```bash
-ros2 service call /drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: true}"
+ros2 service call /core/drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: true}"
 ```
 
 Check each wheel:
 
 ```bash
-ros2 topic echo /wheel_fl/controller_status --once   # axis_state == 8
+ros2 topic echo /core/wheel_fl/controller_status --once   # axis_state == 8
 ```
 
 **Pass:** all four `axis_state == 8`, `success: true`.
@@ -225,14 +225,14 @@ ros2 topic echo /wheel_fl/controller_status --once   # axis_state == 8
 ### 5.2 Single-wheel velocity test (optional isolate)
 
 ```bash
-ros2 run custom_odrive velocity_ramp_test -- --ns /wheel_fl --target-vel 3.14
+ros2 run custom_odrive velocity_ramp_test -- --ns /core/wheel_fl --target-vel 3.14
 ```
 
 `custom_odrive` works in motor-shaft units, so this requests `3.14` motor rad/s
 (`0.5` motor turns/s). The generic test intentionally does not apply Kanga's
 gearbox reduction.
 
-**Pass:** wheel spins correct direction; `wheel_joint_states` updates.
+**Pass:** wheel spins correct direction; `/core/wheel_joint_states` updates.
 
 ---
 
@@ -247,14 +247,14 @@ ros2 launch kanga_core_bringup core_drive.launch.py can_interface:=${CAN_IF:-can
 ```
 
 ```bash
-ros2 service call /drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: true}"
+ros2 service call /core/drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: true}"
 ```
 
 ### 6.2 Confirm mapper stream (zero cmd)
 
 ```bash
-ros2 topic echo /wheel_joint_velocity_command
-ros2 topic echo /wheel_fl/control_message
+ros2 topic echo /core/wheel_joint_velocity_command
+ros2 topic echo /core/wheel_fl/control_message
 ```
 
 **Pass:** both ~10 Hz and near zero; motor `input_vel` is the joint command ×50.
@@ -264,7 +264,7 @@ ros2 topic echo /wheel_fl/control_message
 Clear space / prefer wheels elevated first.
 
 ```bash
-ros2 topic pub /cmd_vel geometry_msgs/msg/Twist \
+ros2 topic pub /core/cmd_vel geometry_msgs/msg/Twist \
   "{linear: {x: 0.1, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}" \
   --rate 10
 ```
@@ -272,9 +272,9 @@ ros2 topic pub /cmd_vel geometry_msgs/msg/Twist \
 Watch:
 
 ```bash
-ros2 topic echo /wheel_joint_velocity_command
-ros2 topic echo /wheel_fl/control_message
-ros2 topic echo /wheel_joint_states
+ros2 topic echo /core/wheel_joint_velocity_command
+ros2 topic echo /core/wheel_fl/control_message
+ros2 topic echo /core/wheel_joint_states
 ```
 
 **Pass:** both velocities leave zero and motor `input_vel ≈ joint × 50`;
@@ -284,12 +284,12 @@ robot/wheels move forward; left wheels not fighting right.
 
 ## Phase 7 — Stop behaviour
 
-### 7.1 Stale `/cmd_vel`
+### 7.1 Stale `/core/cmd_vel`
 
 Stop the `topic pub` (Ctrl-C). Within ~0.5 s:
 
 ```bash
-ros2 topic echo /wheel_fl/control_message
+ros2 topic echo /core/wheel_fl/control_message
 ```
 
 **Pass:** `input_vel → 0`, still CLOSED_LOOP.
@@ -297,7 +297,7 @@ ros2 topic echo /wheel_fl/control_message
 ### 7.2 Leave CLOSED_LOOP
 
 ```bash
-ros2 service call /drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: false}"
+ros2 service call /core/drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: false}"
 ```
 
 **Pass:** `axis_state → 1`; `control_message` stream stops.
@@ -325,7 +325,7 @@ ros2 topic echo /battery/battery_info
 
 Then repeat with `core_drive.launch.py` running to confirm shared-bus stability.
 
-**Pass:** battery topics update; drive still enters CLOSED_LOOP and accepts `/cmd_vel`.
+**Pass:** battery topics update; drive still enters CLOSED_LOOP and accepts `/core/cmd_vel`.
 
 ---
 

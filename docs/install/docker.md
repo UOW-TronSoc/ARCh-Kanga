@@ -235,7 +235,7 @@ Inside the container:
 
 ```bash
 ros2 run kanga_core_drive commission_wheels -- --wheels fl --can can0 --save
-# with drive.launch running (parks /wheel_fl via ROS):
+# with drive.launch running (parks /core/wheel_fl via ROS):
 ros2 run kanga_core_drive commission_wheels -- --wheels fl --can can0 --save
 # drive.launch stopped:
 ros2 run kanga_core_drive commission_wheels -- --wheels fl --can can0 --save --bench

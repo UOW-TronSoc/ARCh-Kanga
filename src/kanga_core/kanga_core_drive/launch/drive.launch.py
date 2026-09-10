@@ -156,7 +156,7 @@ def _launch_setup(context):
         output="screen",
     )
 
-    # Echo /wheel_*/controller_status → wheel_joint_states for RSP. The
+    # Echo /core/wheel_*/controller_status → wheel_joint_states for RSP. The
     # table above explicitly maps each wheel id to its description joint.
     wheel_joint_state_publisher = Node(
         package="kanga_core_drive",

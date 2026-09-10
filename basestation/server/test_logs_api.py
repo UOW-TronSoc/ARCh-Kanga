@@ -66,7 +66,7 @@ class LogsApiTests(unittest.TestCase):
         main_module.runtime.rosout.append_fields(
             stamp_sec=1_700_000_000,
             level=ROS_LOG_ERROR,
-            name="/core/drive_manager",
+            name="core.drive_manager",
             msg="fault",
         )
         app = FastAPI()
@@ -78,7 +78,7 @@ class LogsApiTests(unittest.TestCase):
         self.assertGreaterEqual(len(body["records"]), 1)
         last = body["records"][-1]
         self.assertEqual(last["level_name"], "ERROR")
-        self.assertEqual(last["name"], "/core/drive_manager")
+        self.assertEqual(last["name"], "core.drive_manager")
         self.assertEqual(last["msg"], "fault")
 
     def test_configured_pin_protects_snapshot(self) -> None:

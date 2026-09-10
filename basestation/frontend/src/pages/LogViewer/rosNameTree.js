@@ -1,8 +1,8 @@
 /**
  * Split a /rosout logger name into namespace segments.
  *
- * rcl writes the node logger as dots (`wheel_bl.can_node`), not slashes
- * (`/wheel_bl/can_node`). Underscores stay in the node name.
+ * rcl writes the node logger as dots (`core.wheel_bl.can_node`), not slashes
+ * (`core.wheel_bl.can_node`). Underscores stay in the node name.
  */
 export function graphSegments(name) {
   return String(name || "")
@@ -16,7 +16,7 @@ function joinPath(parts) {
 }
 
 /**
- * Nested folders from logger names such as wheel_bl.can_node.
+ * Nested folders from logger names such as core.wheel_bl.can_node.
  */
 export function buildRosNameTree(names) {
   const root = { label: "", path: "", hasLogger: false, children: new Map() };

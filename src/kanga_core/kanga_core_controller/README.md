@@ -2,13 +2,13 @@
 
 Turns “drive the robot this way” into “spin each wheel at this speed”.
 
-If you are new to ROS: this package is a **node** that listens on `/cmd_vel`
+If you are new to ROS: this package is a **node** that listens on `/core/cmd_vel`
 and publishes one atomic four-wheel command on
-`/wheel_joint_velocity_command`. `kanga_core_drive` converts those joint
+`/core/wheel_joint_velocity_command`. `kanga_core_drive` converts those joint
 speeds for the physical motors.
 
 ```text
-  /cmd_vel  --->  wheel_command_mapper  --->  /wheel_joint_velocity_command
+  /core/cmd_vel  --->  wheel_command_mapper  --->  /core/wheel_joint_velocity_command
    (Twist)         (this package)              (four wheel-joint rad/s values)
 ```
 
@@ -17,18 +17,18 @@ speeds for the physical motors.
 | Package | Job |
 |---------|-----|
 | `kanga_core_drive` | Apply the selected reduction and motor safety limit, start ODrives, calibrate/save, enter CLOSED_LOOP, publish wheel JointState |
-| `kanga_core_controller` (here) | Map `/cmd_vel` → four wheel speeds, proportionally desaturate them, and keep streaming them |
+| `kanga_core_controller` (here) | Map `/core/cmd_vel` → four wheel speeds, proportionally desaturate them, and keep streaming them |
 
 ## How the mapper behaves
 
-1. **Subscribe** to `/cmd_vel` (`geometry_msgs/Twist`).
+1. **Subscribe** to `/core/cmd_vel` (`geometry_msgs/Twist`).
 2. On a **timer** (~50 Hz), convert that twist to four wheel speeds (kinematics).
 3. **Uniformly desaturate** the four-wheel vector if any wheel would exceed the
    selected drivetrain's joint-speed capability. Ratios are preserved: a
    `[50%, 150%]` mix becomes `[33.3%, 100%]`, not `[50%, 100%]`.
 4. **Publish** all four results together as one `WheelVelocityCommand`. The
    controller does not perform gearbox conversion or know ODrive/CAN units.
-5. If `/cmd_vel` stops for longer than `cmd_vel_timeout_s`, keep publishing
+5. If `/core/cmd_vel` stops for longer than `cmd_vel_timeout_s`, keep publishing
    zero wheel-joint speed. The drive layer then keeps stopped CLOSED_LOOP axes
    fed without masking a failed controller process.
 
@@ -67,23 +67,23 @@ accelerating in the opposite direction.
 ros2 launch kanga_core_drive drive.launch.py
 ros2 launch kanga_core_controller controller.launch.py
 
-ros2 service call /drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: true}"
-ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}" --rate 10
+ros2 service call /core/drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: true}"
+ros2 topic pub /core/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}" --rate 10
 ```
 
 Useful beginner checks:
 
 ```bash
 ros2 topic list | grep -E 'cmd_vel|joint_velocity_command|control_message'
-ros2 topic echo /wheel_joint_velocity_command --once  # four joint rad/s values
-ros2 topic echo /wheel_fl/control_message --once      # FL motor rad/s from drive
+ros2 topic echo /core/wheel_joint_velocity_command --once  # four joint rad/s values
+ros2 topic echo /core/wheel_fl/control_message --once      # FL motor rad/s from drive
 ```
 
 ## Configuration
 
 Controller behaviour is in [`config/controller.yaml`](config/controller.yaml):
 
-- `cmd_vel_timeout_s`: how long before a quiet `/cmd_vel` becomes “stop”
+- `cmd_vel_timeout_s`: how long before a quiet `/core/cmd_vel` becomes “stop”
 - `max_linear_acceleration_m_s2`: traction limit for increasing body speed
 - `max_angular_acceleration_rad_s2`: traction limit for increasing yaw speed
 - `publish_rate_hz`: how often wheel-joint commands are published
@@ -99,7 +99,7 @@ loads and validates both before starting the node.
 | File | What it is |
 |------|------------|
 | `include/.../kinematics.hpp` + `src/kinematics.cpp` | Testable math using standard ROS messages |
-| `include/.../wheel_command_mapper.hpp` + `src/wheel_command_mapper.cpp` | The ROS node |
+| `include/.../core/wheel_command_mapper.hpp` + `src/core/wheel_command_mapper.cpp` | The ROS node |
 | `launch/controller.launch.py` | Loads the physical profile and operating limits, then starts the node |
 | `test/test_kinematics.cpp` | Offline checks of the math (no hardware) |
 

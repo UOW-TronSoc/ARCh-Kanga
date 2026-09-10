@@ -7,7 +7,7 @@ payload. This folder is not itself a ROS package.
 
 - `kanga_core_drive`: ODrive launch, Fibre commissioning, closed-loop trigger,
   wheel JointState from motor estimates.
-- `kanga_core_controller`: chassis-to-wheel mapping and `/cmd_vel` setpoint
+- `kanga_core_controller`: chassis-to-wheel mapping and `/core/cmd_vel` setpoint
   stream (Alternative A; CLOSED_LOOP only).
 - `kanga_core_bringup`: core-only launch composition (starts with drive +
   controller; grows later).

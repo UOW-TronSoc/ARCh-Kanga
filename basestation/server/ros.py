@@ -427,7 +427,7 @@ class RosRuntime:
         """
         Store the operator's latest drive command for the ROS thread.
 
-        Values are clamped here so nothing unreasonable can reach /cmd_vel,
+        Values are clamped here so nothing unreasonable can reach /core/cmd_vel,
         whatever the browser sends. Non-zero motion is rejected while a
         commissioning job owns the drivetrain.
         """

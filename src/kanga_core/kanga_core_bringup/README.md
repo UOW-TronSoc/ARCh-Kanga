@@ -18,7 +18,7 @@ RViz, GUI joint sliders, and onboard gamepad control:
 ros2 launch kanga_core_bringup rover.launch.py
 ```
 
-The ESP32 bridge publishes `imu/data` in `base_link` by default. The IMU frame
+The ESP32 bridge publishes `/core/imu/data` in `base_link` by default. The IMU frame
 is a separate launch argument so a measured fixed `base_link -> imu_link`
 transform can be added later without changing the CAN bridge:
 
@@ -39,9 +39,9 @@ core stack. It currently composes:
 - the `core_2026` description and `robot_state_publisher`;
 - the sole `kanga_whs` software motion-inhibit authority;
 - the physical ODrive stack;
-- the `/cmd_vel` wheel controller;
+- the `/core/cmd_vel` wheel controller;
 - differential-bar suspension state mapping;
-- optional visualization of ESP32 `body/pose` as TF;
+- optional visualization of ESP32 `/core/body/pose` as TF;
 - optional wheel/suspension JointState aggregation;
 - optional joint sliders and RViz; and
 - the existing bench gamepad launch as provisional onboard control.
@@ -84,12 +84,12 @@ Then publish a simulated +70° differential-bar angle from another sourced
 shell:
 
 ```bash
-ros2 topic pub /diff_bar_angle std_msgs/msg/Float64 \
+ros2 topic pub /core/diff_bar_angle std_msgs/msg/Float64 \
   "{data: 1.2217304763960306}" --once
 ```
 
-The headless joint-state publisher merges `wheel_joint_states` and
-`suspension_joint_states` into the visualization-only `/joint_states` topic at
+The headless joint-state publisher merges `/core/wheel_joint_states` and
+`/core/suspension_joint_states` into the visualization-only `/joint_states` topic at
 50 Hz. `robot_state_publisher` publishes dynamic TF at up to the same rate.
 Subsystem controllers and estimators continue to consume their owning feedback
 topics at whatever rate each system requires. To use manual sliders instead,
@@ -108,7 +108,7 @@ ros2 launch kanga_core_bringup core.launch.py \
   use_rviz:=true
 ```
 
-The adapter consumes `body/pose`; `body/twist` remains published by the future
+The adapter consumes `/core/body/pose`; `/core/body/twist` remains published by the future
 CAN bridge but is intentionally unused for now. Do not enable
 `use_body_pose_tf` alongside a localisation system that also parents
 `base_link`.
@@ -130,7 +130,7 @@ To enable the current local controller test path, connect the gamepad and pass
 `core_drive.launch.py` starts:
 
 1. `kanga_core_drive` `drive.launch.py` — ODrive nodes, `drive_manager`, wheel JointState
-2. `kanga_core_controller` `controller.launch.py` — `/cmd_vel` → wheel setpoints
+2. `kanga_core_controller` `controller.launch.py` — `/core/cmd_vel` → wheel setpoints
 
 Host must bring up `can_core` first. CLOSED_LOOP is still manual via
 `drive_manager`.
@@ -144,7 +144,7 @@ source install/setup.bash
 ros2 launch kanga_core_bringup core_drive.launch.py
 
 # then enter CLOSED_LOOP when ready:
-ros2 service call /drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: true}"
+ros2 service call /core/drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: true}"
 ```
 
 The bringup selects one versioned physical profile and one editable operating
@@ -175,7 +175,7 @@ Stop and fix before continuing if a step fails.
 
 - Keep the e-stop / `/drivestop` path in mind.
 - **Calibrate with that wheel off the ground** (FULL_CALIBRATION moves the motor).
-- Start with small `/cmd_vel` values.
+- Start with small `/core/cmd_vel` values.
 - Prefer jack stands / clear space before CLOSED_LOOP + motion.
 
 ### 0. Once per machine (skip if already done)
@@ -234,7 +234,7 @@ Enter. The service applies config, calibrates, saves to NVRAM, and leaves that
 motor disabled:
 
 ```bash
-ros2 service call /drive_manager/calibrate_fl std_srvs/srv/Trigger "{}"
+ros2 service call /core/drive_manager/calibrate_fl std_srvs/srv/Trigger "{}"
 # calibrate_bl / calibrate_br / calibrate_fr
 ```
 
@@ -254,7 +254,7 @@ ros2 node list
 
 ros2 topic list | grep -E 'controller_status|joint_velocity_command|control_message|wheel_joint|cmd_vel'
 
-ros2 topic echo /wheel_fl/controller_status --once
+ros2 topic echo /core/wheel_fl/controller_status --once
 # note axis_state (expect IDLE = 1 before CLOSED_LOOP)
 ```
 
@@ -265,9 +265,9 @@ Pass criteria: four wheel namespaces alive; status messages flowing; `axis_state
 Wheels may be on the ground for this step if you are not commanding motion yet.
 
 ```bash
-ros2 service call /drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: true}"
+ros2 service call /core/drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: true}"
 
-ros2 topic echo /wheel_fl/controller_status --once
+ros2 topic echo /core/wheel_fl/controller_status --once
 # axis_state should be 8 (CLOSED_LOOP)
 ```
 
@@ -278,11 +278,11 @@ If this fails: check CAN, clear faults, retry; do not proceed to motion.
 ### 7. Confirm mapper streams (still may be zero cmd)
 
 With CLOSED_LOOP on, the controller publishes zero joint commands when
-`/cmd_vel` is quiet; drive converts them to motor commands for the watchdog.
+`/core/cmd_vel` is quiet; drive converts them to motor commands for the watchdog.
 
 ```bash
-ros2 topic echo /wheel_joint_velocity_command  # all four wheel-joint rad/s values
-ros2 topic echo /wheel_fl/control_message      # FL motor-shaft rad/s
+ros2 topic echo /core/wheel_joint_velocity_command  # all four wheel-joint rad/s values
+ros2 topic echo /core/wheel_fl/control_message      # FL motor-shaft rad/s
 # the joint vector and each closed-loop motor command should be ≈0 at ~50 Hz
 ```
 
@@ -294,7 +294,7 @@ Clear space / prefer elevated wheels for first try.
 
 ```bash
 # small forward pulse (~0.1 m/s chassis twist), then Ctrl-C
-ros2 topic pub /cmd_vel geometry_msgs/msg/Twist \
+ros2 topic pub /core/cmd_vel geometry_msgs/msg/Twist \
   "{linear: {x: 0.1, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}" \
   --rate 10
 ```
@@ -302,9 +302,9 @@ ros2 topic pub /cmd_vel geometry_msgs/msg/Twist \
 Watch:
 
 ```bash
-ros2 topic echo /wheel_fl/control_message    # input_vel should leave 0
-ros2 topic echo /wheel_joint_velocity_command
-ros2 topic echo /wheel_joint_states          # estimates should move
+ros2 topic echo /core/wheel_fl/control_message    # input_vel should leave 0
+ros2 topic echo /core/wheel_joint_velocity_command
+ros2 topic echo /core/wheel_joint_states          # estimates should move
 ```
 
 Also spot-check invert: left wheels (`fl`/`bl`) use `invert_direction` in
@@ -312,12 +312,12 @@ Also spot-check invert: left wheels (`fl`/`bl`) use `invert_direction` in
 
 Pass criteria: robot (or free wheels) respond in the expected direction; JointState updates.
 
-### 9. Stale `/cmd_vel` → stop
+### 9. Stale `/core/cmd_vel` → stop
 
-Stop publishing `/cmd_vel` (Ctrl-C the pub). Within ~0.5 s (`cmd_vel_timeout_s`):
+Stop publishing `/core/cmd_vel` (Ctrl-C the pub). Within ~0.5 s (`cmd_vel_timeout_s`):
 
 ```bash
-ros2 topic echo /wheel_fl/control_message
+ros2 topic echo /core/wheel_fl/control_message
 # input_vel should return to ~0 while still streaming
 ```
 
@@ -326,9 +326,9 @@ Pass criteria: commanded velocity goes to zero without leaving CLOSED_LOOP.
 ### 10. Idle / stop paths
 
 ```bash
-ros2 service call /drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: false}"
+ros2 service call /core/drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: false}"
 
-ros2 topic echo /wheel_fl/controller_status --once
+ros2 topic echo /core/wheel_fl/controller_status --once
 # axis_state back toward IDLE (1)
 
 # control_message should stop (actuator only publishes while CLOSED_LOOP)

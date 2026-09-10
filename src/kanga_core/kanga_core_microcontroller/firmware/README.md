@@ -44,7 +44,7 @@ diff-bar encoder at address `0x36`. Servo PWM pins remain placeholders (`-1` in
 
 `ros2_socketcan` on the host will bridge these frames to ROS topics. The future
 `core_can_bridge` executable in this package will decode them into typed
-messages (`body/pose`, `body/twist`, `diff_bar_angle`, and so on).
+messages (`/core/body/pose`, `/core/body/twist`, `/core/diff_bar_angle`, and so on).
 
 ## CAN protocol (preliminary)
 
@@ -120,6 +120,6 @@ Each body-state sample sent over CAN should contain or identify:
 - accuracy/covariance information sufficient for the ROS bridge to describe
   unavailable or uncertain components honestly.
 
-The host CAN bridge will publish the sample as matching `body/pose` and
-`body/twist` messages with the same timestamp. Do not send only Euler angles
+The host CAN bridge will publish the sample as matching `/core/body/pose` and
+`/core/body/twist` messages with the same timestamp. Do not send only Euler angles
 when the BNO086 Game Rotation Vector already provides a quaternion.

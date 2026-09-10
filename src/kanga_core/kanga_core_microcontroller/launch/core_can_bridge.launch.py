@@ -6,7 +6,9 @@ same topics instead, so this node must not be started alongside it.
 
 ros2_socketcan is optional here. In production, core bringup owns the shared
 SocketCAN bridge for can_core, so leave launch_socketcan:=false and let this
-node attach to the `from_can_bus` topic that bridge already publishes.
+node attach to the root `/from_can_bus` topic that bridge already publishes.
+The node lives under `/core` for its sensor outputs; launch remaps the shared
+CAN transport subscription back to `/from_can_bus`.
 """
 
 from launch import LaunchDescription
@@ -105,6 +107,9 @@ def generate_launch_description():
                                 "body_twist_frame_id": body_pose_child_frame,
                                 "imu_frame_id": imu_frame_id,
                             },
+                        ],
+                        remappings=[
+                            ("from_can_bus", "/from_can_bus"),
                         ],
                         output="screen",
                     ),

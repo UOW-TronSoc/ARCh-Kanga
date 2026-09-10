@@ -18,11 +18,11 @@ kinematics here.
 - `commission_wheels` CLI (Python) wrapping `custom_odrive commission`
 - `drive_manager` (C++) — drive state, all-wheel error clearing, and per-wheel
   apply/save and calibrate/save services
-- `wheel_joint_state_publisher` (C++) — `/wheel_*/controller_status` → `wheel_joint_states`
+- `wheel_joint_state_publisher` (C++) — `/core/wheel_*/controller_status` → `/core/wheel_joint_states`
 
 ## Does not own
 
-- Chassis-to-wheel kinematics or `/cmd_vel` (`kanga_core_controller`)
+- Chassis-to-wheel kinematics or `/core/cmd_vel` (`kanga_core_controller`)
 - ODrive protocol / SocketCAN internals (vendor `custom_odrive`)
 - Differential-bar JointState, WHS, error UX, whole-rover bringup
 
@@ -87,19 +87,19 @@ the table.
 
 ```bash
 # Enter / leave CLOSED_LOOP on all wheels
-ros2 service call /drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: true}"
-ros2 service call /drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: false}"
+ros2 service call /core/drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: true}"
+ros2 service call /core/drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: false}"
 
 # Clear sticky errors on every wheel without changing axis state
-ros2 service call /drive_manager/clear_errors std_srvs/srv/Trigger "{}"
+ros2 service call /core/drive_manager/clear_errors std_srvs/srv/Trigger "{}"
 
 # Apply the active config and save one wheel to ODrive NVRAM
-ros2 service call /drive_manager/save_fl std_srvs/srv/Trigger "{}"
+ros2 service call /core/drive_manager/save_fl std_srvs/srv/Trigger "{}"
 # also: save_bl, save_br, save_fr
 
 # Calibrate and save one wheel. Calling this service is the off-ground
 # acknowledgement, so physically check this exact wheel before pressing Enter.
-ros2 service call /drive_manager/calibrate_fl std_srvs/srv/Trigger "{}"
+ros2 service call /core/drive_manager/calibrate_fl std_srvs/srv/Trigger "{}"
 # also: calibrate_bl, calibrate_br, calibrate_fr
 ```
 
@@ -144,14 +144,14 @@ can bypass them.
   timeout). Physical reduction and hard maxima come from the selected
   `kanga_core_description` drivetrain profile. Effective TPS/TPS-per-second
   limits come from its separate validated motor-limit file.
-- `wheel_actuator` accepts one atomic `/wheel_joint_velocity_command` containing
+- `wheel_actuator` accepts one atomic `/core/wheel_joint_velocity_command` containing
   all four wheel-joint velocities, applies the selected reduction,
   independently clamps only as a final actuator safety guard, and sends
   motor-shaft rad/s to generic
   `custom_odrive` nodes. Motion-preserving uniform scaling belongs upstream.
 - `wheel_joint_state_publisher` divides motor position/velocity feedback by the
   selected reduction
-  so `wheel_joint_states` is expressed at the wheel joint.
+  so `/core/wheel_joint_states` is expressed at the wheel joint.
 - Launch leaves `start_enabled` at the package default (do not override). Use
   `/drivestop` for global stop. Closed-loop only via `set_closed_loop`, which
   restores any per-wheel `set_enabled` latch left false by commissioning before

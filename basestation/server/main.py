@@ -215,7 +215,7 @@ async def ws_control(ws: WebSocket) -> None:
 
     The browser sends small JSON frames at ~20 Hz while driving:
         {"t": "drive", "x": -1..1, "yaw": -1..1, "scale": 0..100}
-    The ROS side turns them into /cmd_vel and stops the rover if they stop
+    The ROS side turns them into /core/cmd_vel and stops the rover if they stop
     arriving (dead-man).
 
     Newest tab wins: connecting takes control and the previous holder is

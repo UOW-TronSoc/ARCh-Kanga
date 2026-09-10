@@ -76,7 +76,7 @@ code can live beside it as `.h` and `.cpp` files.
 |---|---|---|
 | ESP32 firmware | Sensor sampling, encoder counts, IMU access, CAN framing, device timestamps and status; reserved inactive servo command decoding | ROS, TF, URDF geometry, suspension kinematics, or production servo actuation |
 | ESP32 CAN bridge | SocketCAN transport, protocol validation, unit conversion/calibration, and typed ROS state topics | Robot geometry, TF, or the deferred servo control interface |
-| Body pose TF node | Mirror an already-processed `body/pose` sample into a development TF | Pose estimation, sensor fusion, twist processing, or production odometry |
+| Body pose TF node | Mirror an already-processed `/core/body/pose` sample into a development TF | Pose estimation, sensor fusion, twist processing, or production odometry |
 | Suspension state node | Diff-bar angle limits and the replaceable diff-bar-to-suspension equation | CAN framing, encoder drivers, or TF |
 
 The intended state path is:
@@ -94,7 +94,7 @@ mechanism equation and makes that equation testable without an ESP32.
 
 ### Who publishes body state
 
-`body/pose`, `body/twist`, and `diff_bar_angle` describe the rover rather than
+`/core/body/pose`, `/core/body/twist`, and `/core/diff_bar_angle` describe the rover rather than
 the thing measuring it, so nothing in those messages is CAN-specific. On the
 real rover `core_can_bridge` fills them in from ESP32 frames; a simulator can
 publish the same topics instead and everything downstream —
@@ -153,8 +153,8 @@ repeating sensor fusion:
 
 | Topic | Type | Frame contract |
 |---|---|---|
-| `body/pose` | `geometry_msgs/msg/PoseWithCovarianceStamped` | Pose of `base_link` relative to `body_origin`; `header.frame_id=body_origin` |
-| `body/twist` | `geometry_msgs/msg/TwistWithCovarianceStamped` | Body linear and angular velocity expressed in `base_link`; `header.frame_id=base_link` |
+| `/core/body/pose` | `geometry_msgs/msg/PoseWithCovarianceStamped` | Pose of `base_link` relative to `body_origin`; `header.frame_id=body_origin` |
+| `/core/body/twist` | `geometry_msgs/msg/TwistWithCovarianceStamped` | Body linear and angular velocity expressed in `base_link`; `header.frame_id=base_link` |
 
 Both messages must carry the same ESP32 measurement timestamp. Position is in
 metres, orientation is an `x/y/z/w` quaternion, linear velocity is in m/s, and
@@ -175,10 +175,10 @@ with the future localisation estimator.
 
 ### Preliminary pose visualization
 
-`body_pose_tf_broadcaster` subscribes to `body/pose` and broadcasts its
+`body_pose_tf_broadcaster` subscribes to `/core/body/pose` and broadcasts its
 orientation as `body_origin -> base_link`. Translation is always ignored and
 forced to zero: BNO086 Game Rotation Vector has no reliable position, and this
-adapter must not invent one. It does not subscribe to `body/twist`, calculate
+adapter must not invent one. It does not subscribe to `/core/body/twist`, calculate
 pose, integrate velocity, or perform IMU processing. It rejects unexpected
 parent frames and badly formed quaternions; the small final quaternion
 normalization is only TF input hygiene. While waiting for its first valid pose
@@ -186,7 +186,7 @@ after launch, it publishes an identity `body_origin -> base_link` transform. It
 then republishes the latest accepted pose at 10 Hz so a one-shot test message
 remains visible and the dynamic TF does not expire. This last-known TF
 deliberately does not represent sensor freshness; consumers that need freshness
-must inspect the timestamped `body/pose` topic.
+must inspect the timestamped `/core/body/pose` topic.
 
 Start it directly:
 
@@ -198,7 +198,7 @@ Publish a preliminary pose with 90° yaw (translation is ignored by the
 broadcaster):
 
 ```bash
-ros2 topic pub /body/pose geometry_msgs/msg/PoseWithCovarianceStamped \
+ros2 topic pub /core/body/pose geometry_msgs/msg/PoseWithCovarianceStamped \
   "{header: {frame_id: body_origin}, pose: {pose: {orientation: {z: 0.7071067811865475, w: 0.7071067811865476}}}}" \
   --rate 10
 ```
@@ -217,7 +217,7 @@ angular velocity, and later fused motion estimates may support terrain-aware
 drive control, slope compensation, rollover limits, slip handling, payload
 stabilization, or a controller that no longer assumes perfectly planar motion.
 
-Controllers should normally consume the timestamped `body/pose`, `body/twist`,
+Controllers should normally consume the timestamped `/core/body/pose`, `/core/body/twist`,
 or a later fused `nav_msgs/msg/Odometry` topic directly rather than reading TF
 as their feedback interface. Topics preserve covariance and make freshness and
 failure handling explicit. TF remains the shared geometric representation for
@@ -239,8 +239,8 @@ the frames defined in `include/kanga_core_microcontroller/can_ids.hpp` and
 
 | CAN ID | Publishes |
 |---|---|
-| 812 | `diff_bar_angle` (`std_msgs/msg/Float64`, radians) |
-| 820, 821, 822 | `body/pose`, `body/twist`, `imu/data` |
+| 812 | `/core/diff_bar_angle` (`std_msgs/msg/Float64`, radians) |
+| 820, 821, 822 | `/core/body/pose`, `/core/body/twist`, `/core/imu/data` |
 
 The IMU triple is published once per cycle, after the accelerometer frame
 arrives and only when its sequence byte matches the pending gyro frame. Frames
@@ -250,7 +250,7 @@ publishing a partial sample.
 
 Those same headers are compiled into the firmware, so a protocol change cannot
 land on one side only. Encoder calibration and covariances live in
-`config/core_can_bridge.yaml`. `diff_bar_encoder_counts_per_rad` is
+`config/core/core_can_bridge.yaml`. `diff_bar_encoder_counts_per_rad` is
 4096 / (2π) for the AS5600 12-bit RAW ANGLE; set `diff_bar_encoder_zero_count`
 to the rest-position reading.
 
@@ -272,7 +272,7 @@ The interface must already be up at the ESP32 bit rate (250 kbit/s):
 ## Suspension joint state
 
 `suspension_joint_state_publisher` subscribes to a calibrated
-`std_msgs/msg/Float64` angle in radians on `diff_bar_angle`. Raw encoder counts,
+`std_msgs/msg/Float64` angle in radians on `/core/diff_bar_angle`. Raw encoder counts,
 calibration, and ESP32 CAN transport are owned by `core_can_bridge`, so this
 node is unchanged whether the angle comes from CAN or from simulation.
 
@@ -286,7 +286,7 @@ values live in `kanga_core_description/config/drivetrains/drivetrain_2025.yaml`
 so a later drivetrain iteration can replace them in its own profile.
 
 It publishes the three positions as `sensor_msgs/msg/JointState` on
-`suspension_joint_states`. Replace the pure kinematics implementation when the
+`/core/suspension_joint_states`. Replace the pure kinematics implementation when the
 linkage geometry changes; the ROS node boundary can remain unchanged.
 While waiting for the first valid encoder angle after launch, it publishes all
 three joints at zero. The neutral fallback stops once encoder data arrives and
@@ -299,10 +299,10 @@ Run without hardware in three terminals after sourcing the workspace:
 ros2 launch kanga_core_microcontroller suspension_state.launch.py
 
 # Terminal 2 (start this before publishing)
-ros2 topic echo /suspension_joint_states --once
+ros2 topic echo /core/suspension_joint_states --once
 
 # Terminal 3
-ros2 topic pub /diff_bar_angle std_msgs/msg/Float64 \
+ros2 topic pub /core/diff_bar_angle std_msgs/msg/Float64 \
   "{data: 1.2217304763960306}" --once
 ```
 
@@ -313,6 +313,6 @@ workspace source tree:
 python3 src/kanga_core/kanga_core_microcontroller/test/sweep_diff_bar_angle.py
 ```
 
-It publishes a triangle wave on `/diff_bar_angle` from -60° to +60° in five
+It publishes a triangle wave on `/core/diff_bar_angle` from -60° to +60° in five
 seconds and back to -60° in another five seconds. The ten-second cycle repeats
 until stopped with `Ctrl+C`.

@@ -198,7 +198,7 @@ class BenchTeleop(Node):
         )
         return bool(buttons[index]) and not bool(previous_value)
 
-    # Start or finish a deliberate period with no /cmd_vel publications.
+    # Start or finish a deliberate period with no /core/cmd_vel publications.
     def update_command_loss(self, command_loss_requested):
         if command_loss_requested == self.command_loss_active:
             return
@@ -206,7 +206,7 @@ class BenchTeleop(Node):
         self.motion_armed = False
         if command_loss_requested:
             self.get_logger().warning(
-                "Command-loss trigger held; /cmd_vel publication stopped"
+                "Command-loss trigger held; /core/cmd_vel publication stopped"
             )
         else:
             self.get_logger().info(

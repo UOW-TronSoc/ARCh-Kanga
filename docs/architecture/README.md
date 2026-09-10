@@ -78,7 +78,7 @@ safety-rated emergency stop.
   (apply / calibrate / save), closed-loop trigger, and wheel `JointState` from
   ODrive estimates. Invert direction is configured in launch only.
 - `kanga_core_controller` owns chassis-to-wheel velocity mapping, drive limits,
-  and the continuous `/cmd_vel` setpoint stream. The selected physical or
+  and the continuous `/core/cmd_vel` setpoint stream. The selected physical or
   simulated drive boundary owns CLOSED_LOOP gating.
   Optional low-confidence wheel odometry remains deferred. `robot_state_publisher`
   generates link transforms from the robot description. A visual, inertial,

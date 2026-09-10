@@ -2,7 +2,7 @@
  * Split a /rosout logger name into namespace segments.
  *
  * rcl writes the node logger as dots (`core.wheel_bl.can_node`), not slashes
- * (`core.wheel_bl.can_node`). Underscores stay in the node name.
+ * (`/core/wheel_bl/can_node`). Underscores stay in the node name.
  */
 export function graphSegments(name) {
   return String(name || "")

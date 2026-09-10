@@ -140,12 +140,12 @@ class LogsApiTests(unittest.TestCase):
         main_module.runtime.rosout.clear()
         main_module.runtime.rosout.append_fields(
             level=ROS_LOG_ERROR,
-            name="wheel_bl.can_node",
+            name="core.wheel_bl.can_node",
             msg="left",
         )
         main_module.runtime.rosout.append_fields(
             level=ROS_LOG_ERROR,
-            name="wheel_fr.can_node",
+            name="core.wheel_fr.can_node",
             msg="right",
         )
         app = FastAPI()
@@ -156,7 +156,7 @@ class LogsApiTests(unittest.TestCase):
                 asgi_post(
                     app,
                     "/api/logs/clear",
-                    {"selection_type": "prefix", "path": "wheel_bl"},
+                    {"selection_type": "prefix", "path": "core.wheel_bl"},
                 )
             )
         self.assertEqual(status_code, 200)

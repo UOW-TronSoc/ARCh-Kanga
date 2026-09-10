@@ -246,7 +246,7 @@ stages must not be started until the previous stage is checked.
 
 ### Later (not built)
 
-- [x] Nested ROS folders by namespace from logger names (`wheel_bl.can_node`).
+- [x] Nested ROS folders by namespace from logger names (`core.wheel_bl.can_node`).
 - [x] Docker Slice A: PID-1 `docker logs` of **Basestation** and **Onboard**
       from `basestation-server` on the same host. Spec:
       [Docker PID-1 follow](#docker-pid-1-follow).

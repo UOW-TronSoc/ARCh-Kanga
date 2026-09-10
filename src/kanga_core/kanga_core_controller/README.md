@@ -99,7 +99,7 @@ loads and validates both before starting the node.
 | File | What it is |
 |------|------------|
 | `include/.../kinematics.hpp` + `src/kinematics.cpp` | Testable math using standard ROS messages |
-| `include/.../core/wheel_command_mapper.hpp` + `src/core/wheel_command_mapper.cpp` | The ROS node |
+| `include/kanga_core_controller/wheel_command_mapper.hpp` + `src/wheel_command_mapper.cpp` | The ROS node |
 | `launch/controller.launch.py` | Loads the physical profile and operating limits, then starts the node |
 | `test/test_kinematics.cpp` | Offline checks of the math (no hardware) |
 

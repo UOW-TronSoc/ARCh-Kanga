@@ -43,6 +43,7 @@ def test_imu_frame_is_independent_from_body_pose_child() -> None:
     assert '"imu_frame_id": imu_frame_id' in bridge_launch
     assert '"imu_frame_id": body_pose_child_frame' not in bridge_launch
     assert '("from_can_bus", "/from_can_bus")' in bridge_launch
+    assert '("to_can_bus", "/to_can_bus")' in bridge_launch
 
 
 def test_suspension_joint_names_match_the_robot_description() -> None:

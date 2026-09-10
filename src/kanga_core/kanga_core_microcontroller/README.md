@@ -235,7 +235,9 @@ that estimator—not `body_pose_tf_broadcaster`—should own `odom -> base_link`
 `core_can_bridge` is the real-rover producer of the topics above. It subscribes
 to `from_can_bus` (`can_msgs/msg/Frame`, published by `ros2_socketcan`), decodes
 the frames defined in `include/kanga_core_microcontroller/can_ids.hpp` and
-`can_protocol.hpp`, and republishes them as typed ROS messages:
+`can_protocol.hpp`, and republishes them as typed ROS messages. The node runs
+under `/core`; launch remaps `from_can_bus` and `to_can_bus` to the shared root
+transport topics for consistency with future transmitters.
 
 | CAN ID | Publishes |
 |---|---|

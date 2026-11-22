@@ -7,3 +7,5 @@ log
 *.swp
 *~
 basestation/frontend/node_modules
+nexus/frontend/node_modules
+nexus/frontend/dist

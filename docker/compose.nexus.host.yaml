@@ -1,0 +1,6 @@
+# Native Linux overlay. Same network choice as the ARCh basestation, without
+# its Docker socket, host PID, or privileged terminal access.
+services:
+  nexus:
+    network_mode: host
+    ports: []

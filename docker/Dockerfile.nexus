@@ -1,0 +1,40 @@
+# Demo frontend for the stage-1 container. The live data source is selected
+# in a later commit; this image still serves every existing route.
+FROM node:20-bookworm-slim AS frontend
+WORKDIR /src/frontend
+COPY nexus/frontend/package.json nexus/frontend/package-lock.json ./
+RUN npm ci
+COPY nexus/frontend/ ./
+RUN if head -c 200 public/assets/models/kanga-assembly.glb | grep -q "git-lfs.github.com/spec"; then \
+      echo "kanga-assembly.glb is a Git LFS pointer. Run git lfs pull before building." >&2; \
+      exit 1; \
+    fi
+RUN npm run build
+
+FROM ros:humble-ros-base-jammy
+
+ENV ROS_DISTRO=humble
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/opt/nexus/server
+ENV NEXUS_STATIC_DIR=/opt/nexus/static
+SHELL ["/bin/bash", "-c"]
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python3-pip \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY nexus/server/requirements.txt /tmp/nexus-requirements.txt
+RUN pip3 install --no-cache-dir -r /tmp/nexus-requirements.txt \
+ && rm -f /tmp/nexus-requirements.txt
+
+COPY docker/nexus-entrypoint.bash /usr/local/bin/nexus-entrypoint.bash
+RUN chmod +x /usr/local/bin/nexus-entrypoint.bash
+
+COPY nexus/server /opt/nexus/server
+COPY --from=frontend /src/frontend/dist /opt/nexus/static
+
+WORKDIR /opt/nexus
+EXPOSE 8001
+ENTRYPOINT ["/usr/local/bin/nexus-entrypoint.bash"]
+CMD ["python3", "-m", "uvicorn", "nexus_server.app:app", "--host", "0.0.0.0", "--port", "8001"]

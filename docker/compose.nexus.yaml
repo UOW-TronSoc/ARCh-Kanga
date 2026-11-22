@@ -1,0 +1,34 @@
+# NEXUS only. The existing basestation service on port 8000 is unchanged.
+# DDS uses the same profile and domain as that basestation. Host networking
+# is selected by scripts/nexus_up.bash, not by this file.
+name: nexus
+
+services:
+  nexus:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.nexus
+    image: kanga-nexus:humble
+    container_name: nexus
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    working_dir: /opt/nexus
+    volumes:
+      - ..:/workspace:ro
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+      RMW_IMPLEMENTATION: ${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
+      FASTRTPS_DEFAULT_PROFILES_FILE: /workspace/basestation/fastdds_profile.xml
+      NEXUS_STATIC_DIR: /opt/nexus/static
+    command:
+      [
+        "python3",
+        "-m",
+        "uvicorn",
+        "nexus_server.app:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8001",
+      ]

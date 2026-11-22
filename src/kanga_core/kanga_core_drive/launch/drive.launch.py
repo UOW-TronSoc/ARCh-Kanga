@@ -11,16 +11,16 @@ up first at the same bitrate as the ODrives.
 
 Do not set start_enabled here — leave the package default. Global stop uses
 /drivestop when needed. Enter CLOSED_LOOP via:
-  ros2 service call /drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: true}"
+  ros2 service call /core/drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: true}"
 """
 
 import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, LogInfo, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, GroupAction, LogInfo, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
+from launch_ros.actions import Node, PushRosNamespace
 
 from kanga_core_description.drivetrain_profile import (
     DEFAULT_DRIVETRAIN_PROFILE,
@@ -156,7 +156,7 @@ def _launch_setup(context):
         output="screen",
     )
 
-    # Echo /wheel_*/controller_status → wheel_joint_states for RSP. The
+    # Echo /core/wheel_*/controller_status → wheel_joint_states for RSP. The
     # table above explicitly maps each wheel id to its description joint.
     wheel_joint_state_publisher = Node(
         package="kanga_core_drive",
@@ -182,15 +182,16 @@ def _launch_setup(context):
                 f"{drivetrain.motor_limits.motor_acceleration_limit_tps_s:g} TPS/s"
             )
         ),
+        GroupAction(
+            [
+                PushRosNamespace("core"),
+                *motor_nodes,
+                wheel_actuator,
+                drive_manager,
+                wheel_joint_state_publisher,
+            ]
+        ),
     ]
-    actions.extend(motor_nodes)
-    actions.extend(
-        [
-            wheel_actuator,
-            drive_manager,
-            wheel_joint_state_publisher,
-        ]
-    )
     return actions
 
 

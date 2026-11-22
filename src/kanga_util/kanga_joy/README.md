@@ -39,7 +39,7 @@ privileged.
 ## Bench teleop
 
 This launch is deliberately for off-ground development testing. It starts
-`joy_node` and maps the Logitech F310 to `/cmd_vel`:
+`joy_node` and maps the Logitech F310 to `/core/cmd_vel`:
 
 | Input | Command |
 |---|---|
@@ -50,11 +50,11 @@ This launch is deliberately for off-ground development testing. It starts
 | Button 1 | Assert the global `/drivestop` latch |
 | Button 2 | Release `/drivestop` (does not re-enter CLOSED_LOOP) |
 | Button 3 | Clear errors on all four drive wheels |
-| Button 7 (hold) | Stop publishing `/cmd_vel` to simulate command loss |
+| Button 7 (hold) | Stop publishing `/core/cmd_vel` to simulate command loss |
 
 `bench_teleop` never publishes `/drivestop` directly. Buttons 1 and 2 call
 `/whs_node/set_drivestop`; `kanga_whs` remains the sole authoritative
-publisher. A stop press disarms motion and publishes zero `/cmd_vel`
+publisher. A stop press disarms motion and publishes zero `/core/cmd_vel`
 immediately even if the WHS service is unavailable. A release does not clear
 the local gate until the authoritative transient-local `/drivestop=false`
 state arrives from WHS.
@@ -102,4 +102,4 @@ while driving. It tracks real key-down and key-up events, so multiple motion
 keys can be held together for combined forward/strafe/yaw commands. Losing
 focus, closing the window, or pressing `Space` immediately publishes neutral.
 The adapter only publishes the established `/joy` layout; `bench_teleop`
-retains ownership of safety services and `/cmd_vel`.
+retains ownership of safety services and `/core/cmd_vel`.

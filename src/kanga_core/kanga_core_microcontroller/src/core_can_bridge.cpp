@@ -66,7 +66,7 @@ public:
 
     RCLCPP_INFO(
       this->get_logger(),
-      "Core CAN bridge listening on from_can_bus (IDs 812, 820-822)");
+      "Core CAN bridge listening on /from_can_bus (IDs 812, 820-822)");
   }
 
 private:

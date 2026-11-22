@@ -101,9 +101,10 @@ class CommissioningConfigTests(unittest.TestCase):
         self.assertEqual(tuple(launch_table), tuple(m.motor_id for m in core.motors))
         for motor in core.motors:
             self.assertEqual(
-                launch_table[motor.motor_id]["namespace"],
+                "core/" + launch_table[motor.motor_id]["namespace"],
                 motor.namespace,
             )
+            self.assertFalse(motor.namespace.startswith("/"))
             self.assertEqual(
                 launch_table[motor.motor_id]["node_id"],
                 motor.node_id,

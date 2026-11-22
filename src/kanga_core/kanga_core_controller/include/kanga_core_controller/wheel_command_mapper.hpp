@@ -1,32 +1,32 @@
 #pragma once
 
 /*
- * WheelCommandMapper — the ROS node that drives the wheels from /cmd_vel.
+ * WheelCommandMapper — the ROS node that drives the wheels from /core/cmd_vel.
  *
  * Big picture (read this first):
  *
  *   Joystick / autonomy / basestation
  *            |
  *            v
- *        /cmd_vel          (geometry_msgs/Twist: go forward, strafe, spin)
+ *        /core/cmd_vel          (geometry_msgs/Twist: go forward, strafe, spin)
  *            |
  *            v
  *   wheel_command_mapper   (this node)
  *            |
  *            |  every ~0.02 s
  *            v
- *   /wheel_joint_velocity_command  (one atomic four-wheel message)
+ *   /core/wheel_joint_velocity_command  (one atomic four-wheel message)
  *            |
  *            v
  *   kanga_core_drive wheel_actuator (applies reduction + motor limit)
  *
  * Important behaviours for beginners:
  *
- * 1. We only *remember* the latest /cmd_vel. A timer does the publishing.
+ * 1. We only *remember* the latest /core/cmd_vel. A timer does the publishing.
  *    That way motors keep getting a steady stream even if Twist arrives
  *    in bursts.
  *
- * 2. If /cmd_vel goes quiet for longer than cmd_vel_timeout_s, we treat
+ * 2. If /core/cmd_vel goes quiet for longer than cmd_vel_timeout_s, we treat
  *    the command as "stop" (all wheel speeds = 0). Safety: a crashed
  *    teleop client should not leave the rover driving forever.
  *
@@ -59,7 +59,7 @@ public:
   explicit WheelCommandMapper(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
 
 private:
-  // Called whenever someone publishes to /cmd_vel.
+  // Called whenever someone publishes to /core/cmd_vel.
   void on_cmd_vel(const geometry_msgs::msg::Twist::SharedPtr msg);
   // Called on a fixed timer (~50 Hz) to send joint velocities to drive.
   void publish_wheel_velocity_command();

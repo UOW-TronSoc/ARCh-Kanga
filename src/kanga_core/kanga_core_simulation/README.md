@@ -14,10 +14,10 @@ It does not use `ros2_control`. `CoreHardwareSystem` reads and writes Gazebo
 entity/component state directly, and `ros_gz` provides the process, spawn, and
 `/clock` integration in the top-level launch. Body orientation follows the same
 path as the real robot: the plugin publishes the Game-Rotation-Vector contract
-on `/body/pose`, and `body_pose_tf_broadcaster` converts that into
+on `/core/body/pose`, and `body_pose_tf_broadcaster` converts that into
 `body_origin -> base_link` for RViz. Suspension feedback is the same: the
-plugin publishes only `/diff_bar_angle`, and `suspension_joint_state_publisher`
-maps it through the shared kinematics into `/suspension_joint_states`. Gazebo's
+plugin publishes only `/core/diff_bar_angle`, and `suspension_joint_state_publisher`
+maps it through the shared kinematics into `/core/suspension_joint_states`. Gazebo's
 `PassiveSuspensionSystem` still uses that kinematics library for physics
 constraint torques; it does not own the ROS joint-state topic.
 
@@ -53,8 +53,8 @@ commanding motion:
 
 ```bash
 ros2 service call /whs_node/set_drivestop std_srvs/srv/SetBool "{data: false}"
-ros2 service call /drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: true}"
-ros2 topic pub /cmd_vel geometry_msgs/msg/Twist \
+ros2 service call /core/drive_manager/set_closed_loop std_srvs/srv/SetBool "{data: true}"
+ros2 topic pub /core/cmd_vel geometry_msgs/msg/Twist \
   "{linear: {x: 0.25}, angular: {z: 0.0}}" -r 10
 ```
 
@@ -76,16 +76,16 @@ ros2 run kanga_sim core_simulation_contract_check
 
 | Direction | ROS interface | Simulation behaviour |
 |---|---|---|
-| Input | `/wheel_joint_velocity_command` (`kanga_interfaces/WheelVelocityCommand`) | Atomic FL, BL, BR, FR wheel-joint rad/s |
+| Input | `/core/wheel_joint_velocity_command` (`kanga_interfaces/WheelVelocityCommand`) | Atomic FL, BL, BR, FR wheel-joint rad/s |
 | Input | `/drivestop` (`std_msgs/Bool`) | Reliable/transient-local; true immediately returns to IDLE; false never re-enables |
-| Service | `/drive_manager/set_closed_loop` (`std_srvs/SetBool`) | Explicit IDLE/CLOSED_LOOP transition; enable is rejected while stopped |
-| Service | `/drive_manager/clear_errors` (`std_srvs/Trigger`) | Deterministic successful no-op |
-| Services | `/drive_manager/calibrate_{fl,bl,br,fr}` (`std_srvs/Trigger`) | Successful no-op; simulation needs no calibration |
-| Output | `/wheel_joint_states` (`sensor_msgs/JointState`) | Actual Gazebo positions/velocities in FL, BL, BR, FR order at 50 Hz |
-| Output | `/suspension_joint_states` (`sensor_msgs/JointState`) | Produced by `suspension_joint_state_publisher` from `/diff_bar_angle` |
-| Output | `/diff_bar_angle` (`std_msgs/Float64`) | Actual Gazebo differential-bar joint angle |
-| Output | `/body/pose`, `/body/twist` | IMU-contract stand-in: orientation and angular velocity only; translation/linear marked unavailable |
-| Output | `/odom` | Privileged Gazebo ground truth for diagnostics; not used for visualization TF |
+| Service | `/core/drive_manager/set_closed_loop` (`std_srvs/SetBool`) | Explicit IDLE/CLOSED_LOOP transition; enable is rejected while stopped |
+| Service | `/core/drive_manager/clear_errors` (`std_srvs/Trigger`) | Deterministic successful no-op |
+| Services | `/core/drive_manager/calibrate_{fl,bl,br,fr}` (`std_srvs/Trigger`) | Successful no-op; simulation needs no calibration |
+| Output | `/core/wheel_joint_states` (`sensor_msgs/JointState`) | Actual Gazebo positions/velocities in FL, BL, BR, FR order at 50 Hz |
+| Output | `/core/suspension_joint_states` (`sensor_msgs/JointState`) | Produced by `suspension_joint_state_publisher` from `/core/diff_bar_angle` |
+| Output | `/core/diff_bar_angle` (`std_msgs/Float64`) | Actual Gazebo differential-bar joint angle |
+| Output | `/core/body/pose`, `/core/body/twist` | IMU-contract stand-in: orientation and angular velocity only; translation/linear marked unavailable |
+| Output | `/core/odom` | Privileged Gazebo ground truth for diagnostics; not used for visualization TF |
 | Shared | `/joint_states`, `/robot_description`, `/tf`, `/tf_static` | Aggregator, `robot_state_publisher`, and `body_pose_tf_broadcaster` (`body_origin -> base_link`) |
 | Simulation only | `/clock` and Gazebo transport topics | Never required by control or autonomy code directly |
 

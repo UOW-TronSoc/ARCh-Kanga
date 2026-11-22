@@ -275,11 +275,12 @@ private:
     rclcpp::NodeOptions node_options;
     node_options.context(ros_context_);
     node_options.parameter_overrides({rclcpp::Parameter("use_sim_time", true)});
+    node_options.arguments({"--ros-args", "-r", "__ns:=/core"});
     node_ = std::make_shared<rclcpp::Node>("drive_manager", node_options);
 
     command_subscription_ =
       node_->create_subscription<kanga_interfaces::msg::WheelVelocityCommand>(
-      "/wheel_joint_velocity_command", rclcpp::QoS(10),
+      "wheel_joint_velocity_command", rclcpp::QoS(10),
       [this](const kanga_interfaces::msg::WheelVelocityCommand::SharedPtr message) {
         const WheelVector command = wheel_vector(
           message->front_left_rad_s, message->back_left_rad_s,
@@ -349,17 +350,17 @@ private:
 
     wheel_state_publisher_ =
       node_->create_publisher<sensor_msgs::msg::JointState>(
-      "/wheel_joint_states", 10);
+      "wheel_joint_states", 10);
     // Suspension joint states are owned by suspension_joint_state_publisher,
     // which maps this encoder angle through the shared kinematics.
     diff_bar_publisher_ = node_->create_publisher<std_msgs::msg::Float64>(
-      "/diff_bar_angle", 10);
+      "diff_bar_angle", 10);
     body_pose_publisher_ = node_->create_publisher<
-      geometry_msgs::msg::PoseWithCovarianceStamped>("/body/pose", 10);
+      geometry_msgs::msg::PoseWithCovarianceStamped>("body/pose", 10);
     body_twist_publisher_ = node_->create_publisher<
-      geometry_msgs::msg::TwistWithCovarianceStamped>("/body/twist", 10);
+      geometry_msgs::msg::TwistWithCovarianceStamped>("body/twist", 10);
     odometry_publisher_ =
-      node_->create_publisher<nav_msgs::msg::Odometry>("/odom", 10);
+      node_->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
 
     rclcpp::ExecutorOptions executor_options;
     executor_options.context = ros_context_;

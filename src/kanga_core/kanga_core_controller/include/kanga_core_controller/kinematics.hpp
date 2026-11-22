@@ -4,7 +4,7 @@
  * Kinematics = the math that turns "how the robot should move" into
  * "how fast each wheel should spin".
  *
- * Input:  chassis velocity (forward, sideways, spin) — same idea as /cmd_vel
+ * Input:  chassis velocity (forward, sideways, spin) — same idea as /core/cmd_vel
  * Output: four wheel speeds (front-left, back-left, back-right, front-right)
  *
  * The functions use standard ROS messages but contain no node, topic, or motor

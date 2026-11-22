@@ -142,7 +142,7 @@ class CommissioningInterlockTests(unittest.TestCase):
             fake_node.calls,
             [
                 ("/whs_node/set_drivestop", False),
-                ("/drive_manager/save_fl", 120.0),
+                ("/core/drive_manager/save_fl", 120.0),
                 ("/whs_node/set_drivestop", True),
             ],
         )
@@ -199,7 +199,7 @@ class CommissioningInterlockTests(unittest.TestCase):
             fake_node.calls,
             [
                 ("/whs_node/set_drivestop", False),
-                ("/drive_manager/calibrate_br", 240.0),
+                ("/core/drive_manager/calibrate_br", 240.0),
                 ("/whs_node/set_drivestop", True),
             ],
         )

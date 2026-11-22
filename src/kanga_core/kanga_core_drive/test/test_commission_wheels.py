@@ -53,7 +53,7 @@ class TestCommissionWheels(unittest.TestCase):
             result = commission_wheels.run_commission(
                 can_interface="can_core",
                 config=Path("/tmp/wheel_fl.py"),
-                wheel_namespace="/wheel_fl",
+                wheel_namespace="/core/wheel_fl",
                 calibrate=True,
                 save=False,
                 off_ground_confirmed=False,
@@ -74,7 +74,7 @@ class TestCommissionWheels(unittest.TestCase):
             result = commission_wheels.run_commission(
                 can_interface="can_core",
                 config=Path("/tmp/wheel_fl.py"),
-                wheel_namespace="/wheel_fl",
+                wheel_namespace="/core/wheel_fl",
                 calibrate=True,
                 save=True,
                 off_ground_confirmed=True,
@@ -82,7 +82,7 @@ class TestCommissionWheels(unittest.TestCase):
 
         self.assertEqual(result, 0)
         command = subprocess_run.call_args.args[0]
-        self.assertEqual(command[command.index("--ns") + 1], "/wheel_fl")
+        self.assertEqual(command[command.index("--ns") + 1], "/core/wheel_fl")
         self.assertIn("--calibrate", command)
         self.assertIn("--save", command)
         self.assertNotIn("--off-ground-confirmed", command)

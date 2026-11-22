@@ -190,8 +190,8 @@ def _launch_setup(context):
             {
                 "robot_description": robot_description,
                 "source_list": [
-                    "wheel_joint_states",
-                    "suspension_joint_states",
+                    "/core/wheel_joint_states",
+                    "/core/suspension_joint_states",
                 ],
                 "use_sim_time": True,
             },

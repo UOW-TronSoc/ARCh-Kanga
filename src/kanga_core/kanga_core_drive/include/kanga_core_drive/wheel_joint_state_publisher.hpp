@@ -4,7 +4,7 @@
  * WheelJointStatePublisher — echo ODrive estimates into sensor_msgs/JointState.
  *
  * Subscribes to each /wheel_<id>/controller_status (custom_odrive) and publishes
- * a combined JointState on /wheel_joint_states (or remapped). Position and
+ * a combined JointState on /core/wheel_joint_states (or remapped). Position and
  * ODrive pos_estimate / vel_estimate are motor-shaft rad / rad/s. This node
  * divides both by the configured reduction and publishes wheel-joint rad / rad/s.
  *

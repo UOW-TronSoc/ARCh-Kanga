@@ -121,9 +121,9 @@ browser-provided options.
 AS5600 suspension encoder
   -> ESP32 CAN frame 812
   -> core_can_bridge
-  -> /diff_bar_angle
+  -> /core/diff_bar_angle
   -> suspension_joint_state_publisher
-  -> /suspension_joint_states
+  -> /core/suspension_joint_states
   -> joint_state_publisher
   -> /joint_states
   -> robot_state_publisher
@@ -146,14 +146,14 @@ Wheel transforms remain beneath their respective suspension links.
 ESP32 IMU
   -> CAN frames 820-822
   -> core_can_bridge
-       -> /imu/data
-       -> /body/pose
-       -> /body/twist
+       -> /core/imu/data
+       -> /core/body/pose
+       -> /core/body/twist
 ```
 
-- `/imu/data` has `frame_id: base_link`.
-- `/body/pose` has `frame_id: body_origin`.
-- `/body/twist` has `frame_id: base_link`.
+- `/core/imu/data` has `frame_id: base_link`.
+- `/core/body/pose` has `frame_id: body_origin`.
+- `/core/body/twist` has `frame_id: base_link`.
 - `body_pose_tf_broadcaster` publishes `body_origin -> base_link` orientation.
 - Translation is zero because the IMU provides no reliable position.
 - TF is identity until the first valid sample, then the last valid orientation
@@ -189,11 +189,11 @@ Core sentinels are:
 
 ```text
 /whs_node
-/drive_manager
-/wheel_command_mapper
-/core_can_bridge
-/suspension_joint_state_publisher
-/body_pose_tf_broadcaster
+/core/drive_manager
+/core/wheel_command_mapper
+/core/core_can_bridge
+/core/suspension_joint_state_publisher
+/core/body_pose_tf_broadcaster
 ```
 
 ## Current Core Simulation profile
@@ -211,8 +211,8 @@ Simulation sentinels are:
 ```text
 /simulation_clock_bridge
 /whs_node
-/suspension_joint_state_publisher
-/body_pose_tf_broadcaster
+/core/suspension_joint_state_publisher
+/core/body_pose_tf_broadcaster
 ```
 
 Shared sentinels with `core` prevent starting the physical stack over a running
@@ -404,12 +404,12 @@ claim that the hardware acceptance checks later in this document have passed.
 
 Current Core and lifecycle acceptance requires:
 
-- physical encoder movement updates `/diff_bar_angle`;
-- `/suspension_joint_states` contains the differential bar and both suspension
+- physical encoder movement updates `/core/diff_bar_angle`;
+- `/core/suspension_joint_states` contains the differential bar and both suspension
   joints;
 - TF moves the differential bar, suspension links, and attached wheels;
-- valid IMU frames produce `/imu/data`, `/body/pose`, and `/body/twist`;
-- `/imu/data` uses `base_link` and orientation updates
+- valid IMU frames produce `/core/imu/data`, `/core/body/pose`, and `/core/body/twist`;
+- `/core/imu/data` uses `base_link` and orientation updates
   `body_origin -> base_link`;
 - no conflicting parent transform is published for `base_link`;
 - owned processes follow the lifecycle and external stacks are never controlled;

@@ -22,7 +22,7 @@ Old reference (mapper / launch): `ARCH2026-Kanga` → `src/kanga_drive`.
 | custom_odrive | Do not change the C++ node unless blocked. Apply/calibrate/save via existing `commission` CLI. |
 | Calibrate | **One motor at a time.** CLI and/or per-wheel `std_srvs/Trigger` (`~/calibrate_fl` …). |
 | Save config | Apply shared+individual, then `--save`. Sequential one-at-a-time in a single CLI command. Command only. |
-| Stream | Controller publishes wheel-joint commands at ~10 Hz. Drive publishes motor commands only while CLOSED_LOOP. Stale `/cmd_vel` → continuously streamed zero. |
+| Stream | Controller publishes wheel-joint commands at ~10 Hz. Drive publishes motor commands only while CLOSED_LOOP. Stale `/core/cmd_vel` → continuously streamed zero. |
 | Firmware watchdog | Shared Fibre config is authoritative; verify enable/timeout policy before rover operation. |
 | Invert | Launch `invert_direction` only. URDF sign check later. |
 | Deferred | Synchronised wheel acceleration/deceleration shaping, ESP32/CAN ingestion of the diff-bar encoder, odom, errors/UX, WHS, and loaded/field qualification. |
@@ -32,7 +32,7 @@ flowchart LR
   web["Basestation motor page"] -->|"calibrate one wheel"| drivePkg["kanga_core_drive"]
   cliSave["commission CLI"] --> drivePkg
   trigger["set_closed_loop"] --> nodes["custom_odrive nodes"]
-  cmdVel["/cmd_vel"] --> ctrl["kanga_core_controller"]
+  cmdVel["/core/cmd_vel"] --> ctrl["kanga_core_controller"]
   ctrl -->|"wheel-joint rad/s"| actuator["wheel_actuator"]
   actuator -->|"motor-shaft rad/s if CLOSED_LOOP"| nodes
   nodes --> status["controller_status"]
@@ -104,7 +104,7 @@ ros2 run kanga_core_drive commission_wheels -- \
 | Piece | Role |
 |-------|------|
 | `kinematics` lib | Pure `twist_to_wheels` plus proportional four-wheel desaturation; legacy angled-grouser model |
-| `wheel_command_mapper` | `/cmd_vel` → one limited four-wheel joint command; stale `/cmd_vel` → joint zeros |
+| `wheel_command_mapper` | `/core/cmd_vel` → one limited four-wheel joint command; stale `/core/cmd_vel` → joint zeros |
 | `config/controller.yaml` | controller rate and timeout only |
 | `launch/controller.launch.py` | loads selected description profile and starts mapper |
 
@@ -120,8 +120,8 @@ Inside the container after `./scripts/build_workspace.bash`:
 
 1. Launch wheels + controller
 2. `set_closed_loop true`
-3. Publish `/cmd_vel`; confirm joint commands and ×50 motor `control_message` while CLOSED_LOOP
-4. Stop publishing `/cmd_vel` → zeros still stream; leave CLOSED_LOOP → stream stops
+3. Publish `/core/cmd_vel`; confirm joint commands and ×50 motor `control_message` while CLOSED_LOOP
+4. Stop publishing `/core/cmd_vel` → zeros still stream; leave CLOSED_LOOP → stream stops
 
 ---
 

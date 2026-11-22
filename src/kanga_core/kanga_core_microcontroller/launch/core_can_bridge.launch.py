@@ -6,15 +6,17 @@ same topics instead, so this node must not be started alongside it.
 
 ros2_socketcan is optional here. In production, core bringup owns the shared
 SocketCAN bridge for can_core, so leave launch_socketcan:=false and let this
-node attach to the `from_can_bus` topic that bridge already publishes.
+node attach to the root `/from_can_bus` topic that bridge already publishes.
+The node lives under `/core` for its sensor outputs; launch remaps the shared
+CAN transport topics back to root `/from_can_bus` and `/to_can_bus`.
 """
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import AnyLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
-from launch_ros.actions import Node
+from launch_ros.actions import Node, PushRosNamespace
 from launch_ros.substitutions import FindPackageShare
 
 from kanga_core_microcontroller.core_frames import (
@@ -91,19 +93,28 @@ def generate_launch_description():
                     "receiver_interval_sec": receiver_interval_sec,
                 }.items(),
             ),
-            Node(
-                package="kanga_core_microcontroller",
-                executable="core_can_bridge",
-                name="core_can_bridge",
-                parameters=[
-                    parameters,
-                    {
-                        "body_pose_frame_id": body_pose_parent_frame,
-                        "body_twist_frame_id": body_pose_child_frame,
-                        "imu_frame_id": imu_frame_id,
-                    },
-                ],
-                output="screen",
+            GroupAction(
+                [
+                    PushRosNamespace("core"),
+                    Node(
+                        package="kanga_core_microcontroller",
+                        executable="core_can_bridge",
+                        name="core_can_bridge",
+                        parameters=[
+                            parameters,
+                            {
+                                "body_pose_frame_id": body_pose_parent_frame,
+                                "body_twist_frame_id": body_pose_child_frame,
+                                "imu_frame_id": imu_frame_id,
+                            },
+                        ],
+                        remappings=[
+                            ("from_can_bus", "/from_can_bus"),
+                            ("to_can_bus", "/to_can_bus"),
+                        ],
+                        output="screen",
+                    ),
+                ]
             ),
         ]
     )

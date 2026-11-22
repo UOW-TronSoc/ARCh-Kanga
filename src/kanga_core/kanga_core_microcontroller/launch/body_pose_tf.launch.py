@@ -1,9 +1,9 @@
 """Broadcast already-processed ESP32 body pose as a visualization TF."""
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, GroupAction
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
-from launch_ros.actions import Node
+from launch_ros.actions import Node, PushRosNamespace
 from launch_ros.substitutions import FindPackageShare
 
 from kanga_core_microcontroller.core_frames import (
@@ -41,19 +41,24 @@ def generate_launch_description():
                 default_value="false",
                 description="Use the ROS simulation clock",
             ),
-            Node(
-                package="kanga_core_microcontroller",
-                executable="body_pose_tf_broadcaster",
-                name="body_pose_tf_broadcaster",
-                parameters=[
-                    parameters,
-                    {
-                        "parent_frame_id": body_pose_parent_frame,
-                        "child_frame_id": body_pose_child_frame,
-                        "use_sim_time": use_sim_time,
-                    },
-                ],
-                output="screen",
+            GroupAction(
+                [
+                    PushRosNamespace("core"),
+                    Node(
+                        package="kanga_core_microcontroller",
+                        executable="body_pose_tf_broadcaster",
+                        name="body_pose_tf_broadcaster",
+                        parameters=[
+                            parameters,
+                            {
+                                "parent_frame_id": body_pose_parent_frame,
+                                "child_frame_id": body_pose_child_frame,
+                                "use_sim_time": use_sim_time,
+                            },
+                        ],
+                        output="screen",
+                    ),
+                ]
             ),
         ]
     )

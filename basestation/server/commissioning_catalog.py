@@ -135,10 +135,10 @@ def build_commissioning_catalog(
     # Keep this order and identity aligned with CORE_DRIVE_MOTORS in
     # kanga_core_drive/launch/drive.launch.py. An offline test checks the two.
     core_motor_rows = (
-        ("fl", "Front left", "wheel_fl", 1),
-        ("bl", "Back left", "wheel_bl", 2),
-        ("br", "Back right", "wheel_br", 3),
-        ("fr", "Front right", "wheel_fr", 4),
+        ("fl", "Front left", "core/wheel_fl", 1),
+        ("bl", "Back left", "core/wheel_bl", 2),
+        ("br", "Back right", "core/wheel_br", 3),
+        ("fr", "Front right", "core/wheel_fr", 4),
     )
     core_motors = tuple(
         MotorDefinition(

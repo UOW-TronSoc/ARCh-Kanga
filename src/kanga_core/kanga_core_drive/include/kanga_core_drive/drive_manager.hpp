@@ -6,7 +6,7 @@
  * Owns ROS services only; does not stream setpoints (that is kanga_core_controller)
  * and does not talk Fibre/CAN itself (commission_wheels → custom_odrive commission).
  *
- * Services this node offers (names relative to the node, e.g. /drive_manager/…):
+ * Services this node offers (names relative to the node, e.g. /core/drive_manager/…):
  *
  *   ~/set_closed_loop  (std_srvs/SetBool)
  *     Put every wheel into CLOSED_LOOP or IDLE through custom_odrive services.
@@ -54,7 +54,7 @@ private:
   static constexpr uint32_t kAxisIdle = 1;
   static constexpr uint32_t kAxisClosedLoop = 8;
 
-  // Clients we call on each /wheel_<id>/ custom_odrive_node.
+  // Clients we call on each /core/wheel_<id>/ custom_odrive_node.
   struct WheelClients
   {
     rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr enabled_client;

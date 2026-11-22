@@ -9,6 +9,10 @@ as `arch-2027-final`.
 
 ## Current status
 
+The [Core readiness review and delivery plan](docs/architecture/core_readiness_plan.md)
+tracks the remaining onboard and basestation work for a deployable Core rover,
+including LAN operation and visualization, with cameras excluded.
+
 The ROS 2 Humble development environment, SocketCAN workflow, physical core
 drive boundary, shared core controller, canonical 2026 core description, WHS,
 microcontroller state adapters, and core bringup are implemented. A Gazebo

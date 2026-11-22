@@ -72,7 +72,7 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "joint_state_sources",
                 default_value=(
-                    '["wheel_joint_states", "suspension_joint_states"]'
+                    '["/core/wheel_joint_states", "/core/suspension_joint_states"]'
                 ),
                 description=(
                     "JointState topics merged by joint_state_publisher; missing "

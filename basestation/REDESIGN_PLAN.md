@@ -3,7 +3,7 @@
 Status: **Phase 1 complete for dev** — plan agreed 2026-07-18; Phase 1 landed
 2026-08-24 (single server, React UI, drive WebSockets, PIN/logs). Phase 2
 (cameras) not started. Updated against `develop`: WHS/`/drivestop` authority,
-core drive + controller (with its own `/cmd_vel` timeout — the carried requirement
+core drive + controller (with its own `/core/cmd_vel` timeout — the carried requirement
 is satisfied), the ESP32 CAN bridge, Gazebo core simulation, and the unified
 `basestation-server`. Camera details are in [CAMERAS.md](CAMERAS.md); the
 follow-on motor page is specified in
@@ -78,24 +78,24 @@ only — the code in `src/` stays the source of truth.
 
 | Name | Type | Direction |
 |---|---|---|
-| `/cmd_vel` | `geometry_msgs/Twist` | UI -> robot |
+| `/core/cmd_vel` | `geometry_msgs/Twist` | UI -> robot |
 | `/drivestop` | `std_msgs/Bool` | robot -> UI |
 | `/whs_node/set_drivestop` | `std_srvs/SetBool` (srv) | UI -> robot |
-| `/drive_manager/set_closed_loop` | `std_srvs/SetBool` (srv) | UI -> robot |
-| `/drive_manager/clear_errors` | `std_srvs/Trigger` (srv) | UI -> robot |
-| `/drive_manager/calibrate_{fl,bl,br,fr}` | `std_srvs/Trigger` (srv) | UI -> robot |
-| `/wheel_joint_states` | `sensor_msgs/JointState` | robot -> UI |
-| `/suspension_joint_states` | `sensor_msgs/JointState` | robot -> UI |
-| `/diff_bar_angle` | `std_msgs/Float64` | robot -> UI |
-| `/body/pose` | `geometry_msgs/PoseWithCovarianceStamped` | robot -> UI |
-| `/body/twist` | `geometry_msgs/TwistWithCovarianceStamped` | robot -> UI |
-| `/imu/data` | `sensor_msgs/Imu` | robot -> UI (physical only) |
-| `/wheel_{fl,bl,br,fr}/controller_status` | `custom_odrive/ControllerStatus` | robot -> UI |
-| `/wheel_{fl,bl,br,fr}/odrive_status` | `custom_odrive/ODriveStatus` | robot -> UI |
+| `/core/drive_manager/set_closed_loop` | `std_srvs/SetBool` (srv) | UI -> robot |
+| `/core/drive_manager/clear_errors` | `std_srvs/Trigger` (srv) | UI -> robot |
+| `/core/drive_manager/calibrate_{fl,bl,br,fr}` | `std_srvs/Trigger` (srv) | UI -> robot |
+| `/core/wheel_joint_states` | `sensor_msgs/JointState` | robot -> UI |
+| `/core/suspension_joint_states` | `sensor_msgs/JointState` | robot -> UI |
+| `/core/diff_bar_angle` | `std_msgs/Float64` | robot -> UI |
+| `/core/body/pose` | `geometry_msgs/PoseWithCovarianceStamped` | robot -> UI |
+| `/core/body/twist` | `geometry_msgs/TwistWithCovarianceStamped` | robot -> UI |
+| `/core/imu/data` | `sensor_msgs/Imu` | robot -> UI (physical only) |
+| `/core/wheel_{fl,bl,br,fr}/controller_status` | `custom_odrive/ControllerStatus` | robot -> UI |
+| `/core/wheel_{fl,bl,br,fr}/odrive_status` | `custom_odrive/ODriveStatus` | robot -> UI |
 
 Contract rules the server must respect:
 
-- `/cmd_vel` is now in physical units (linear m/s, yaw rad/s). The operator
+- `/core/cmd_vel` is now in physical units (linear m/s, yaw rad/s). The operator
   0-100% speed setting is a UI-level scale mapped onto configurable maximum
   chassis speeds (see "Drive command and limit model" in
   [docs/architecture/README.md](../docs/architecture/README.md)); the legacy
@@ -105,9 +105,9 @@ Contract rules the server must respect:
   reliable + transient_local QoS to latch current state. WHS starts asserted
   (fail-closed), and clearing it does not re-enter closed loop.
 - Arming sequence: clear drivestop -> `set_closed_loop true` -> stream
-  `/cmd_vel`. Stop and closed-loop are independent states; the UI must show
+  `/core/cmd_vel`. Stop and closed-loop are independent states; the UI must show
   both.
-- QoS: `controller_status` is best-effort; `/body/*` and `/imu/data` are
+- QoS: `controller_status` is best-effort; `/body/*` and `/core/imu/data` are
   SensorDataQoS.
 
 Not live yet (do not block Phase 1 on these):
@@ -122,7 +122,7 @@ Not live yet (do not block Phase 1 on these):
 
 Rover-only items (everything else runs on a laptop via Path A + the core
 simulation): real CAN hardware (`can_core` — so per-wheel ODrive telemetry,
-`/imu/data`, and battery), real cameras (IP cams at `10.0.0.5`/`10.0.0.6`,
+`/core/imu/data`, and battery), real cameras (IP cams at `10.0.0.5`/`10.0.0.6`,
 `/dev/video*`), and final parity verification against the legacy stack.
 
 ## What stays the same
@@ -159,7 +159,7 @@ A single FastAPI app (new `basestation/server/`) replaces Django (:8000), drive
 FastAPI (:8080), and arm FastAPI (:8001). It embeds **one** `rclpy` node on a
 background executor thread with all publishers/subscribers:
 
-- **WebSocket `/ws/control`** — gamepad drive (`/cmd_vel`, physical units,
+- **WebSocket `/ws/control`** — gamepad drive (`/core/cmd_vel`, physical units,
   with the 0-100% speed scale applied against configured chassis limits) and,
   once the manipulator migration lands, arm commands. Replaces HTTP POST per
   gamepad tick — the current UI fires 10-100 POSTs/sec
@@ -179,20 +179,20 @@ background executor thread with all publishers/subscribers:
   must keep this behaviour.
 - **Carried requirement: satisfied.** The rebuilt drive stack has its own
   timeouts: `wheel_command_mapper` streams zero wheel commands after 0.5 s of
-  `/cmd_vel` silence (`cmd_vel_timeout_s` in
+  `/core/cmd_vel` silence (`cmd_vel_timeout_s` in
   `kanga_core_controller/config/controller.yaml`), `wheel_actuator` stops
   publishing motor commands on a stale joint stream, and the sim drive
   boundary drops to IDLE on silence. The server-side dead-man stays as the
   second layer of defence, and WHS `/drivestop` sits above both as the
   operator-facing stop authority.
 - **WebSocket `/ws/telemetry`** — pushes `/drivestop` state, wheel and
-  suspension joint states, `/body/pose` / `/body/twist`, per-wheel
+  suspension joint states, `/core/body/pose` / `/core/body/twist`, per-wheel
   `controller_status` / `odrive_status`, and — once their packages land —
   battery and `kanga_science/*` at a fixed rate. Replaces frontend REST
   polling and removes the need for Redis caching entirely.
 - **REST** — one-shot actions only: drivestop set/clear
   (`/whs_node/set_drivestop`), closed-loop enter/exit, error clearing, and
-  per-wheel calibration (`/drive_manager/*` — the "basestation motor page"
+  per-wheel calibration (`/core/drive_manager/*` — the "basestation motor page"
   expected by [docs/migration/core_drive.md](../docs/migration/core_drive.md)),
   science controls, checklist, logs, PIN. The legacy NIR servo / "Roo
   release" GPIO scripts are superseded by `kanga_core_microcontroller`
@@ -260,7 +260,7 @@ operator stack just collapses from four compose services to one.
   core sim — same operator contract, checked by
   `core_simulation_contract_check`); run Path B beside it. Both are
   host-network DDS participants on the same `ROS_DOMAIN_ID`, so the full
-  drive loop (clear drivestop -> closed loop -> `/cmd_vel` -> wheels moving
+  drive loop (clear drivestop -> closed loop -> `/core/cmd_vel` -> wheels moving
   in Gazebo) is testable on a laptop with no hardware.
 - **Rover (prod)**: the same compose file with `restart: unless-stopped` (or a
   thin systemd unit that runs `docker compose -f docker/compose.basestation.yaml up`),
@@ -451,17 +451,17 @@ rest.
    the FastAPI static directory.
 3. Implement `/ws/control`: gamepad input sent at fixed 20-30 Hz with
    change-detection and keepalive; the 0-100% speed scale mapped onto
-   configured chassis limits to produce a physical-unit `/cmd_vel`;
+   configured chassis limits to produce a physical-unit `/core/cmd_vel`;
    server-side dead-man publishes zero Twist on ~300-500 ms silence. Arm
    command topics *(payload-gated)*. **Done 2026-08-23** (drive only) —
    browser sends 20 Hz JSON frames; the node's own 20 Hz timer does all
-   `/cmd_vel` publishing, doubles as the dead-man (0.4 s, verified), and
+   `/core/cmd_vel` publishing, doubles as the dead-man (0.4 s, verified), and
    sends a clean stop on disconnect; one tab holds control at a time;
    limits via `BASESTATION_MAX_LINEAR_MPS` / `BASESTATION_MAX_YAW_RAD_S`
    (defaults 0.3 m/s, 0.3 rad/s; slider maps 0–90% linearly with 90–100%
    plateau at full).
 4. Implement `/ws/telemetry`: `/drivestop`, wheel + suspension joint states,
-   `/body/pose` / `/body/twist`, per-wheel `controller_status` /
+   `/core/body/pose` / `/core/body/twist`, per-wheel `controller_status` /
    `odrive_status` pushed at a fixed rate; add battery and science topics
    when their packages land. **Done 2026-08-23** — 5 Hz push on
    `/ws/telemetry` (any number of listener tabs); page shows drivestop,
@@ -501,7 +501,7 @@ rest.
    deferred — laptop development does not require it.
 
 Carried requirement: **done** — the drive stack zeroes the wheels after 0.5 s
-of `/cmd_vel` silence (`cmd_vel_timeout_s` in `kanga_core_controller`); the
+of `/core/cmd_vel` silence (`cmd_vel_timeout_s` in `kanga_core_controller`); the
 server dead-man is the second layer, WHS `/drivestop` the third.
 
 ### Phase 2 (cameras — see CAMERAS.md)

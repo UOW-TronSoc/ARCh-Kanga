@@ -21,6 +21,7 @@ from rclpy.qos import (
     QoSProfile,
     ReliabilityPolicy,
 )
+from rcl_interfaces.srv import GetParameters
 from rosgraph_msgs.msg import Clock
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64
@@ -29,14 +30,14 @@ from tf2_msgs.msg import TFMessage
 
 
 EXPECTED_TOPICS = {
-    "/wheel_joint_velocity_command": "kanga_interfaces/msg/WheelVelocityCommand",
+    "/core/wheel_joint_velocity_command": "kanga_interfaces/msg/WheelVelocityCommand",
     "/drivestop": "std_msgs/msg/Bool",
-    "/wheel_joint_states": "sensor_msgs/msg/JointState",
-    "/suspension_joint_states": "sensor_msgs/msg/JointState",
-    "/diff_bar_angle": "std_msgs/msg/Float64",
-    "/body/pose": "geometry_msgs/msg/PoseWithCovarianceStamped",
-    "/body/twist": "geometry_msgs/msg/TwistWithCovarianceStamped",
-    "/odom": "nav_msgs/msg/Odometry",
+    "/core/wheel_joint_states": "sensor_msgs/msg/JointState",
+    "/core/suspension_joint_states": "sensor_msgs/msg/JointState",
+    "/core/diff_bar_angle": "std_msgs/msg/Float64",
+    "/core/body/pose": "geometry_msgs/msg/PoseWithCovarianceStamped",
+    "/core/body/twist": "geometry_msgs/msg/TwistWithCovarianceStamped",
+    "/core/odom": "nav_msgs/msg/Odometry",
     "/joint_states": "sensor_msgs/msg/JointState",
     "/robot_description": "std_msgs/msg/String",
     "/tf": "tf2_msgs/msg/TFMessage",
@@ -45,16 +46,16 @@ EXPECTED_TOPICS = {
 }
 EXPECTED_SERVICES = {
     "/whs_node/set_drivestop": "std_srvs/srv/SetBool",
-    "/drive_manager/set_closed_loop": "std_srvs/srv/SetBool",
-    "/drive_manager/clear_errors": "std_srvs/srv/Trigger",
-    "/drive_manager/save_fl": "std_srvs/srv/Trigger",
-    "/drive_manager/save_bl": "std_srvs/srv/Trigger",
-    "/drive_manager/save_br": "std_srvs/srv/Trigger",
-    "/drive_manager/save_fr": "std_srvs/srv/Trigger",
-    "/drive_manager/calibrate_fl": "std_srvs/srv/Trigger",
-    "/drive_manager/calibrate_bl": "std_srvs/srv/Trigger",
-    "/drive_manager/calibrate_br": "std_srvs/srv/Trigger",
-    "/drive_manager/calibrate_fr": "std_srvs/srv/Trigger",
+    "/core/drive_manager/set_closed_loop": "std_srvs/srv/SetBool",
+    "/core/drive_manager/clear_errors": "std_srvs/srv/Trigger",
+    "/core/drive_manager/save_fl": "std_srvs/srv/Trigger",
+    "/core/drive_manager/save_bl": "std_srvs/srv/Trigger",
+    "/core/drive_manager/save_br": "std_srvs/srv/Trigger",
+    "/core/drive_manager/save_fr": "std_srvs/srv/Trigger",
+    "/core/drive_manager/calibrate_fl": "std_srvs/srv/Trigger",
+    "/core/drive_manager/calibrate_bl": "std_srvs/srv/Trigger",
+    "/core/drive_manager/calibrate_br": "std_srvs/srv/Trigger",
+    "/core/drive_manager/calibrate_fr": "std_srvs/srv/Trigger",
 }
 
 
@@ -72,44 +73,44 @@ class ContractCheck(Node):
         self.clock_message: Clock | None = None
         self.tf_pairs: set[tuple[str, str]] = set()
 
-        self.cmd_vel_publisher = self.create_publisher(Twist, "/cmd_vel", 10)
+        self.cmd_vel_publisher = self.create_publisher(Twist, "/core/cmd_vel", 10)
 
         self.create_subscription(
             WheelVelocityCommand,
-            "/wheel_joint_velocity_command",
+            "/core/wheel_joint_velocity_command",
             self.wheel_commands.append,
             100,
         )
         self.create_subscription(
-            JointState, "/wheel_joint_states", self.wheel_messages.append, 100
+            JointState, "/core/wheel_joint_states", self.wheel_messages.append, 100
         )
         self.create_subscription(
             JointState,
-            "/suspension_joint_states",
+            "/core/suspension_joint_states",
             lambda message: setattr(self, "suspension_message", message),
             10,
         )
         self.create_subscription(
             Float64,
-            "/diff_bar_angle",
+            "/core/diff_bar_angle",
             lambda message: setattr(self, "diff_bar_message", message),
             10,
         )
         self.create_subscription(
             PoseWithCovarianceStamped,
-            "/body/pose",
+            "/core/body/pose",
             lambda message: setattr(self, "pose_message", message),
             10,
         )
         self.create_subscription(
             TwistWithCovarianceStamped,
-            "/body/twist",
+            "/core/body/twist",
             lambda message: setattr(self, "twist_message", message),
             10,
         )
         self.create_subscription(
             Odometry,
-            "/odom",
+            "/core/odom",
             lambda message: setattr(self, "odom_message", message),
             10,
         )
@@ -163,7 +164,7 @@ class ContractCheck(Node):
         return response
 
     def call_closed_loop(self, enable: bool) -> SetBool.Response:
-        client = self.create_client(SetBool, "/drive_manager/set_closed_loop")
+        client = self.create_client(SetBool, "/core/drive_manager/set_closed_loop")
         assert client.wait_for_service(timeout_sec=5.0)
         request = SetBool.Request()
         request.data = enable
@@ -233,6 +234,39 @@ def run_checks(node: ContractCheck) -> None:
     for name, expected_type in EXPECTED_SERVICES.items():
         assert services.get(name) == [expected_type], (name, services.get(name))
 
+    legacy_names = {
+        "/cmd_vel",
+        "/wheel_joint_velocity_command",
+        "/wheel_joint_states",
+        "/suspension_joint_states",
+        "/diff_bar_angle",
+        "/drive_manager/set_closed_loop",
+        "/drive_manager/clear_errors",
+        "/drive_manager/save_fl",
+        "/drive_manager/calibrate_fl",
+    }
+    present = set(topics) | set(services)
+    assert not (legacy_names & present), sorted(legacy_names & present)
+
+    mapper = node.create_client(
+        GetParameters, "/core/wheel_command_mapper/get_parameters"
+    )
+    assert mapper.wait_for_service(timeout_sec=5.0)
+    request = GetParameters.Request()
+    request.names = [
+        "max_linear_acceleration_m_s2",
+        "max_angular_acceleration_rad_s2",
+    ]
+    future = mapper.call_async(request)
+    rclpy.spin_until_future_complete(node, future, timeout_sec=5.0)
+    values = future.result().values
+    assert values[0].double_value == 0.35
+    assert values[1].double_value == 0.35
+
+    nodes = node.get_node_names_and_namespaces()
+    assert nodes.count(("wheel_command_mapper", "/core")) == 1
+    assert nodes.count(("drive_manager", "/core")) == 1
+
     latest_wheel = node.wheel_messages[-1]
     assert latest_wheel.name == [
         "wheel_fl_joint",
@@ -259,13 +293,13 @@ def run_checks(node: ContractCheck) -> None:
         ) < 1e-6
     suspension_publishers = [
         endpoint.node_name
-        for endpoint in node.get_publishers_info_by_topic("/suspension_joint_states")
+        for endpoint in node.get_publishers_info_by_topic("/core/suspension_joint_states")
     ]
     assert "suspension_joint_state_publisher" in suspension_publishers
     assert "drive_manager" not in suspension_publishers
     diff_bar_publishers = [
         endpoint.node_name
-        for endpoint in node.get_publishers_info_by_topic("/diff_bar_angle")
+        for endpoint in node.get_publishers_info_by_topic("/core/diff_bar_angle")
     ]
     assert "drive_manager" in diff_bar_publishers
     assert "suspension_joint_state_publisher" not in diff_bar_publishers
@@ -313,14 +347,14 @@ def run_checks(node: ContractCheck) -> None:
     ]
     assert drivestop_publishers == ["whs_node"], drivestop_publishers
 
-    assert node.call_trigger("/drive_manager/clear_errors").success
+    assert node.call_trigger("/core/drive_manager/clear_errors").success
     for wheel in ["fl", "bl", "br", "fr"]:
-        save_response = node.call_trigger(f"/drive_manager/save_{wheel}")
+        save_response = node.call_trigger(f"/core/drive_manager/save_{wheel}")
         assert save_response.success
         assert save_response.message == (
             "configuration persistence not required in simulation"
         )
-        response = node.call_trigger(f"/drive_manager/calibrate_{wheel}")
+        response = node.call_trigger(f"/core/drive_manager/calibrate_{wheel}")
         assert response.success
         assert response.message == "calibration not required in simulation"
 
@@ -346,7 +380,11 @@ def run_checks(node: ContractCheck) -> None:
             for value, expected_sign in zip(values, expected_signs)
         ), (values, expected_signs)
 
-    node.run_for_simulated_seconds(0.75)
+    # cmd_vel_timeout_s is 0.5. Hold the last command inside that window, then
+    # confirm the configured timeout returns the wheel command to zero.
+    node.run_for_simulated_seconds(0.25)
+    assert any(abs(value) > 1e-3 for value in command_values(node.wheel_commands[-1]))
+    node.run_for_simulated_seconds(0.40)
     assert all(abs(value) < 1e-6 for value in command_values(node.wheel_commands[-1]))
     idle_distance = math.hypot(
         node.odom_message.pose.pose.position.x - idle_start_x,

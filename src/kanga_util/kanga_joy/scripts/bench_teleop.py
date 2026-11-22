@@ -81,7 +81,7 @@ class BenchTeleop(Node):
         drivestop_qos.reliability = ReliabilityPolicy.RELIABLE
         drivestop_qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
 
-        self.velocity_publisher = self.create_publisher(Twist, "/cmd_vel", 10)
+        self.velocity_publisher = self.create_publisher(Twist, "/core/cmd_vel", 10)
         self.drivestop_subscription = self.create_subscription(
             Bool, "/drivestop", self.on_drivestop, drivestop_qos
         )
@@ -89,13 +89,13 @@ class BenchTeleop(Node):
             Joy, "/joy", self.on_joy, 10
         )
         self.closed_loop_client = self.create_client(
-            SetBool, "/drive_manager/set_closed_loop"
+            SetBool, "/core/drive_manager/set_closed_loop"
         )
         self.drivestop_client = self.create_client(
             SetBool, "/whs_node/set_drivestop"
         )
         self.clear_errors_client = self.create_client(
-            Trigger, "/drive_manager/clear_errors"
+            Trigger, "/core/drive_manager/clear_errors"
         )
         self.publish_timer = self.create_timer(
             1.0 / self.publish_rate_hz, self.publish_velocity
@@ -198,7 +198,7 @@ class BenchTeleop(Node):
         )
         return bool(buttons[index]) and not bool(previous_value)
 
-    # Start or finish a deliberate period with no /cmd_vel publications.
+    # Start or finish a deliberate period with no /core/cmd_vel publications.
     def update_command_loss(self, command_loss_requested):
         if command_loss_requested == self.command_loss_active:
             return
@@ -206,7 +206,7 @@ class BenchTeleop(Node):
         self.motion_armed = False
         if command_loss_requested:
             self.get_logger().warning(
-                "Command-loss trigger held; /cmd_vel publication stopped"
+                "Command-loss trigger held; /core/cmd_vel publication stopped"
             )
         else:
             self.get_logger().info(

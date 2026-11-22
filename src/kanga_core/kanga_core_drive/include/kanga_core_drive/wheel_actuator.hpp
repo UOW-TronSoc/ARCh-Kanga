@@ -3,8 +3,8 @@
 /*
  * WheelActuator is the Kanga-specific boundary between wheel joints and motors.
  *
- * Input:  /wheel_joint_velocity_command (one atomic four-wheel command)
- * Output: /wheel_<id>/control_message (motor-shaft rad/s for custom_odrive)
+ * Input:  wheel_joint_velocity_command (→ /core/wheel_joint_velocity_command)
+ * Output: wheel_<id>/control_message (→ /core/wheel_<id>/control_message)
  *
  * It owns the selected reduction, the final per-motor safety limit, command
  * timeout, and CLOSED_LOOP gating. Proportional four-wheel desaturation is a

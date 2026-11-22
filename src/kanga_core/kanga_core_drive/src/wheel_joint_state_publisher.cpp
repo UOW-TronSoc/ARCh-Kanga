@@ -56,7 +56,7 @@ WheelJointStatePublisher::WheelJointStatePublisher(const rclcpp::NodeOptions & o
   controller_status_qos.best_effort();
   for (const auto & wheel_id : wheel_ids_) {
     const std::string controller_status_topic =
-      "/wheel_" + wheel_id + "/controller_status";
+      "wheel_" + wheel_id + "/controller_status";
     controller_status_subscriptions_.push_back(
       this->create_subscription<custom_odrive::msg::ControllerStatus>(
         controller_status_topic, controller_status_qos,

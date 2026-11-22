@@ -1,4 +1,4 @@
-"""Initial core bringup: ODrive drive stack + /cmd_vel mapper.
+"""Initial core bringup: ODrive drive stack + /core/cmd_vel mapper.
 
 Expects its selected CAN interface (can_core by default) already up on the host.
 Does not enter CLOSED_LOOP — call drive_manager set_closed_loop after launch.

@@ -185,7 +185,7 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "use_controller",
                 default_value="true",
-                description="Start the /cmd_vel to wheel-command controller",
+                description="Start the /core/cmd_vel to wheel-command controller",
             ),
             DeclareLaunchArgument(
                 "use_suspension_state",
@@ -225,7 +225,7 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "joint_state_sources",
                 default_value=(
-                    '["wheel_joint_states", "suspension_joint_states"]'
+                    '["/core/wheel_joint_states", "/core/suspension_joint_states"]'
                 ),
                 description="JointState topics merged into /joint_states",
             ),

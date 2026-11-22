@@ -63,7 +63,7 @@ def generate_launch_description():
             "use_gui": "false",
             "use_rviz": "false",
             "joint_state_sources": (
-                '["wheel_joint_states", "suspension_joint_states"]'
+                '["/core/wheel_joint_states", "/core/suspension_joint_states"]'
             ),
         },
     )

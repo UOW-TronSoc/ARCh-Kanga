@@ -72,8 +72,8 @@ ros2 launch kanga_core_description view_core_2026.launch.py \
   use_gui:=false use_rviz:=false
 ```
 
-The headless publisher listens for `wheel_joint_states` and
-`suspension_joint_states` by default. Either source may be absent during a
+The headless publisher listens for `/core/wheel_joint_states` and
+`/core/suspension_joint_states` by default. Either source may be absent during a
 standalone test; its movable joints remain at their neutral positions. It
 samples the latest subsystem states into `/joint_states` at 50 Hz, and
 `robot_state_publisher` publishes dynamic TF at up to 50 Hz. Subsystem control

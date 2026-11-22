@@ -59,7 +59,7 @@ WheelActuator::WheelActuator(const rclcpp::NodeOptions & options)
   // One message carries the complete wheel vector, so it cannot arrive partially.
   wheel_velocity_command_subscription_ =
     this->create_subscription<kanga_interfaces::msg::WheelVelocityCommand>(
-    "/wheel_joint_velocity_command", 10,
+    "wheel_joint_velocity_command", 10,
     std::bind(
       &WheelActuator::on_wheel_velocity_command, this,
       std::placeholders::_1));
@@ -68,7 +68,7 @@ WheelActuator::WheelActuator(const rclcpp::NodeOptions & options)
   rclcpp::QoS controller_status_qos(10);
   controller_status_qos.best_effort();
   for (size_t wheel_index = 0; wheel_index < wheel_ids_.size(); ++wheel_index) {
-    const std::string wheel_namespace = "/wheel_" + wheel_ids_[wheel_index];
+    const std::string wheel_namespace = "wheel_" + wheel_ids_[wheel_index];
     controller_status_subscriptions_.push_back(
       this->create_subscription<custom_odrive::msg::ControllerStatus>(
         wheel_namespace + "/controller_status", controller_status_qos,
@@ -143,7 +143,7 @@ void WheelActuator::publish_motor_commands()
 
   // A stale four-wheel vector means the controller path has failed.
   // Send nothing so an enabled firmware watchdog can disarm CLOSED_LOOP.
-  // Normal stale /cmd_vel is different: the live controller keeps publishing
+  // Normal stale /core/cmd_vel is different: the live controller keeps publishing
   // joint zeros.
   if (!command_is_fresh) {
     return;

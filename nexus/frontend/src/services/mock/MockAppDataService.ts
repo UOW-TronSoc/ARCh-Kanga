@@ -3,6 +3,7 @@ import type { AppDataService, AppSnapshotListener } from '../contracts/AppDataSe
 import type { AppSnapshot } from '../../types';
 
 export class MockAppDataService implements AppDataService {
+  readonly commandsEnabled = true;
   private snapshot: AppSnapshot;
   private readonly listeners = new Set<AppSnapshotListener>();
 

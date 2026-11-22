@@ -4,7 +4,7 @@ The frontend in `frontend/` is the imported NEXUS application. This directory's
 server and the `docker/Dockerfile.nexus` image serve it on port **8001**. The
 existing ARCh basestation on port 8000 is a separate service.
 
-Demo mode is the frontend dev server and does not join ROS:
+`npm run dev` is the explicit demo and does not join ROS. The container image sets `VITE_NEXUS_DATA_SOURCE=live`, so a lost socket is never filled with demo values. In that build, drivestop is read-only and unwired readings stay unavailable.
 
 ```bash
 cd nexus/frontend

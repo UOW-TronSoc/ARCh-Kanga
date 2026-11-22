@@ -9,6 +9,7 @@ RUN if head -c 200 public/assets/models/kanga-assembly.glb | grep -q "git-lfs.gi
       echo "kanga-assembly.glb is a Git LFS pointer. Run git lfs pull before building." >&2; \
       exit 1; \
     fi
+ENV VITE_NEXUS_DATA_SOURCE=live
 RUN npm run build
 
 FROM ros:humble-ros-base-jammy

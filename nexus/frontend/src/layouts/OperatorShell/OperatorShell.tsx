@@ -3,6 +3,7 @@ import { NavLink, Outlet, useMatch } from 'react-router-dom';
 import { useConnectionState, useSafetyState } from '../../hooks';
 import { StatusChip } from '../../components/ui/StatusChip';
 import { DriveControlPanel } from '../../features/drive-control/DriveDock';
+import { DrivestopStatus } from '../../features/safety/DrivestopStatus';
 import { ControlFocusProvider } from '../../features/operator-input/ControlFocusProvider';
 import { OperatorInputCoordinator } from '../../features/operator-input/OperatorInputCoordinator';
 import { RoverPage } from '../../pages/RoverPage/RoverPage';
@@ -39,6 +40,7 @@ export function OperatorShell() {
                 {connected ? <Wifi size={13} /> : <WifiOff size={13} />}{connection.phase.toUpperCase()}
               </StatusChip>
               {safety.faults.length > 0 && <StatusChip tone="danger"><TriangleAlert size={13} />{safety.faults.length} FAULT</StatusChip>}
+              <DrivestopStatus />
             </div>
             <div className={styles.team}>UOW <b>TRONSOC</b></div>
           </header>

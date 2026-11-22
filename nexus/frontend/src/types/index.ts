@@ -1,5 +1,5 @@
 export type BackendMode = 'mock' | 'live';
-export type ConnectionPhase = 'connected' | 'reconnecting' | 'disconnected';
+export type ConnectionPhase = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 export type Freshness = 'fresh' | 'stale' | 'unavailable';
 export type StatusTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
@@ -48,7 +48,7 @@ export interface Fault {
 }
 
 export interface SafetyState {
-  drivestop: boolean;
+  drivestop: boolean | null;
   whsOnline: boolean;
   closedLoop: boolean;
   faults: Fault[];

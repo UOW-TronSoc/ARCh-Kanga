@@ -1,9 +1,11 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { afterEach, vi } from 'vitest';
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router-dom';
 import { AppProviders } from '../app/providers';
 import { OperatorShell } from '../layouts/OperatorShell/OperatorShell';
 import { initialAppSnapshot } from '../fixtures';
+import { LiveTelemetryService, type TelemetrySocket } from '../services/live/LiveTelemetryService';
 import { MockAppDataService } from '../services/mock/MockAppDataService';
 import {
   buildCriticalSnapshot,
@@ -35,7 +37,24 @@ function renderShell(initialPath = '/rover', snapshot: AppSnapshot = initialAppS
   };
 }
 
+class FakeSocket implements TelemetrySocket {
+  onmessage: ((event: { data: string }) => void) | null = null;
+  onclose: (() => void) | null = null;
+  close() { this.onclose?.(); }
+  server(payload: unknown) { this.onmessage?.({ data: JSON.stringify(payload) }); }
+}
+
+const liveSockets: FakeSocket[] = [];
+let liveService: LiveTelemetryService | null = null;
+
 beforeEach(() => window.sessionStorage.clear());
+
+afterEach(() => {
+  liveService?.stop();
+  liveService = null;
+  liveSockets.length = 0;
+  vi.useRealTimers();
+});
 
 describe('Kanga operator shell', () => {
   it('renders the drive panel only on Rover with safe startup defaults', () => {
@@ -104,6 +123,63 @@ describe('Kanga operator shell', () => {
   it('does not render a scenario selector', () => {
     renderShell();
     expect(screen.queryByLabelText('Mock scenario')).not.toBeInTheDocument();
+  });
+
+  it('shows the same read-only drivestop state on the top bar and drive panel', () => {
+    vi.useFakeTimers();
+    liveService = new LiveTelemetryService({
+      url: 'ws://nexus/ws/telemetry',
+      socketFactory: () => {
+        const socket = new FakeSocket();
+        liveSockets.push(socket);
+        return socket;
+      },
+    });
+    render(
+      <AppProviders service={liveService}>
+        <MemoryRouter initialEntries={['/rover']}>
+          <Routes>
+            <Route element={<OperatorShell />}>
+              <Route path="/rover" element={null} />
+              <Route path="/launch" element={<h1>Launch manager</h1>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </AppProviders>,
+    );
+    expect(screen.getAllByRole('status', { name: 'Drivestop' })).toHaveLength(2);
+    expect(screen.getAllByText('Waiting for WHS')).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: /Release drivestop/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Drive input/ })).toBeDisabled();
+    expect(screen.getByRole('slider', { name: 'Speed limit' })).toBeDisabled();
+    expect(screen.getAllByText('Unavailable').length).toBeGreaterThan(0);
+    expect(screen.queryByText('78')).not.toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ', bubbles: true }));
+      liveSockets[0]?.server({
+        schemaVersion: 1,
+        sequence: 1,
+        serverTimestamp: '2026-11-22T07:00:00.000Z',
+        rosAvailable: true,
+        whsAvailable: true,
+        drivestop: false,
+      });
+    });
+    expect(screen.getAllByText('Released')).toHaveLength(2);
+    expect(liveService.getSnapshot().safety.drivestop).toBe(false);
+
+    act(() => {
+      liveSockets[0]?.server({
+        schemaVersion: 1,
+        sequence: 2,
+        serverTimestamp: '2026-11-22T07:00:01.000Z',
+        rosAvailable: true,
+        whsAvailable: false,
+        drivestop: false,
+      });
+    });
+    expect(screen.getAllByText('Stale / disconnected')).toHaveLength(2);
   });
 });
 

@@ -70,6 +70,27 @@ def test_one_observation_is_sent_to_every_browser():
     asyncio.run(scenario())
 
 
+def test_wheel_samples_go_stale_without_stopping_the_rest_of_telemetry():
+    store = DrivestopStore()
+    store.set_ros_available(True)
+    store.observe(False, 1)
+    hub = TelemetryHub(store, hz=5)
+    assert hub.snapshot().wheelsFreshness == "unavailable"
+    assert hub.snapshot().wheels == []
+    store.observe_wheels([("wheel_fl_joint", 1.5)])
+    fresh = hub.snapshot()
+    assert fresh.wheelsFreshness == "fresh"
+    assert fresh.wheels[0].velocity == 1.5
+    assert fresh.drivestop is False
+    store.age_wheels(1.1)
+    stale = hub.snapshot()
+    assert stale.wheelsFreshness == "stale"
+    assert stale.wheels[0].velocity == 1.5
+    assert stale.whsAvailable is True
+    store.observe_wheels([("wheel_fl_joint", 0.2)])
+    assert hub.snapshot().wheelsFreshness == "fresh"
+
+
 def test_websocket_sends_the_current_sample_immediately():
     store = DrivestopStore()
     store.set_ros_available(True)

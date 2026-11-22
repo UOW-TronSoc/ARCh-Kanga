@@ -6,9 +6,8 @@ export function TelemetryRail() {
   const rover = useRoverSnapshot();
   const connection = useConnectionState();
   const safety = useSafetyState();
-  const unwired = rover.freshness === 'unavailable';
   const format = (value: number | null | undefined, digits = 1) => (
-    unwired ? 'Unavailable' : value != null && Number.isFinite(value) ? value.toFixed(digits) : '—'
+    value != null && Number.isFinite(value) ? value.toFixed(digits) : '—'
   );
   const battery = rover.battery.percentage;
 
@@ -22,7 +21,7 @@ export function TelemetryRail() {
         <div className={styles.systemContent}>
           <div className={styles.battery}>
             <span><Battery size={15} /> Battery</span>
-            <strong className={!unwired && battery != null && battery <= 20 ? styles.bad : undefined}>{format(battery, 0)}{!unwired && battery != null && <small>%</small>}</strong>
+            <strong className={battery != null && battery <= 20 ? styles.bad : undefined}>{format(battery, 0)}{battery != null && <small>%</small>}</strong>
           </div>
           <dl className={styles.readings}>
             <div><dt>Current draw</dt><dd>{format(rover.battery.currentDrawA)} <small>A</small></dd></div>

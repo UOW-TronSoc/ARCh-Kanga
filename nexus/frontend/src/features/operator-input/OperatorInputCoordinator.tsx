@@ -24,7 +24,6 @@ export function OperatorInputCoordinator({ children }: PropsWithChildren) {
   const lastProcessedIndexRef = useRef<number | null>(null);
 
   const onAssertDrivestop = useCallback(() => {
-    if (!service.commandsEnabled) return;
     service.assertDrivestop();
   }, [service]);
 
@@ -59,10 +58,10 @@ export function OperatorInputCoordinator({ children }: PropsWithChildren) {
     }
 
     buttonEdgesRef.current = processGamepadSafetyButtons(resolved, buttonEdgesRef.current, {
-      onAssertDrivestop: service.commandsEnabled ? onAssertDrivestop : () => undefined,
-      onToggleDriveInput: service.commandsEnabled ? focusedActions?.onToggleDriveInput : undefined,
+      onAssertDrivestop,
+      onToggleDriveInput: focusedActions?.onToggleDriveInput,
     });
-  }, [focusedActions, onAssertDrivestop, service.commandsEnabled]);
+  }, [focusedActions, onAssertDrivestop]);
 
   useEffect(() => {
     const handleConnect = (event: GamepadEvent) => {
@@ -99,7 +98,6 @@ export function OperatorInputCoordinator({ children }: PropsWithChildren) {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!service.commandsEnabled) return;
       handleOperatorKeyDown(event, {
         onAssertDrivestop,
         onToggleDriveInput: focusedActions?.onToggleDriveInput,
@@ -107,7 +105,7 @@ export function OperatorInputCoordinator({ children }: PropsWithChildren) {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [focusedActions, onAssertDrivestop, service.commandsEnabled]);
+  }, [focusedActions, onAssertDrivestop]);
 
   const value = useMemo<OperatorInputState>(() => ({ gamepad }), [gamepad]);
 

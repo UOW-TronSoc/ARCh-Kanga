@@ -233,6 +233,7 @@ public:
       }
       const bool enabled = elapsed_s > 0.0 && valid_state &&
         drive_state_->actuation_enabled(now_ns);
+      publish_closed_loop();
       efforts = velocity_controller_->update(
         drive_state_->command(), measured_velocity, elapsed_s, enabled);
     }
@@ -304,6 +305,7 @@ private:
       [this](const std_msgs::msg::Bool::SharedPtr message) {
         std::lock_guard<std::mutex> lock(state_mutex_);
         drive_state_->set_drivestop(message->data);
+        publish_closed_loop();
         if (message->data) {
           velocity_controller_->reset();
         }
@@ -316,6 +318,7 @@ private:
         std::lock_guard<std::mutex> lock(state_mutex_);
         response->success = drive_state_->request_closed_loop(
           request->data, response->message);
+        publish_closed_loop();
         if (!request->data || !response->success) {
           velocity_controller_->reset();
         }
@@ -366,8 +369,30 @@ private:
     executor_options.context = ros_context_;
     executor_ = std::make_unique<rclcpp::executors::SingleThreadedExecutor>(
       executor_options);
+    auto mode_qos = rclcpp::QoS(rclcpp::KeepLast(1));
+    mode_qos.reliable().transient_local();
+    closed_loop_publisher_ = node_->create_publisher<std_msgs::msg::Bool>(
+      "~/closed_loop", mode_qos);
+    publish_closed_loop();
+
     executor_->add_node(node_);
     executor_thread_ = std::thread([this]() {executor_->spin();});
+  }
+
+  void publish_closed_loop()
+  {
+    if (!closed_loop_publisher_ || !drive_state_) {
+      return;
+    }
+    const bool closed_loop = drive_state_->mode() == SimDriveMode::kClosedLoop;
+    if (mode_published_ && closed_loop == last_closed_loop_) {
+      return;
+    }
+    mode_published_ = true;
+    last_closed_loop_ = closed_loop;
+    std_msgs::msg::Bool message;
+    message.data = closed_loop;
+    closed_loop_publisher_->publish(message);
   }
 
   void publish_joint_states(
@@ -486,6 +511,9 @@ private:
   rclcpp::Subscription<kanga_interfaces::msg::WheelVelocityCommand>::SharedPtr
     command_subscription_;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr drivestop_subscription_;
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr closed_loop_publisher_;
+  bool mode_published_{false};
+  bool last_closed_loop_{false};
   rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr set_closed_loop_service_;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr clear_errors_service_;
   std::vector<rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr>

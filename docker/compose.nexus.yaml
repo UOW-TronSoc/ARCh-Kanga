@@ -21,6 +21,8 @@ services:
       RMW_IMPLEMENTATION: ${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
       FASTRTPS_DEFAULT_PROFILES_FILE: /workspace/basestation/fastdds_profile.xml
       NEXUS_STATIC_DIR: /opt/nexus/static
+      NEXUS_REQUIRE_PIN: ${NEXUS_REQUIRE_PIN:-1}
+      NEXUS_SESSION_SECRET: ${NEXUS_SESSION_SECRET:-nexus-dev-session}
     command:
       [
         "python3",

@@ -124,9 +124,11 @@ Diagnostics navigation and LAN validation remain current work.
 
 Each payload or subsystem owns its ROS namespace. Core uses `/core`. Core nodes
 use relative topic and service names; launch files assign the `/core` namespace
-with `PushRosNamespace`. Parameter files continue to load by node name
-(`wheel_command_mapper`, `drive_manager`, …) and are unaffected by the namespace
-prefix.
+with `PushRosNamespace`. Core-owned parameter files select the fully qualified
+node (`/core/wheel_command_mapper`, `/core/wheel_actuator`, and the other Core
+adapters). Launch dictionaries still override those files. Vendor wildcard
+defaults, such as `custom_odrive` `/**`, stay unchanged. `drive_manager` has
+no parameter-file selector; its settings come from launch.
 
 | Interface | Contract |
 | --- | --- |

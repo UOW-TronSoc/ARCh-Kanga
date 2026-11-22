@@ -6,7 +6,7 @@
 # Physical geometry and joint-speed capability are injected from the selected
 # kanga_core_description drivetrain profile. Keep only controller behaviour here.
 
-wheel_command_mapper:
+/core/wheel_command_mapper:
   ros__parameters:
     # How often we publish wheel-joint commands (times per second).
     # Stream smooth wheel commands to the drive adapter at 50 Hz.

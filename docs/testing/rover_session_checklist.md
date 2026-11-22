@@ -1,8 +1,28 @@
-# Rover session checklist — `feat/core-controller`
+# Rover session checklist — `feat/core-ros-naming-contract`
 
-Work through top to bottom. Stop and fix before continuing if a step fails.
+Work through top to bottom on the rover. Stop and fix before continuing if a step fails. Physical checks below are still pending; simulation is the merge gate for the `/core` namespace and does not replace them.
 
-**Branch:** `feat/core-controller` (includes `kanga_core_drive` + `kanga_core_controller` + `kanga_core_bringup`)
+**Branch:** `feat/core-ros-naming-contract`
+
+**Simulation evidence (container, `KANGA_ENABLE_SIM` not `0`):**
+
+```bash
+./scripts/build_workspace.bash
+source install/setup.bash
+colcon test --packages-select kanga_sim --event-handlers console_direct+
+colcon test-result --verbose
+```
+
+Expect the headless simulation contract to pass: Core topics and services under `/core`, shared `/drivestop`, `/joint_states`, `/tf`, and `/clock` at the root, controller accelerations `0.35`, command timeout `0.5` s, and simulation save/calibration stubs. Record the commit hash with the result.
+
+Loaded controller settings while Core Simulation is running:
+
+```bash
+ros2 param get /core/wheel_command_mapper max_linear_acceleration_m_s2   # 0.35
+ros2 param get /core/wheel_command_mapper max_angular_acceleration_rad_s2 # 0.35
+```
+
+Hardware still required before calling the rover qualified: CAN/ESP32 measurements, real wheel direction and stopping, and real motor save/calibration. Encoder zero `1063` and scale about `651.8986469` are checked by the isolated parameter-loading test, not by simulation.
 
 **CAN policy:** bus and all wheel ODrive S1s run at **250000** bit/s (BMS requirement).
 
@@ -34,7 +54,7 @@ flag, or launch with `can_interface:=can0`.
 
 ```bash
 cd ~/kanga_wip   # or wherever the repo lives on the rover
-git branch --show-current    # expect: feat/core-controller
+git branch --show-current    # expect: feat/core-ros-naming-contract
 git status
 
 # Vendor (skip if src/vendor/custom_ros_odrive already exists)
@@ -304,15 +324,9 @@ ros2 service call /core/drive_manager/set_closed_loop std_srvs/srv/SetBool "{dat
 
 ---
 
-## Phase 8 — Battery (optional, separate branch)
+## Phase 8 — Battery (deferred)
 
-`feat/core-controller` only has a battery package stub. Merge first:
-
-```bash
-git fetch origin
-git merge origin/feat/battery-feedback
-# rebuild in container
-```
+Battery feedback is not part of the `/core` naming merge. Do not merge `feat/battery-feedback` into this branch. When a battery driver exists, expect Core-owned topics under `/core/battery/...`. Until then, leave the bus checks below for a later session.
 
 CAN must be at **250000**. With drive stack **idle** (not CLOSED_LOOP):
 

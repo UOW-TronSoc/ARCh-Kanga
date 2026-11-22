@@ -21,6 +21,7 @@ from rclpy.qos import (
     QoSProfile,
     ReliabilityPolicy,
 )
+from rcl_interfaces.srv import GetParameters
 from rosgraph_msgs.msg import Clock
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64
@@ -233,6 +234,39 @@ def run_checks(node: ContractCheck) -> None:
     for name, expected_type in EXPECTED_SERVICES.items():
         assert services.get(name) == [expected_type], (name, services.get(name))
 
+    legacy_names = {
+        "/cmd_vel",
+        "/wheel_joint_velocity_command",
+        "/wheel_joint_states",
+        "/suspension_joint_states",
+        "/diff_bar_angle",
+        "/drive_manager/set_closed_loop",
+        "/drive_manager/clear_errors",
+        "/drive_manager/save_fl",
+        "/drive_manager/calibrate_fl",
+    }
+    present = set(topics) | set(services)
+    assert not (legacy_names & present), sorted(legacy_names & present)
+
+    mapper = node.create_client(
+        GetParameters, "/core/wheel_command_mapper/get_parameters"
+    )
+    assert mapper.wait_for_service(timeout_sec=5.0)
+    request = GetParameters.Request()
+    request.names = [
+        "max_linear_acceleration_m_s2",
+        "max_angular_acceleration_rad_s2",
+    ]
+    future = mapper.call_async(request)
+    rclpy.spin_until_future_complete(node, future, timeout_sec=5.0)
+    values = future.result().values
+    assert values[0].double_value == 0.35
+    assert values[1].double_value == 0.35
+
+    nodes = node.get_node_names_and_namespaces()
+    assert nodes.count(("wheel_command_mapper", "/core")) == 1
+    assert nodes.count(("drive_manager", "/core")) == 1
+
     latest_wheel = node.wheel_messages[-1]
     assert latest_wheel.name == [
         "wheel_fl_joint",
@@ -346,7 +380,11 @@ def run_checks(node: ContractCheck) -> None:
             for value, expected_sign in zip(values, expected_signs)
         ), (values, expected_signs)
 
-    node.run_for_simulated_seconds(0.75)
+    # cmd_vel_timeout_s is 0.5. Hold the last command inside that window, then
+    # confirm the configured timeout returns the wheel command to zero.
+    node.run_for_simulated_seconds(0.25)
+    assert any(abs(value) > 1e-3 for value in command_values(node.wheel_commands[-1]))
+    node.run_for_simulated_seconds(0.40)
     assert all(abs(value) < 1e-6 for value in command_values(node.wheel_commands[-1]))
     idle_distance = math.hypot(
         node.odom_message.pose.pose.position.x - idle_start_x,

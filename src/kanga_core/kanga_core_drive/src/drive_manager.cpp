@@ -196,23 +196,24 @@ DriveManager::DriveManager(const rclcpp::NodeOptions & options)
   service_callback_group_ =
     this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
 
-  // One client group per wheel under /wheel_<id>/… (custom_odrive_node
-  // services). set_enabled is not a second operator stop here: commissioning
+  // One client group per wheel under /core/wheel_<id>/… (custom_odrive_node
+  // services). These names are relative, so PushRosNamespace("core") resolves
+  // them. set_enabled is not a second operator stop here: commissioning
   // uses it to park a node, and CLOSED_LOOP restores that local latch.
   for (const auto & wheel_id : wheel_ids_) {
     const std::string wheel_namespace = "wheel_" + wheel_id;
     WheelClients wheel_clients;
-    // /wheel_<id>/set_enabled — re-arm the node after commissioning parked it.
+    // /core/wheel_<id>/set_enabled — re-arm the node after commissioning parked it.
     wheel_clients.enabled_client =
       this->create_client<std_srvs::srv::SetBool>(
       wheel_namespace + "/set_enabled", rmw_qos_profile_services_default,
       service_callback_group_);
-    // /wheel_<id>/clear_errors — clear ODrive sticky faults before CLOSED_LOOP.
+    // /core/wheel_<id>/clear_errors — clear ODrive sticky faults before CLOSED_LOOP.
     wheel_clients.clear_errors_client =
       this->create_client<std_srvs::srv::Empty>(
       wheel_namespace + "/clear_errors", rmw_qos_profile_services_default,
       service_callback_group_);
-    // /wheel_<id>/request_axis_state — set IDLE (1) or CLOSED_LOOP (8).
+    // /core/wheel_<id>/request_axis_state — set IDLE (1) or CLOSED_LOOP (8).
     wheel_clients.axis_state_client =
       this->create_client<custom_odrive::srv::AxisState>(
       wheel_namespace + "/request_axis_state",

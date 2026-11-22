@@ -1,8 +1,11 @@
+import { useEffect } from 'react';
 import { Camera, Cpu, Map, Orbit, Rocket, TriangleAlert, Wifi, WifiOff } from 'lucide-react';
 import { NavLink, Outlet, useMatch } from 'react-router-dom';
+import { useAppDataService, useAppSnapshot } from '../../app/appDataContext';
 import { useConnectionState, useSafetyState } from '../../hooks';
 import { StatusChip } from '../../components/ui/StatusChip';
 import { DriveControlPanel } from '../../features/drive-control/DriveDock';
+import { drivestopPresentation } from '../../features/drive-control/drivestopPresentation';
 import { ControlFocusProvider } from '../../features/operator-input/ControlFocusProvider';
 import { OperatorInputCoordinator } from '../../features/operator-input/OperatorInputCoordinator';
 import { RoverPage } from '../../pages/RoverPage/RoverPage';
@@ -21,14 +24,21 @@ const navItems = [
 export function OperatorShell() {
   const connection = useConnectionState();
   const safety = useSafetyState();
+  const service = useAppDataService();
+  const holdingControl = useAppSnapshot().control?.role === 'holder';
   const connected = connection.phase === 'connected';
   const onRover = useMatch(ROVER_PATH) !== null;
+  useEffect(() => {
+    const live = service as { start?: () => void; stop?: () => void };
+    live.start?.();
+    return () => live.stop?.();
+  }, [service]);
 
   return (
     <ControlFocusProvider>
       <OperatorInputCoordinator>
         <div className={styles.shell}>
-          <header className={`${styles.topbar} ${safety.drivestop ? styles.drivestopActive : ''}`}>
+          <header className={`${styles.topbar} ${safety.drivestop ? styles.drivestopActive : ''} ${holdingControl ? styles.controlHeld : ''}`}>
             <div className={styles.brand}>
               <span className={styles.mark}><img src="https://framerusercontent.com/images/E6L6SZoGo2lOuwrHJT8fDQdAE.png?scale-down-to=512&amp;width=2160&amp;height=2160" alt="TronSoc" /></span>
               <span><strong>KANGA</strong><small>BASESTATION</small></span>
@@ -38,6 +48,10 @@ export function OperatorShell() {
               <StatusChip tone={connected ? 'success' : 'danger'} pulse={connected}>
                 {connected ? <Wifi size={13} /> : <WifiOff size={13} />}{connection.phase.toUpperCase()}
               </StatusChip>
+              <StatusChip tone={drivestopPresentation(safety.drivestop, safety.whsOnline) === 'Asserted' ? 'danger' : 'warning'}>
+                {drivestopPresentation(safety.drivestop, safety.whsOnline)}
+              </StatusChip>
+              {holdingControl && <StatusChip tone="info">IN CONTROL</StatusChip>}
               {safety.faults.length > 0 && <StatusChip tone="danger"><TriangleAlert size={13} />{safety.faults.length} FAULT</StatusChip>}
             </div>
             <div className={styles.team}>UOW <b>TRONSOC</b></div>

@@ -9,8 +9,9 @@ export function createWaitingLiveSnapshot(): AppSnapshot {
       lastUpdate: null,
       stale: false,
     },
-    safety: { drivestop: null, whsOnline: false, closedLoop: false, faults: [] },
+    safety: { drivestop: null, whsOnline: false, closedLoop: null, faults: [] },
     drive: { speedLimitPercent: 0, inputArmed: false },
+    control: { role: 'observer', notice: null, error: null },
     rover: {
       sequence: 0,
       serverTimestamp: '',

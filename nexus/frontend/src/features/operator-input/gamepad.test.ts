@@ -42,10 +42,12 @@ describe('gamepad discovery helpers', () => {
     expect(result.gamepad?.index).toBe(1);
   });
 
-  it('falls back to the lowest connected pad after disconnect', () => {
+  it('reports a lost tracked pad without adopting another controller', () => {
     const pads: (Gamepad | null)[] = [mockGamepad(0, []), null];
     const result = resolveTrackedGamepad(pads, 1);
-    expect(result.index).toBe(0);
+    expect(result.lost).toBe(true);
+    expect(result.gamepad).toBeNull();
+    expect(resolveTrackedGamepad(pads, null).index).toBe(0);
   });
 
   it('recognizes Logitech Extreme 3D controllers', () => {

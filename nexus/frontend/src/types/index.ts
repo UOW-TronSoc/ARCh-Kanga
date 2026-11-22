@@ -50,7 +50,7 @@ export interface Fault {
 export interface SafetyState {
   drivestop: boolean | null;
   whsOnline: boolean;
-  closedLoop: boolean;
+  closedLoop: boolean | null;
   faults: Fault[];
 }
 
@@ -67,11 +67,18 @@ export interface DriveControlState {
   inputArmed: boolean;
 }
 
+export interface ControlView {
+  role: 'observer' | 'holder';
+  notice: string | null;
+  error: string | null;
+}
+
 export interface AppSnapshot {
   rover: RoverSnapshot;
   safety: SafetyState;
   connection: ConnectionState;
   drive: DriveControlState;
+  control?: ControlView | null;
 }
 
 export type { ControlTarget } from './controlFocus';

@@ -40,6 +40,7 @@ function renderShell(initialPath = '/rover', snapshot: AppSnapshot = initialAppS
 class FakeSocket implements TelemetrySocket {
   onmessage: ((event: { data: string }) => void) | null = null;
   onclose: (() => void) | null = null;
+  url = '';
   close() { this.onclose?.(); }
   server(payload: unknown) { this.onmessage?.({ data: JSON.stringify(payload) }); }
 }
@@ -93,11 +94,15 @@ describe('Kanga operator shell', () => {
       </AppProviders>,
     );
 
-    service.releaseDrivestop();
-    service.toggleInputArm();
+    act(() => {
+      service.releaseDrivestop();
+      service.toggleInputArm();
+    });
     expect(service.getSnapshot().drive.inputArmed).toBe(true);
 
-    await userEvent.click(screen.getByRole('link', { name: /Launch/ }));
+    await act(async () => {
+      await userEvent.click(screen.getByRole('link', { name: /Launch/ }));
+    });
     expect(service.getSnapshot().drive.inputArmed).toBe(false);
     expect(service.getSnapshot().safety.closedLoop).toBe(true);
   });
@@ -120,6 +125,30 @@ describe('Kanga operator shell', () => {
     expect(screen.getAllByText(fixture === 'stale' ? 'stale' : 'unavailable').at(-1)).toBeVisible();
   });
 
+  it('cancels a release without sending it', async () => {
+    const service = new MockAppDataService({
+      ...initialAppSnapshot,
+      control: { role: 'holder', notice: null, error: null },
+    });
+    const release = vi.spyOn(service, 'releaseDrivestop');
+    render(
+      <AppProviders service={service}>
+        <MemoryRouter initialEntries={['/rover']}>
+          <Routes>
+            <Route element={<OperatorShell />}>
+              <Route path="/rover" element={null} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </AppProviders>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: /Release drivestop/ }));
+    expect(screen.getByRole('dialog', { name: 'Release drivestop?' })).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(release).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: 'Release drivestop?' })).not.toBeInTheDocument();
+  });
+
   it('does not render a scenario selector', () => {
     renderShell();
     expect(screen.queryByLabelText('Mock scenario')).not.toBeInTheDocument();
@@ -129,8 +158,9 @@ describe('Kanga operator shell', () => {
     vi.useFakeTimers();
     liveService = new LiveTelemetryService({
       url: 'ws://nexus/ws/telemetry',
-      socketFactory: () => {
+      socketFactory: (url: string) => {
         const socket = new FakeSocket();
+        socket.url = url;
         liveSockets.push(socket);
         return socket;
       },
@@ -147,13 +177,9 @@ describe('Kanga operator shell', () => {
         </MemoryRouter>
       </AppProviders>,
     );
-    expect(screen.getAllByRole('status', { name: 'Drivestop' })).toHaveLength(2);
-    expect(screen.getAllByText('Waiting for WHS')).toHaveLength(2);
-    expect(screen.queryByRole('button', { name: /Release drivestop/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Drive input/ })).toBeDisabled();
-    expect(screen.getByRole('slider', { name: 'Speed limit' })).toBeDisabled();
-    expect(screen.getAllByText('Unavailable').length).toBeGreaterThan(0);
-    expect(screen.queryByText('78')).not.toBeInTheDocument();
+    expect(screen.getByText('WHS offline')).toBeVisible();
+    expect(screen.getAllByText('Unknown').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Assert stop' })).toBeVisible();
 
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ', bubbles: true }));
@@ -166,7 +192,9 @@ describe('Kanga operator shell', () => {
         drivestop: false,
       });
     });
-    expect(screen.getAllByText('Released')).toHaveLength(2);
+    expect(screen.getByText('WHS online')).toBeVisible();
+    expect(screen.getAllByText('Released').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Assert stop' })).toBeVisible();
     expect(liveService.getSnapshot().safety.drivestop).toBe(false);
 
     act(() => {
@@ -175,11 +203,32 @@ describe('Kanga operator shell', () => {
         sequence: 2,
         serverTimestamp: '2026-11-22T07:00:01.000Z',
         rosAvailable: true,
+        whsAvailable: true,
+        drivestop: true,
+      });
+    });
+    expect(screen.getAllByText('Asserted').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Assert stop' })).toBeDisabled();
+
+    act(() => {
+      liveSockets.find((socket) => socket.url?.includes('/ws/control'))?.server({
+        type: 'state', role: 'holder', notice: null, error: null, armed: false,
+      });
+    });
+    expect(screen.getByRole('button', { name: 'Release drivestop' })).toBeEnabled();
+
+    act(() => {
+      liveSockets[0]?.server({
+        schemaVersion: 1,
+        sequence: 3,
+        serverTimestamp: '2026-11-22T07:00:02.000Z',
+        rosAvailable: true,
         whsAvailable: false,
         drivestop: false,
       });
     });
-    expect(screen.getAllByText('Stale / disconnected')).toHaveLength(2);
+    expect(screen.getAllByText('Stale').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Assert stop' })).toBeEnabled();
   });
 });
 

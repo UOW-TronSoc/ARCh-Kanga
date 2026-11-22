@@ -129,6 +129,84 @@ describe('OperatorInputCoordinator', () => {
     expect(toggleSpy).not.toHaveBeenCalled();
   });
 
+  it('sends a neutral frame when W is released from the speed slider', () => {
+    vi.useFakeTimers();
+    const service = new MockAppDataService({
+      ...buildOperableSnapshot(),
+      control: { role: 'holder', notice: null, error: null },
+      drive: { speedLimitPercent: 90, inputArmed: true },
+    });
+    renderCoordinator(service);
+    const slider = document.createElement('input');
+    document.body.append(slider);
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w', bubbles: true }));
+      vi.advanceTimersByTime(50);
+    });
+    expect(service.driveFrames.at(-1)?.x).toBe(1);
+
+    act(() => {
+      slider.dispatchEvent(new KeyboardEvent('keyup', { key: 'w', bubbles: true }));
+      vi.advanceTimersByTime(50);
+    });
+    expect(service.driveFrames.at(-1)).toMatchObject({ x: 0, yaw: 0 });
+    slider.remove();
+    vi.useRealTimers();
+  });
+
+  it('disarms on tracked-pad loss and requires a fresh arm before the replacement drives', () => {
+    vi.useFakeTimers();
+    const service = new MockAppDataService({
+      ...buildOperableSnapshot(),
+      control: { role: 'holder', notice: null, error: null },
+      drive: { speedLimitPercent: 90, inputArmed: true },
+    });
+    const replacement = mockGamepad(1, [false, false]);
+    Object.assign(replacement, { axes: [0, -1, 0, 0] });
+    const pads: (Gamepad | null)[] = [mockGamepad(0, [false, false]), replacement];
+    vi.stubGlobal('navigator', { getGamepads: () => pads });
+    renderCoordinator(service);
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+    act(() => {
+      pads[0] = null;
+      window.dispatchEvent(new Event('focus'));
+    });
+    expect(service.getSnapshot().drive.inputArmed).toBe(false);
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+      vi.advanceTimersByTime(50);
+    });
+    expect(service.getSnapshot().drive.inputArmed).toBe(false);
+    expect(service.driveFrames).toEqual([]);
+    vi.useRealTimers();
+  });
+
+  it('ignores disconnect of a pad that is not the tracked controller', () => {
+    const service = new MockAppDataService({
+      ...buildOperableSnapshot(),
+      control: { role: 'holder', notice: null, error: null },
+      drive: { speedLimitPercent: 90, inputArmed: true },
+    });
+    const pads: (Gamepad | null)[] = [mockGamepad(0, [false, false]), mockGamepad(1, [false, false])];
+    vi.stubGlobal('navigator', { getGamepads: () => pads });
+    const disarm = vi.spyOn(service, 'disarmDriveInput');
+    renderCoordinator(service);
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+    disarm.mockClear();
+    act(() => {
+      window.dispatchEvent(new MockGamepadEvent('gamepaddisconnected', { gamepad: pads[1]! }));
+    });
+    expect(disarm).not.toHaveBeenCalled();
+    expect(service.getSnapshot().drive.inputArmed).toBe(true);
+  });
+
   it('allows Enter on drivetrain focus and Space globally from inactive focus', () => {
     const service = new MockAppDataService(buildOperableSnapshot());
     const toggleSpy = vi.spyOn(service, 'toggleInputArm');

@@ -46,6 +46,22 @@ export function TelemetryRail() {
             <colgroup><col className={styles.wheelColumn} /><col className={styles.rpmColumn} /><col className={styles.rpmColumn} /><col className={styles.tempColumn} /></colgroup>
             <thead><tr><th scope="col">Wheel</th><th scope="col">Motor<small>RPM</small></th><th scope="col">Wheel<small>RPM</small></th><th scope="col">Temp<small>°C</small></th></tr></thead>
             <tbody>
+          {rover.motors.length === 0 && rover.wheels.length === 0 && (
+            <tr>
+              <th scope="row">Wheels</th>
+              <td>—</td>
+              <td>unavailable</td>
+              <td>—</td>
+            </tr>
+          )}
+          {rover.motors.length === 0 && rover.wheels.map((wheel) => (
+            <tr key={wheel.name}>
+              <th scope="row">{wheel.name}</th>
+              <td>—</td>
+              <td>{format(wheel.velocity == null ? null : wheel.velocity * 60 / (2 * Math.PI), 1)}{wheel.freshness === 'fresh' ? '' : ` ${wheel.freshness}`}</td>
+              <td>—</td>
+            </tr>
+          ))}
           {rover.motors.map((motor) => {
             const wheel = rover.wheels.find((joint) => joint.name === motor.wheelJointName);
             // Wheel JointState velocity is rad/s; motor velocity is already RPM.

@@ -33,13 +33,14 @@ export function selectLowestConnectedGamepad(gamepads: (Gamepad | null)[]): Game
 export function resolveTrackedGamepad(
   gamepads: (Gamepad | null)[],
   trackedIndex: number | null,
-): { gamepad: Gamepad | null; index: number | null } {
+): { gamepad: Gamepad | null; index: number | null; lost: boolean } {
   if (trackedIndex !== null) {
     const current = gamepads[trackedIndex];
-    if (current?.connected) return { gamepad: current, index: trackedIndex };
+    if (current?.connected) return { gamepad: current, index: trackedIndex, lost: false };
+    return { gamepad: null, index: null, lost: true };
   }
   const fallback = selectLowestConnectedGamepad(gamepads);
-  return { gamepad: fallback, index: fallback?.index ?? null };
+  return { gamepad: fallback, index: fallback?.index ?? null, lost: false };
 }
 
 export function toDetectedGamepad(gamepad: Gamepad): DetectedGamepad {

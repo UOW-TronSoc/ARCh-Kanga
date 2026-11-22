@@ -3,7 +3,6 @@ import type { AppDataService, AppSnapshotListener } from '../contracts/AppDataSe
 import type { AppSnapshot } from '../../types';
 
 export class MockAppDataService implements AppDataService {
-  readonly commandsEnabled = true;
   private snapshot: AppSnapshot;
   private readonly listeners = new Set<AppSnapshotListener>();
 
@@ -28,6 +27,8 @@ export class MockAppDataService implements AppDataService {
   releaseDrivestop = () => {
     this.update({ safety: { ...this.snapshot.safety, drivestop: false } });
   };
+
+  takeControl = () => undefined;
 
   toggleClosedLoop = () => {
     if (!this.snapshot.safety.whsOnline || this.snapshot.safety.drivestop) return;
@@ -64,6 +65,21 @@ export class MockAppDataService implements AppDataService {
 
   setSpeedLimit = (speedLimitPercent: number) => {
     this.update({ drive: { ...this.snapshot.drive, speedLimitPercent } });
+  };
+
+  driveFrames: { x: number; yaw: number; scale: number }[] = [];
+
+  sendDrive = (frame: { x: number; yaw: number; scale: number }) => {
+    this.driveFrames.push(frame);
+  };
+
+  clearErrors = () => {
+    this.update({
+      safety: { ...this.snapshot.safety, faults: [] },
+      control: this.snapshot.control
+        ? { ...this.snapshot.control, notice: 'Errors cleared', error: null }
+        : this.snapshot.control,
+    });
   };
 
   private inputEnableBlocked(): boolean {

@@ -17,7 +17,6 @@ source /opt/ros/humble/setup.bash
 if [[ -f /workspace/install/setup.bash ]]; then
   source /workspace/install/setup.bash
 fi
-set -u
 EOF
 if ! grep -q '/etc/profile.d/nexus-ros.sh' /etc/bash.bashrc 2>/dev/null; then
   printf '\n%s\n' 'source /etc/profile.d/nexus-ros.sh' >> /etc/bash.bashrc

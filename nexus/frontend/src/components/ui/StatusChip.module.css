@@ -1,0 +1,10 @@
+.chip { display: inline-flex; align-items: center; gap: 0.45rem; min-height: 1.75rem; padding: 0.3rem 0.6rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-pill); color: var(--text-secondary); background: rgb(255 255 255 / 0.025); font-size: 0.72rem; font-weight: 650; white-space: nowrap; }
+.dot { width: 0.42rem; height: 0.42rem; border-radius: 50%; background: currentColor; }
+.neutral { color: var(--text-muted); }
+.info { color: var(--info); }
+.success { color: var(--success); }
+.warning { color: var(--warning); }
+.danger { color: var(--danger-bright); border-color: rgb(255 73 83 / 0.25); background: rgb(255 73 83 / 0.06); }
+.pulse { animation: pulse 1.8s infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 5px transparent; } 0%, 100% { box-shadow: 0 0 0 0 currentColor; } }
+@media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }

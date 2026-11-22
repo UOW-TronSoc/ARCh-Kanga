@@ -1,0 +1,5 @@
+.metric { display: flex; flex-direction: column; gap: 0.24rem; min-width: 0; }
+.metric > span { color: var(--text-muted); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08em; }
+.metric strong { font-family: var(--font-mono); font-size: 1.02rem; font-weight: 560; color: var(--text-primary); white-space: nowrap; }
+.metric small { margin-left: 0.25rem; color: var(--text-muted); font-size: 0.62rem; font-weight: 500; }
+.emphasis strong { color: var(--accent); font-size: 1.4rem; }

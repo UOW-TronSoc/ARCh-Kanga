@@ -1,0 +1,4 @@
+body { overflow: hidden; }
+#root { height: 100dvh; }
+@media (max-width: 1050px) { body { overflow: auto; } #root { height: auto; min-height: 100dvh; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; } }

@@ -1,0 +1,9 @@
+.panel {
+  background: linear-gradient(145deg, rgb(24 27 31 / .9), rgb(13 15 18 / .9));
+  border: 1px solid rgb(255 255 255 / .12);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 14px 34px rgb(0 0 0 / .34);
+  backdrop-filter: blur(16px);
+}
+.header { min-height: 3.2rem; padding: 0 1rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); }
+.header h2 { margin: 0; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-muted); }

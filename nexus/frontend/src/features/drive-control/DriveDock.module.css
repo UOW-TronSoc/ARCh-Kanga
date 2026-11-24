@@ -13,4 +13,4 @@
 .cancel { color: var(--text-secondary) !important; background: transparent !important; border-color: rgb(255 255 255 / .14) !important; }
 .release { color: #fff !important; background: rgb(237 10 0 / .88) !important; }
 .take { color: #fff !important; background: rgb(0 51 255 / .85) !important; }
-@media (max-width: 900px) { .card { right: .6rem; bottom: 4.8rem; } }
+@media (max-width: 900px) { .card { right: .6rem; bottom: 1rem; } }

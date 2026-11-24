@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
-import { Camera, Cpu, Map, Orbit, Rocket } from 'lucide-react';
-import { NavLink, Outlet, useMatch } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Camera, Cpu, Map, Menu, Orbit, Rocket } from 'lucide-react';
+import { NavLink, Outlet, useLocation, useMatch } from 'react-router-dom';
 import { useAppDataService, useAppSnapshot } from '../../app/appDataContext';
 import { useSafetyState } from '../../hooks';
 import { DriveControlPanel } from '../../features/drive-control/DriveDock';
@@ -24,6 +24,12 @@ export function OperatorShell() {
   const service = useAppDataService();
   const holdingControl = useAppSnapshot().control?.role === 'holder';
   const onRover = useMatch(ROVER_PATH) !== null;
+  const { pathname } = useLocation();
+  const pageName = navItems.find((item) => item.to === pathname)?.label ?? 'Rover';
+  const [navOpen, setNavOpen] = useState(false);
+  useEffect(() => {
+    setNavOpen(false);
+  }, [pathname]);
   useEffect(() => {
     const live = service as { start?: () => void; stop?: () => void };
     live.start?.();
@@ -35,20 +41,29 @@ export function OperatorShell() {
       <OperatorInputCoordinator>
         <div className={styles.shell}>
           <header className={`${styles.topbar} ${safety.drivestop ? styles.drivestopActive : ''} ${holdingControl ? styles.controlHeld : ''}`}>
-            <div className={styles.brand}>
-              <span className={styles.mark}><img src="https://framerusercontent.com/images/E6L6SZoGo2lOuwrHJT8fDQdAE.png?scale-down-to=512&amp;width=2160&amp;height=2160" alt="TronSoc" /></span>
-              <span><strong>KANGA</strong><small>BASESTATION</small></span>
+            <div className={styles.leading}>
+              <button type="button" className={styles.menuButton} aria-expanded={navOpen} aria-label="Show navigation" onClick={() => setNavOpen((open) => !open)}>
+                <Menu size={22} strokeWidth={1.8} />
+              </button>
+              <span className={styles.pageName}>{pageName}</span>
+              <div className={styles.brand}>
+                <span className={styles.mark}><img src="https://framerusercontent.com/images/E6L6SZoGo2lOuwrHJT8fDQdAE.png?scale-down-to=512&amp;width=2160&amp;height=2160" alt="TronSoc" /></span>
+                <span><strong>KANGA</strong><small>BASESTATION</small></span>
+              </div>
             </div>
             <div className={styles.team}>UOW <b>TRONSOC</b></div>
           </header>
 
-          <nav className={styles.nav} aria-label="Primary navigation">
-            {navItems.map(({ to, label, icon: Icon }) => (
-              <NavLink key={to} to={to} className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`}>
-                <Icon size={20} strokeWidth={1.8} /><span>{label}</span>
-              </NavLink>
-            ))}
-          </nav>
+          {navOpen && <button type="button" className={styles.backdrop} aria-label="Hide navigation" onClick={() => setNavOpen(false)} />}
+          {navOpen && (
+            <nav className={styles.nav} aria-label="Primary navigation">
+              {navItems.map(({ to, label, icon: Icon }) => (
+                <NavLink key={to} to={to} className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`} onClick={() => setNavOpen(false)}>
+                  <Icon size={20} strokeWidth={1.8} /><span>{label}</span>
+                </NavLink>
+              ))}
+            </nav>
+          )}
 
           {onRover && <DriveControlPanel />}
           <main className={styles.content}>

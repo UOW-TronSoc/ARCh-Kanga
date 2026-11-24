@@ -15,6 +15,10 @@ import {
 } from './snapshotBuilders';
 import type { AppSnapshot } from '../types';
 
+async function openNavigation() {
+  await userEvent.click(screen.getByRole('button', { name: 'Show navigation' }));
+}
+
 function renderShell(initialPath = '/rover', snapshot: AppSnapshot = initialAppSnapshot) {
   const service = new MockAppDataService(snapshot);
   return {
@@ -62,13 +66,16 @@ describe('Kanga operator shell', () => {
     renderShell();
     expect(screen.getByText('Detected gamepad')).toBeVisible();
     expect(screen.getByRole('button', { name: /Release drivestop/ })).toBeVisible();
-    expect(screen.getByRole('navigation', { name: 'Primary navigation' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Show navigation' })).toBeVisible();
+    expect(screen.queryByRole('navigation', { name: 'Primary navigation' })).not.toBeInTheDocument();
+    expect(screen.getByText('Rover')).toBeVisible();
     expect(screen.getByRole('region', { name: 'Main view: Rover model' })).toBeVisible();
     expect(screen.getByRole('slider', { name: 'Speed limit' })).toHaveValue('42');
   });
 
   it('hides the drive panel outside Rover while keeping drivestop shortcuts global', async () => {
     const { service } = renderShell();
+    await openNavigation();
     await userEvent.click(screen.getByRole('link', { name: /Launch/ }));
     expect(screen.queryByText('Detected gamepad')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Launch manager' })).toBeVisible();
@@ -101,6 +108,7 @@ describe('Kanga operator shell', () => {
     expect(service.getSnapshot().drive.inputArmed).toBe(true);
 
     await act(async () => {
+      await openNavigation();
       await userEvent.click(screen.getByRole('link', { name: /Launch/ }));
     });
     expect(service.getSnapshot().drive.inputArmed).toBe(false);
@@ -264,9 +272,11 @@ describe('Rover view panels', () => {
   it('keeps the rover renderer mounted while another page is shown', async () => {
     renderShell();
     const renderer = screen.getByTestId('mock-rover-renderer');
+    await openNavigation();
     await userEvent.click(screen.getByRole('link', { name: /Launch/ }));
     expect(renderer).toBeInTheDocument();
     expect(renderer).not.toBeVisible();
+    await openNavigation();
     await userEvent.click(screen.getByRole('link', { name: 'Rover' }));
     expect(screen.getByTestId('mock-rover-renderer')).toBe(renderer);
     expect(renderer).toBeVisible();
@@ -275,7 +285,9 @@ describe('Rover view panels', () => {
   it('keeps the layout when navigating away and back', async () => {
     renderShell();
     await userEvent.click(screen.getByRole('button', { name: 'Show Rear navigation in main view' }));
+    await openNavigation();
     await userEvent.click(screen.getByRole('link', { name: /Launch/ }));
+    await openNavigation();
     await userEvent.click(screen.getByRole('link', { name: 'Rover' }));
     expect(screen.getByRole('region', { name: 'Main view: Rear navigation' })).toBeVisible();
     expect(screen.getByRole('region', { name: 'Inset 2: Rover model' })).toBeVisible();

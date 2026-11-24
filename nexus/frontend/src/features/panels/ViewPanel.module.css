@@ -5,7 +5,7 @@
 
 .header { position: relative; z-index: 4; flex: none; height: 2rem; padding: 0 .3rem 0 .6rem; display: flex; align-items: center; gap: .4rem; color: var(--text-secondary); background: rgb(22 24 28 / .94); border-bottom: 1px solid rgb(255 255 255 / .08); font-size: .54rem; }
 .header > svg { flex: none; color: var(--accent); }
-.main .header { position: absolute; top: 1rem; left: 1rem; height: 2.6rem; padding: 0 .3rem 0 .7rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: rgb(9 12 14 / .8); backdrop-filter: blur(10px); }
+.main .header { position: absolute; top: 3.35rem; left: 1rem; height: 2.6rem; padding: 0 .3rem 0 .7rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: rgb(9 12 14 / .8); backdrop-filter: blur(10px); }
 
 .picker { min-width: 0; flex: 0 1 auto; max-width: 14rem; height: 1.6rem; padding: 0 .2rem; border: 0; border-radius: var(--radius-sm); outline: 0; color: var(--text-primary); background: transparent; font: inherit; letter-spacing: .07em; text-transform: uppercase; text-overflow: ellipsis; cursor: pointer; }
 .picker:hover { background: var(--surface-hover); }

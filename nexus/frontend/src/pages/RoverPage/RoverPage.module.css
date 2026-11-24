@@ -1,12 +1,12 @@
 .page { height: 100%; min-height: 40rem; padding: .7rem; }
 .workspace { position: relative; height: 100%; min-height: 39rem; overflow: hidden; border-radius: var(--radius-xl); }
-.views { position: absolute; inset: 0; padding: 4.6rem 1rem 1rem; display: flex; flex-direction: column; align-items: flex-start; gap: .55rem; }
+.views { position: absolute; inset: 0; padding: 7rem 1rem 1rem; display: flex; flex-direction: column; align-items: flex-start; gap: .55rem; }
 .views > .mainView { position: absolute; z-index: 1; inset: 0; width: auto; height: auto; }
 .views > .insetView { position: relative; z-index: 5; flex: none; width: 20vw; min-width: 9rem; max-width: calc(100vw - 7rem); resize: horizontal; }
 .views > .insetView > div:last-child { flex: none; aspect-ratio: 16 / 9; }
 .views > .insetView::after { content: ''; position: absolute; z-index: 7; right: .15rem; bottom: .15rem; width: .65rem; height: .65rem; border-right: 2px solid var(--accent-blue); border-bottom: 2px solid var(--accent-blue); pointer-events: none; }
-.title { position: absolute; z-index: 7; top: 1.15rem; right: 1.1rem; display: flex; align-items: baseline; gap: .65rem; pointer-events: none; }.title span { color: var(--text-muted); font-family: var(--font-mono); font-size: .5rem; letter-spacing: .12em; }.title h1 { margin: 0; color: #fff; font-size: .92rem; font-weight: 650; }
-.telemetry { position: fixed; z-index: 6; top: 8.25rem; right: 1rem; bottom: 22rem; width: var(--drive-card-width); }
+.title { position: absolute; z-index: 7; top: 3.15rem; right: 1.1rem; display: flex; align-items: baseline; gap: .65rem; pointer-events: none; }.title span { color: var(--text-muted); font-family: var(--font-mono); font-size: .5rem; letter-spacing: .12em; }.title h1 { margin: 0; color: #fff; font-size: .92rem; font-weight: 650; }
+.telemetry { position: fixed; z-index: 6; top: 5.55rem; right: 1rem; bottom: 22rem; width: var(--drive-card-width); }
 .telemetry > aside { height: 100%; }
 @media (max-width: 900px) { .page { height: auto; min-height: 70rem; }.workspace { min-height: 69rem; display: flex; flex-direction: column; gap: .7rem; overflow: visible; }.views { position: relative; min-height: 32rem; }.telemetry { position: relative; inset: auto; width: var(--drive-card-width); margin-left: auto; }.telemetry > aside { height: auto; overflow: visible; } }
 @media (max-width: 650px) { .telemetry > aside { grid-template-columns: 1fr; }.views > .insetView { min-width: 8rem; } }

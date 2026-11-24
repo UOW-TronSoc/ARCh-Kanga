@@ -1,11 +1,9 @@
 import { useEffect } from 'react';
-import { Camera, Cpu, Map, Orbit, Rocket, TriangleAlert, Wifi, WifiOff } from 'lucide-react';
+import { Camera, Cpu, Map, Orbit, Rocket } from 'lucide-react';
 import { NavLink, Outlet, useMatch } from 'react-router-dom';
 import { useAppDataService, useAppSnapshot } from '../../app/appDataContext';
-import { useConnectionState, useSafetyState } from '../../hooks';
-import { StatusChip } from '../../components/ui/StatusChip';
+import { useSafetyState } from '../../hooks';
 import { DriveControlPanel } from '../../features/drive-control/DriveDock';
-import { drivestopPresentation } from '../../features/drive-control/drivestopPresentation';
 import { ControlFocusProvider } from '../../features/operator-input/ControlFocusProvider';
 import { OperatorInputCoordinator } from '../../features/operator-input/OperatorInputCoordinator';
 import { RoverPage } from '../../pages/RoverPage/RoverPage';
@@ -22,11 +20,9 @@ const navItems = [
 ];
 
 export function OperatorShell() {
-  const connection = useConnectionState();
   const safety = useSafetyState();
   const service = useAppDataService();
   const holdingControl = useAppSnapshot().control?.role === 'holder';
-  const connected = connection.phase === 'connected';
   const onRover = useMatch(ROVER_PATH) !== null;
   useEffect(() => {
     const live = service as { start?: () => void; stop?: () => void };
@@ -42,17 +38,6 @@ export function OperatorShell() {
             <div className={styles.brand}>
               <span className={styles.mark}><img src="https://framerusercontent.com/images/E6L6SZoGo2lOuwrHJT8fDQdAE.png?scale-down-to=512&amp;width=2160&amp;height=2160" alt="TronSoc" /></span>
               <span><strong>KANGA</strong><small>BASESTATION</small></span>
-            </div>
-            <div className={styles.status} aria-label="System status">
-              <StatusChip tone="warning">{connection.backendMode.toUpperCase()} MODE</StatusChip>
-              <StatusChip tone={connected ? 'success' : 'danger'} pulse={connected}>
-                {connected ? <Wifi size={13} /> : <WifiOff size={13} />}{connection.phase.toUpperCase()}
-              </StatusChip>
-              <StatusChip tone={drivestopPresentation(safety.drivestop, safety.whsOnline) === 'Asserted' ? 'danger' : 'warning'}>
-                {drivestopPresentation(safety.drivestop, safety.whsOnline)}
-              </StatusChip>
-              {holdingControl && <StatusChip tone="info">IN CONTROL</StatusChip>}
-              {safety.faults.length > 0 && <StatusChip tone="danger"><TriangleAlert size={13} />{safety.faults.length} FAULT</StatusChip>}
             </div>
             <div className={styles.team}>UOW <b>TRONSOC</b></div>
           </header>

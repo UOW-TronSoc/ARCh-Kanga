@@ -154,7 +154,7 @@ describe('Kanga operator shell', () => {
     expect(screen.queryByLabelText('Mock scenario')).not.toBeInTheDocument();
   });
 
-  it('shows the same read-only drivestop state on the top bar and drive panel', () => {
+  it('shows the read-only drivestop state on the drive panel', () => {
     vi.useFakeTimers();
     liveService = new LiveTelemetryService({
       url: 'ws://nexus/ws/telemetry',
@@ -178,8 +178,7 @@ describe('Kanga operator shell', () => {
       </AppProviders>,
     );
     expect(screen.getByText('WHS offline')).toBeVisible();
-    expect(screen.getAllByText('Unknown').length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: 'Assert stop' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Assert stop' })).toHaveTextContent('Unknown');
 
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ', bubbles: true }));
@@ -193,8 +192,7 @@ describe('Kanga operator shell', () => {
       });
     });
     expect(screen.getByText('WHS online')).toBeVisible();
-    expect(screen.getAllByText('Released').length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: 'Assert stop' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Assert stop' })).toHaveTextContent('Released');
     expect(liveService.getSnapshot().safety.drivestop).toBe(false);
 
     act(() => {
@@ -207,7 +205,7 @@ describe('Kanga operator shell', () => {
         drivestop: true,
       });
     });
-    expect(screen.getAllByText('Asserted').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Assert stop' })).toHaveTextContent('Asserted');
     expect(screen.getByRole('button', { name: 'Assert stop' })).toBeDisabled();
 
     act(() => {
@@ -227,7 +225,7 @@ describe('Kanga operator shell', () => {
         drivestop: false,
       });
     });
-    expect(screen.getAllByText('Stale').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Assert stop' })).toHaveTextContent('Stale');
     expect(screen.getByRole('button', { name: 'Assert stop' })).toBeEnabled();
   });
 });

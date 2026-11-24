@@ -2,7 +2,8 @@
 .topbar { position: absolute; z-index: 20; top: 0; right: 0; left: 0; height: 3.75rem; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 1rem; padding: 0 1rem; background: transparent; pointer-events: none; }
 .topbar.controlHeld::before,
 .topbar.drivestopActive::after { content: ''; position: absolute; top: 0; right: 0; left: 0; pointer-events: none; }
-.topbar.controlHeld::before { height: 4.15rem; background: linear-gradient(180deg, rgb(0 64 255 / .95) 0%, rgb(0 40 190 / .82) 58%, transparent 100%); }
+.topbar.controlHeld::before { height: 3.15rem; background: linear-gradient(180deg, rgb(0 64 255 / .95) 0%, rgb(0 40 190 / .82) 55%, transparent 100%); }
+.topbar.controlHeld.drivestopActive::before { height: 4.15rem; background: linear-gradient(180deg, rgb(0 64 255 / .95) 0%, rgb(0 40 190 / .82) 58%, transparent 100%); }
 .topbar.drivestopActive::after { z-index: 1; height: 3.15rem; background: linear-gradient(180deg, rgb(190 16 22 / .96) 0%, rgb(130 12 16 / .78) 55%, transparent 100%); }
 .topbar.controlHeld > *,
 .topbar.drivestopActive > * { position: relative; z-index: 2; }

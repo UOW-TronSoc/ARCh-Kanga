@@ -1,5 +1,8 @@
 # Software architecture
 
+The [AGH SLAM review and Kanga implementation plan](agh_slam_review_and_kanga_plan.md)
+proposes autonomy integration for the Orin Nano, dual D455 cameras, and Unitree L2.
+
 ## Goals
 
 The source tree groups related ROS packages by rover domain while allowing the
